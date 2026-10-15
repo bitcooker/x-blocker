@@ -1,0 +1,69 @@
+{
+  "manifest_version": 3,
+  "name": "X Blocker",
+  "short_name": "X Blocker",
+  "version": "0.1.0",
+  "description": "Mass-block accounts on x.com: collect users from any list you browse or import handles, then block them in a rate-limited queue.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "x-blocker@local.dev",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "permissions": [
+    "storage",
+    "webRequest",
+    "webRequestBlocking",
+    "webRequestFilterResponse"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://api.x.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*"
+      ],
+      "js": [
+        "content/main-world.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://x.com/*"
+      ],
+      "js": [
+        "content/bridge.js",
+        "content/page-ui.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "X Blocker",
+    "default_popup": "popup/popup.html",
+    "default_icon": "icons/icon.svg"
+  },
+  "options_ui": {
+    "page": "dashboard/dashboard.html",
+    "open_in_tab": true
+  }
+}
