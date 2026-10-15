@@ -1,0 +1,194 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>X Blocker</title>
+  <link rel="icon" href="../icons/icon.svg">
+  <link rel="stylesheet" href="../ui/common.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <script type="module" src="dashboard.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="#collected">
+        <img src="../icons/icon.svg" alt="" width="32" height="32">
+        <span>X Blocker</span>
+      </a>
+      <nav id="tabs" aria-label="Sections">
+        <button class="nav-item" data-tab="collected"><i data-icon="people"></i><span>Collected</span><b id="n-collected" class="badge"></b></button>
+        <button class="nav-item" data-tab="queue"><i data-icon="queue"></i><span>Queue</span><b id="n-queue" class="badge"></b></button>
+        <button class="nav-item" data-tab="import"><i data-icon="import"></i><span>Import</span></button>
+        <button class="nav-item" data-tab="blocked"><i data-icon="block"></i><span>Blocked</span><b id="n-blocked" class="badge"></b></button>
+        <button class="nav-item" data-tab="log"><i data-icon="activity"></i><span>Activity</span></button>
+        <button class="nav-item" data-tab="settings"><i data-icon="settings"></i><span>Settings</span></button>
+      </nav>
+
+      <section class="runner card" aria-label="Blocking status">
+        <div class="row">
+          <span id="status" class="status grow">Idle</span>
+          <span id="queue-left" class="muted"></span>
+        </div>
+        <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+        <p id="message" class="muted small"></p>
+        <button id="start" class="btn btn-primary btn-block"><i data-icon="play"></i><span>Start blocking</span></button>
+        <button id="pause" class="btn btn-block" hidden><i data-icon="pause"></i><span>Pause</span></button>
+      </section>
+    </aside>
+
+    <main>
+      <section class="overview">
+        <div class="stat"><span>Collected</span><b id="s-collected">0</b></div>
+        <div class="stat"><span>In queue</span><b id="s-queue">0</b></div>
+        <div class="stat"><span>Blocked total</span><b id="s-blocked">0</b></div>
+        <div class="stat"><span>Last 24 hours</span><b id="s-24h">0</b></div>
+      </section>
+
+      <!-- Collected -->
+      <section id="tab-collected" class="panel">
+        <header class="panel-head">
+          <div>
+            <h1>Collected accounts</h1>
+            <p class="muted">Gathered automatically as you browse followers, likes, reposts, replies, search and lists on x.com.</p>
+          </div>
+        </header>
+        <div class="toolbar">
+          <label class="search grow"><i data-icon="search"></i><input id="c-filter" class="input" type="search" placeholder="Search name, @handle or bio"></label>
+          <button id="c-hide-blocked" class="chip" aria-pressed="true">Hide blocked</button>
+          <button id="c-hide-following" class="chip" aria-pressed="true">Hide people I know</button>
+        </div>
+        <div id="c-selection" class="selection-bar">
+          <label class="row"><input id="c-select-all" type="checkbox" aria-label="Select all shown"><span id="c-selected" class="muted">Select all</span></label>
+          <span class="grow"></span>
+          <button id="c-export" class="btn btn-sm btn-ghost"><i data-icon="download"></i>Export</button>
+          <button id="c-clear" class="btn btn-sm btn-ghost"><i data-icon="trash"></i>Clear list</button>
+          <button id="c-remove" class="btn btn-sm" disabled>Remove</button>
+          <button id="c-queue-selected" class="btn btn-sm btn-danger" disabled><i data-icon="block"></i>Queue for blocking</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th class="w-check"></th><th>Account</th><th class="num">Followers</th><th>Status</th><th>Seen</th></tr></thead>
+            <tbody id="c-body"></tbody>
+          </table>
+        </div>
+        <p id="c-more" class="foot muted"></p>
+      </section>
+
+      <!-- Queue -->
+      <section id="tab-queue" class="panel" hidden>
+        <header class="panel-head">
+          <div>
+            <h1>Queue</h1>
+            <p class="muted">Processed top to bottom. Progress is saved after every block, so you can pause or close Firefox anytime.</p>
+          </div>
+          <div class="row">
+            <button id="q-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
+            <button id="q-clear" class="btn btn-sm btn-danger-outline"><i data-icon="trash"></i>Clear</button>
+          </div>
+        </header>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Account</th><th>From</th><th>Added</th><th>Attempts</th><th></th></tr></thead>
+            <tbody id="q-body"></tbody>
+          </table>
+        </div>
+        <p id="q-more" class="foot muted"></p>
+      </section>
+
+      <!-- Import -->
+      <section id="tab-import" class="panel" hidden>
+        <header class="panel-head">
+          <div>
+            <h1>Import a list</h1>
+            <p class="muted">Paste @handles, profile links or IDs (<code>id:12345</code>), separated by spaces, commas or new lines. You can also drop in a .txt or .csv file with an <code>id</code> and/or <code>screen_name</code> column.</p>
+          </div>
+        </header>
+        <div class="card import-card">
+          <textarea id="i-text" class="input" placeholder="@spammer1&#10;https://x.com/spammer2&#10;id:1234567890" spellcheck="false"></textarea>
+          <div class="row">
+            <label class="btn btn-sm file-btn"><i data-icon="import"></i>Choose file<input id="i-file" type="file" accept=".txt,.csv,text/plain,text/csv"></label>
+            <span id="i-preview" class="muted grow"></span>
+            <button id="i-add" class="btn btn-danger" disabled><i data-icon="block"></i>Add to queue</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Blocked -->
+      <section id="tab-blocked" class="panel" hidden>
+        <header class="panel-head">
+          <div>
+            <h1>Blocked</h1>
+            <p class="muted">Accounts blocked by X Blocker, and accounts seen as already blocked. Clearing this history does not unblock anyone.</p>
+          </div>
+          <div class="row">
+            <button id="b-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
+            <button id="b-clear" class="btn btn-sm btn-danger-outline"><i data-icon="trash"></i>Clear history</button>
+          </div>
+        </header>
+        <div class="toolbar">
+          <label class="search grow"><i data-icon="search"></i><input id="b-filter" class="input" type="search" placeholder="Search blocked accounts"></label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Account</th><th>From</th><th>When</th></tr></thead>
+            <tbody id="b-body"></tbody>
+          </table>
+        </div>
+        <p id="b-more" class="foot muted"></p>
+      </section>
+
+      <!-- Log -->
+      <section id="tab-log" class="panel" hidden>
+        <header class="panel-head">
+          <div>
+            <h1>Activity</h1>
+            <p class="muted">The most recent 300 events.</p>
+          </div>
+          <button id="l-clear" class="btn btn-sm"><i data-icon="trash"></i>Clear</button>
+        </header>
+        <ol id="l-body" class="log"></ol>
+      </section>
+
+      <!-- Settings -->
+      <section id="tab-settings" class="panel" hidden>
+        <header class="panel-head">
+          <div>
+            <h1>Settings</h1>
+            <p class="muted">Changes are saved immediately.</p>
+          </div>
+        </header>
+        <form id="settings" class="settings">
+          <h2>On x.com</h2>
+          <div class="card list">
+            <label class="setting"><div><b>Collect accounts</b><span>Save accounts from the pages you browse so you can block them later.</span></div><span class="switch"><input name="collect" type="checkbox"><span></span></span></label>
+            <label class="setting"><div><b>Block buttons &amp; mass-block panel</b><span>Show X Blocker controls inside x.com. Reload x.com after changing this.</span></div><span class="switch"><input name="inPageButtons" type="checkbox"><span></span></span></label>
+          </div>
+
+          <h2>Protection</h2>
+          <div class="card list">
+            <label class="setting"><div><b>Skip accounts I follow</b><span>Never block someone you follow.</span></div><span class="switch"><input name="skipFollowing" type="checkbox"><span></span></span></label>
+            <label class="setting"><div><b>Skip my followers</b><span>Never block someone who follows you.</span></div><span class="switch"><input name="skipFollowers" type="checkbox"><span></span></span></label>
+            <label class="setting"><div><b>Skip verified accounts</b><span>Leave accounts with a checkmark alone.</span></div><span class="switch"><input name="skipVerified" type="checkbox"><span></span></span></label>
+            <label class="setting stack"><div><b>Never block</b><span>One @handle per line.</span></div><textarea name="whitelist" class="input" rows="4" spellcheck="false" placeholder="@friend"></textarea></label>
+          </div>
+
+          <h2>Speed &amp; limits</h2>
+          <div class="card list">
+            <label class="setting"><div><b>Delay between blocks</b><span>Milliseconds, minimum 2000. Default 4000.</span></div><input name="delayMs" class="input num-input" type="number" min="2000" step="500"></label>
+            <label class="setting"><div><b>Random extra delay</b><span>Up to this many milliseconds, so requests aren't evenly spaced. Default 4000.</span></div><input name="jitterMs" class="input num-input" type="number" min="0" step="100"></label>
+            <label class="setting"><div><b>Cooldown after rate limit</b><span>Minutes to wait when X says "too many requests". Doubles on each repeat, up to 4 hours. Default 15.</span></div><input name="cooldownMin" class="input num-input" type="number" min="1"></label>
+            <label class="setting"><div><b>Daily safety limit</b><span>Blocks per rolling 24 hours, including quick blocks. X tolerates about 500; going over can force-log you out. Default 450. 0 disables the limit (not recommended).</span></div><input name="dailyCap" class="input num-input" type="number" min="0"></label>
+          </div>
+          <h2>Privacy</h2>
+          <div class="card list">
+            <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser. Nothing is sent anywhere except your own requests to X. Profiles not seen for 30 days are forgotten automatically, and private pages (messages, notifications, settings) are never read.</span></div>
+              <button id="wipe" type="button" class="btn btn-sm btn-danger-outline">Delete all data</button></div>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
