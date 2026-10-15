@@ -1,0 +1,71 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>X Blocker</title>
+  <link rel="stylesheet" href="../ui/common.css">
+  <style>
+    body { width: 360px; }
+    .head { display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px; border-bottom: 1px solid var(--border); }
+    .head img { border-radius: 8px; }
+    .head h1 { font-size: 17px; font-weight: 800; }
+    .content { padding: 16px; display: grid; gap: 12px; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border); border-radius: 16px; }
+    .stats div { padding: 12px 8px; text-align: center; display: grid; gap: 2px; }
+    .stats div + div { border-left: 1px solid var(--border); }
+    .stats b { font-size: 20px; line-height: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .stats span { color: var(--muted); font-size: 12px; }
+    .msg { font-size: 13px; line-height: 16px; color: var(--muted); }
+    .hint { display: flex; gap: 12px; padding: 12px; border-radius: 12px; background: var(--accent-soft); font-size: 13px; line-height: 18px; }
+    .hint svg { fill: var(--accent); width: 20px; height: 20px; }
+    .hint.error { background: var(--danger-soft); }
+    .hint.error svg { fill: var(--danger); }
+    .actions { display: grid; gap: 8px; }
+    .foot { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-top: 1px solid var(--border); }
+    .link { background: none; border: none; color: var(--accent); font: 600 14px var(--font); cursor: pointer; padding: 0; display: inline-flex; gap: 6px; align-items: center; }
+    .link:hover { text-decoration: underline; }
+    .link svg { width: 16px; height: 16px; }
+  </style>
+  <script type="module" src="popup.js"></script>
+</head>
+<body>
+  <header class="head">
+    <img src="../icons/icon.svg" alt="" width="32" height="32">
+    <h1 class="grow">X Blocker</h1>
+    <span id="status" class="status">Idle</span>
+  </header>
+
+  <div class="content">
+    <div class="stats">
+      <div><b id="c-queue">0</b><span>in queue</span></div>
+      <div><b id="c-24h">0</b><span>blocked today</span></div>
+      <div><b id="c-collected">0</b><span>collected</span></div>
+    </div>
+    <p id="message" class="msg" hidden></p>
+
+    <div id="perm" class="hint error" hidden>
+      <i data-icon="shield"></i>
+      <div class="grow">
+        <p>X Blocker needs access to x.com to work.</p>
+        <button id="grant" class="btn btn-sm btn-primary" style="margin-top:8px">Grant access</button>
+      </div>
+    </div>
+    <div id="tab-hint" class="hint" hidden>
+      <i data-icon="people"></i>
+      <p>Open a followers, following, likes, reposts or post-replies page. The panel at the bottom loads only that list. Click <b>Review</b> to choose who to block.</p>
+    </div>
+    <div id="error" class="hint error" hidden><i data-icon="block"></i><p id="error-text"></p></div>
+
+    <div class="actions">
+      <button id="start" class="btn btn-lg btn-primary btn-block"><i data-icon="play"></i><span>Start blocking</span></button>
+      <button id="pause" class="btn btn-lg btn-block" hidden><i data-icon="pause"></i><span>Pause</span></button>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <button id="dashboard" class="link">Open dashboard <i data-icon="external"></i></button>
+    <span id="c-blocked" class="muted" style="font-size:13px"></span>
+  </footer>
+</body>
+</html>
