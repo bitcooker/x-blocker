@@ -1,6 +1,6 @@
 {
   "name": "x-blocker",
-  "version": "1.0.0",
+  "version": "1.6.0",
   "private": true,
   "description": "Firefox and Chrome extension to mass-block accounts on x.com",
   "type": "module",
