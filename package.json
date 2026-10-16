@@ -2,16 +2,19 @@
   "name": "x-blocker",
   "version": "1.0.0",
   "private": true,
-  "description": "Firefox extension to mass-block accounts on x.com",
+  "description": "Firefox and Chrome extension to mass-block accounts on x.com",
   "type": "module",
   "license": "GPL-3.0-or-later",
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
-    "lint": "web-ext lint --source-dir extension",
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/build.mjs firefox && web-ext lint --source-dir dist/firefox",
     "start": "web-ext run --source-dir extension --target firefox-desktop --start-url https://x.com/home",
-    "build": "web-ext build --source-dir extension --artifacts-dir dist --overwrite-dest"
+    "start:chrome": "node scripts/build.mjs chrome && web-ext run --source-dir dist/chrome --target chromium --start-url https://x.com/home",
+    "package": "node scripts/build.mjs && web-ext build --source-dir dist/firefox --artifacts-dir dist --filename x-blocker-firefox-{version}.zip --overwrite-dest && web-ext build --source-dir dist/chrome --artifacts-dir dist --filename x-blocker-chrome-{version}.zip --overwrite-dest"
   },
   "devDependencies": {
+    "linkedom": "^0.18.13",
     "web-ext": "^8.10.0"
   }
 }
