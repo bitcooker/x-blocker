@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { send, stateLabel, onStateChange, hydrateIcons } from '../lib/dom.js'
+import { browser } from '../lib/compat.js'
 
 const $ = (id) => document.getElementById(id)
 const nf = new Intl.NumberFormat()
