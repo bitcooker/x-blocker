@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# One-click release: bumps the version, commits, tags and pushes, then runs
+# the Release workflow. (Tags pushed with GITHUB_TOKEN don't trigger other
+# workflows, so Release is called directly instead of relying on the tag push.)
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump (patch, minor, major) or an explicit X.Y.Z
+        required: true
+        default: patch
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump version and tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Releases are made from main (got $GITHUB_REF)."
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test before tagging
+        run: npm test
+
+      - name: Bump version
+        id: tag
+        env:
+          BUMP: ${{ inputs.bump }} # via env, never interpolated into the script
+        run: |
+          version="$(node scripts/version.mjs "$BUMP")"
+          node scripts/check-version.mjs "v$version"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag and push
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Tag $TAG already exists."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): $TAG"
+          git tag -a "$TAG" -m "X Blocker $TAG"
+          git push origin HEAD:main "refs/tags/$TAG"
+
+  release:
+    name: Release
+    needs: bump
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.bump.outputs.tag }}
+    secrets: inherit
+    permissions:
+      contents: write

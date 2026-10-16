@@ -1,0 +1,191 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Builds a tagged version, creates the GitHub Release and publishes to the
+# browser stores. Runs on a pushed vX.Y.Z tag, or is called by "Prepare release".
+# Each store job is skipped (with a notice) when its secrets are not configured.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag to release, e.g. v1.7.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    name: Build ${{ inputs.tag || github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0 # full history and tags for the changelog
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tag matches the extension version
+        id: version
+        run: echo "version=$(node scripts/check-version.mjs "$TAG")" >> "$GITHUB_OUTPUT"
+
+      - run: npm test
+
+      - name: Lint (web-ext, Firefox build)
+        run: npm run lint
+
+      - name: Build and package
+        run: npm run package
+
+      - name: Release notes
+        run: node scripts/changelog.mjs "$TAG" > dist/RELEASE_NOTES.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            dist/*.zip
+            dist/firefox/
+            dist/RELEASE_NOTES.md
+          if-no-files-found: error
+
+  github-release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist
+
+      - name: Create release with packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$TAG" dist/*.zip \
+            --title "X Blocker $TAG" \
+            --notes-file dist/RELEASE_NOTES.md \
+            --verify-tag
+
+  firefox:
+    name: Publish to Firefox Add-ons (AMO)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+      WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+    steps:
+      - name: Skip when not configured
+        if: env.WEB_EXT_API_KEY == '' || env.WEB_EXT_API_SECRET == ''
+        run: echo "::notice::AMO_JWT_ISSUER / AMO_JWT_SECRET not set; skipping Firefox Add-ons."
+
+      - uses: actions/download-artifact@v4
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+        with:
+          name: release
+          path: dist
+
+      - uses: actions/setup-node@v4
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+        with:
+          node-version: 22
+
+      # Submits the version for review on the listed channel and returns
+      # immediately; AMO publishes it once approved.
+      - name: Submit to AMO
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+        run: |
+          npx --yes web-ext@8 sign \
+            --source-dir dist/firefox \
+            --artifacts-dir dist/amo \
+            --channel listed \
+            --approval-timeout 0
+
+  chrome:
+    name: Publish to Chrome Web Store
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+      CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+      CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+      REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+    steps:
+      - name: Skip when not configured
+        if: env.EXTENSION_ID == '' || env.CLIENT_ID == '' || env.CLIENT_SECRET == '' || env.REFRESH_TOKEN == ''
+        run: echo "::notice::CWS_* secrets not set; skipping Chrome Web Store."
+
+      - uses: actions/download-artifact@v4
+        if: env.EXTENSION_ID != '' && env.CLIENT_ID != '' && env.CLIENT_SECRET != '' && env.REFRESH_TOKEN != ''
+        with:
+          name: release
+          path: dist
+
+      - uses: actions/setup-node@v4
+        if: env.EXTENSION_ID != '' && env.CLIENT_ID != '' && env.CLIENT_SECRET != '' && env.REFRESH_TOKEN != ''
+        with:
+          node-version: 22
+
+      # Credentials are read from the EXTENSION_ID / CLIENT_ID / CLIENT_SECRET /
+      # REFRESH_TOKEN environment variables, never passed on the command line.
+      - name: Upload and publish
+        if: env.EXTENSION_ID != '' && env.CLIENT_ID != '' && env.CLIENT_SECRET != '' && env.REFRESH_TOKEN != ''
+        run: |
+          npx --yes chrome-webstore-upload-cli@3 upload \
+            --source "dist/x-blocker-chrome-${{ needs.build.outputs.version }}.zip" \
+            --auto-publish
+
+  edge:
+    name: Publish to Microsoft Edge Add-ons
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+      EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+      EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+    steps:
+      - name: Skip when not configured
+        if: env.EDGE_PRODUCT_ID == '' || env.EDGE_CLIENT_ID == '' || env.EDGE_API_KEY == ''
+        run: echo "::notice::EDGE_* secrets not set; skipping Microsoft Edge Add-ons."
+
+      - uses: actions/download-artifact@v4
+        if: env.EDGE_PRODUCT_ID != '' && env.EDGE_CLIENT_ID != '' && env.EDGE_API_KEY != ''
+        with:
+          name: release
+          path: dist
+
+      # Edge accepts the Chrome build unchanged.
+      - name: Upload and submit
+        if: env.EDGE_PRODUCT_ID != '' && env.EDGE_CLIENT_ID != '' && env.EDGE_API_KEY != ''
+        uses: wdzeng/edge-addon@v2
+        with:
+          product-id: ${{ env.EDGE_PRODUCT_ID }}
+          zip-path: dist/x-blocker-chrome-${{ needs.build.outputs.version }}.zip
+          client-id: ${{ env.EDGE_CLIENT_ID }}
+          api-key: ${{ env.EDGE_API_KEY }}
