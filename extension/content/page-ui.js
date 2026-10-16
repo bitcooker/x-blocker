@@ -10,10 +10,10 @@
 (() => {
   'use strict'
 
-  const { callMain, setScrolling } = globalThis.__xBlockerBridge
+  const { browser, send, callMain, setScrolling } = globalThis.__xBlockerBridge
 
-  // Only one instance per page. When the extension is reloaded or updated, Firefox
-  // injects a fresh copy while the old copy's UI is left behind; tell older copies
+  // Only one instance per page. When the extension is reloaded or updated, the browser may
+  // inject a fresh copy while the old copy's UI is left behind; tell older copies
   // to tear down and remove anything they left in the DOM.
   const TAKEOVER = 'x-blocker:takeover'
   document.dispatchEvent(new CustomEvent(TAKEOVER))
@@ -25,7 +25,6 @@
   let alive = true
   const HANDLE_RE = /^@([A-Za-z0-9_]{1,15})$/
   const MARK = 'xBlocker'
-  const send = (msg) => browser.runtime.sendMessage(msg)
 
   let enabled = true
   let viewerScreenName = null

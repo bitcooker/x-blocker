@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Background event page: single source of truth for extension state.
-// - Captures users from X GraphQL responses (webRequest.filterResponseData),
-//   so the page's own JavaScript is never patched.
+// Background (Firefox event page / Chrome service worker): single source of
+// truth for extension state.
+// - Captures users from X GraphQL responses: on Firefox passively via
+//   webRequest.filterResponseData; on Chrome, which has no response-body API,
+//   from bodies forwarded by content/capture-hook.js.
 // - Owns the block queue; an x.com tab (content/bridge.js) executes it and
 //   asks for one item at a time, so progress survives reloads and restarts.
+import { browser, onMessage } from './lib/compat.js'
 import { extractUsers } from './lib/extract-users.js'
 import { dedupeItems, itemKey } from './lib/user-list.js'
 
@@ -57,6 +60,26 @@ const API_URLS = [
 // Never read private traffic (DMs, chat, notifications, account/settings data).
 const PRIVATE_OPS = /dm|chat|inbox|message|conversationlist|notification|bookmark|account|setting|grok|money|payment|password|email|phone|session|passkey|login|verification|delegate/i
 const SAVE_DEBOUNCE_MS = 2000
+const MAX_BODY = 20 * 1024 * 1024
+const API_URL_RE = /^https:\/\/(?:api\.x\.com\/graphql\/|x\.com\/i\/api\/graphql\/)/
+
+function isCapturable(url) {
+  try {
+    const u = new URL(url)
+    return API_URL_RE.test(u.href) && !PRIVATE_OPS.test(u.pathname.split('/').pop() ?? '')
+  } catch {
+    return false
+  }
+}
+
+function collectFromText(text) {
+  try {
+    const users = extractUsers(JSON.parse(text))
+    if (users.length) bufferUsers(users)
+  } catch {
+    // Not JSON or unexpected shape; nothing to collect.
+  }
+}
 const BIG_KEYS = new Set(['collected', 'blocked', 'log', 'blockTimes'])
 
 // ---- state ------------------------------------------------------------------
@@ -223,9 +246,7 @@ function flushCollected() {
 }
 
 function captureResponse(details) {
-  if (!collectEnabled || details.tabId < 0) return
-  const op = new URL(details.url).pathname.split('/').pop() ?? ''
-  if (PRIVATE_OPS.test(op)) return
+  if (!collectEnabled || details.tabId < 0 || !isCapturable(details.url)) return
   let filter
   try {
     filter = browser.webRequest.filterResponseData(details.requestId)
@@ -237,29 +258,27 @@ function captureResponse(details) {
   filter.ondata = (e) => {
     filter.write(e.data)
     size += e.data.byteLength
-    if (size <= 20 * 1024 * 1024) chunks.push(e.data)
+    if (size <= MAX_BODY) chunks.push(e.data)
   }
   filter.onstop = () => {
     filter.close()
-    if (size > 20 * 1024 * 1024) return
-    try {
-      const bytes = new Uint8Array(size)
-      let off = 0
-      for (const c of chunks) { bytes.set(new Uint8Array(c), off); off += c.byteLength }
-      const users = extractUsers(JSON.parse(new TextDecoder().decode(bytes)))
-      if (users.length) bufferUsers(users)
-    } catch {
-      // Not JSON or unexpected shape; nothing to collect.
-    }
+    if (size > MAX_BODY) return
+    const bytes = new Uint8Array(size)
+    let off = 0
+    for (const c of chunks) { bytes.set(new Uint8Array(c), off); off += c.byteLength }
+    collectFromText(new TextDecoder().decode(bytes))
   }
   filter.onerror = () => {}
 }
 
-browser.webRequest.onBeforeRequest.addListener(
-  captureResponse,
-  { urls: API_URLS, types: ['xmlhttprequest'] },
-  ['blocking'],
-)
+// Firefox only; Chrome MV3 has neither blocking webRequest nor filterResponseData.
+if (browser.webRequest?.filterResponseData) {
+  browser.webRequest.onBeforeRequest.addListener(
+    captureResponse,
+    { urls: API_URLS, types: ['xmlhttprequest'] },
+    ['blocking'],
+  )
+}
 
 // ---- queue --------------------------------------------------------------------
 
@@ -600,9 +619,18 @@ const pageHandlers = {
   }),
 }
 
-browser.runtime.onMessage.addListener((msg, sender) => {
+onMessage((msg, sender) => {
   if (sender.id !== browser.runtime.id || typeof msg?.type !== 'string') return undefined
   if (sender.url?.startsWith('https://x.com/')) {
+    if (msg.type === 'capture:body') {
+      // Chrome path: bodies relayed from the page; same privacy filter as Firefox.
+      if (collectEnabled && typeof msg.url === 'string' && typeof msg.text === 'string' &&
+        msg.text.length <= MAX_BODY && isCapturable(msg.url)) {
+        if (cache) collectFromText(msg.text)
+        else load().then(() => collectEnabled && collectFromText(msg.text))
+      }
+      return undefined
+    }
     if (msg.type === 'page:massBlock') return massBlock(sender.tab.id, msg.items)
     if (msg.type === 'page:pause') return exclusive((s) => uiHandlers['runner:pause'](s))
     if (msg.type === 'page:resume') {

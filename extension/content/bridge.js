@@ -6,12 +6,21 @@
   'use strict'
 
   const TAG = '__x_blocker__'
+  // Firefox: promise-based `browser`; Chrome: promise-based `chrome` (MV3).
+  const browser = globalThis.browser ?? globalThis.chrome
   const pending = new Map()
   let seq = 0
 
   window.addEventListener('message', (ev) => {
     if (ev.source !== window || ev.origin !== location.origin) return
     const msg = ev.data
+    if (msg?.[TAG] === 'capture') {
+      // Chrome: response bodies from content/capture-hook.js (background re-validates).
+      if (typeof msg.url === 'string' && typeof msg.text === 'string') {
+        browser.runtime.sendMessage({ type: 'capture:body', url: msg.url, text: msg.text }).catch(() => {})
+      }
+      return
+    }
     if (!msg || msg[TAG] !== 'response' || !pending.has(msg.id)) return
     const { resolve, reject, timer } = pending.get(msg.id)
     clearTimeout(timer)
@@ -33,7 +42,11 @@
   }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-  const send = (msg) => browser.runtime.sendMessage(msg)
+  const send = async (msg) => {
+    const res = await browser.runtime.sendMessage(msg)
+    if (res && typeof res === 'object' && '__error' in res) throw new Error(res.__error)
+    return res
+  }
   const errInfo = (e) => ({ code: e?.code ?? 'error', message: String(e?.message ?? e), retryAt: e?.retryAt })
 
   // ---- queue runner -------------------------------------------------------
@@ -135,6 +148,8 @@
 
   // Shared with content/page-ui.js (same isolated world).
   globalThis.__xBlockerBridge = {
+    browser,
+    send,
     callMain,
     setScrolling(on, onDone) {
       if (on) autoScroll(onDone)
@@ -142,7 +157,15 @@
     },
   }
 
-  browser.runtime.onMessage.addListener((msg) => {
+  // Replies use sendResponse (Chrome ignores returned Promises).
+  browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    const reply = handle(msg)
+    if (!reply) return false
+    reply.then(sendResponse, (e) => sendResponse({ __error: String(e?.message ?? e) }))
+    return true
+  })
+
+  function handle(msg) {
     switch (msg?.type) {
       case 'tab:ping':
         return callMain('status', {}, 5_000).then(
@@ -160,5 +183,5 @@
       default:
         return undefined
     }
-  })
+  }
 })()

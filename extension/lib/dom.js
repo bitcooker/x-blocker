@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { browser, sendMessage } from './compat.js'
+
 // Minimal DOM helpers for extension pages. Never uses innerHTML so untrusted
 // profile data (names, bios) cannot inject markup.
 
@@ -55,7 +57,7 @@ export function hydrateIcons(root = document) {
   for (const el of root.querySelectorAll('i[data-icon]')) el.replaceWith(icon(el.dataset.icon))
 }
 
-export const send = (type, data = {}) => browser.runtime.sendMessage({ type, ...data })
+export const send = (type, data = {}) => sendMessage({ type, ...data })
 
 export function stateLabel(runner) {
   return {
