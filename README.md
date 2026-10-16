@@ -1,6 +1,6 @@
 # X Blocker
 
-A Firefox extension (Manifest V3) that mass-blocks accounts on x.com.
+A browser extension for **Firefox** and **Chrome** (Manifest V3) that mass-blocks accounts on x.com.
 
 - **Collect**: as you browse any list on x.com (followers, likes, reposts,
   replies, search results, lists, communities…), every account in X's API
@@ -8,7 +8,7 @@ A Firefox extension (Manifest V3) that mass-blocks accounts on x.com.
 - **Import**: paste or load @handles, profile URLs, numeric IDs (`id:123`) or a
   CSV with `id` / `screen_name` columns.
 - **Queue**: blocks run one at a time with a delay plus random jitter. Progress is
-  saved after every block, so you can pause, reload or restart Firefox and resume.
+  saved after every block, so you can pause, reload or restart the browser and resume.
   Rate limits (HTTP 429) trigger an escalating cooldown, and a daily safety
   limit (450 per 24 h by default) keeps the account under X's threshold.
 - **Safety**: never blocks yourself, and by default skips accounts you follow or
@@ -35,9 +35,15 @@ breaks when X ships a new build:
    entry chunks are searched first. A lazy chunk that isn't loaded yet
    (`block-user-*.js`) is located through the chunk map. Results are cached in
    memory for the page's lifetime, and last-known IDs serve as fallbacks.
-3. **No page patching.** Users are collected in the background with Firefox's
-   `webRequest.filterResponseData`, which passively reads GraphQL response
-   bodies. `fetch` and XHR on x.com are never touched.
+3. **Passive collection.**
+   - **Firefox:** users are collected in the background with
+     `webRequest.filterResponseData`, which passively reads GraphQL response bodies.
+     `fetch` and XHR on x.com are never touched.
+   - **Chrome:** MV3 has no API for reading response bodies. A small MAIN-world
+     script (`content/capture-hook.js`, Chrome build only) wraps `fetch`/XHR at
+     `document_start`. It clones X's GraphQL responses without altering them and
+     forwards them to the background. Private operations are skipped before any
+     body is read.
 4. **Shape-agnostic parsing.** Any object with `rest_id` and a screen name
    (`core.screen_name` or `legacy.screen_name`) is treated as a user, with
    relationship data from `relationship_perspectives`. No specific endpoint
@@ -50,20 +56,24 @@ breaks when X ships a new build:
 ## Architecture
 
 ```
-extension/
-  manifest.json            MV3, Firefox ≥128 (MAIN-world content scripts)
-  background.js            state owner: storage, queue, skip rules, rate-limit
-                           cooldown, response capture (filterResponseData)
+extension/                 source; manifest is the Firefox flavour (≥128)
+  manifest.json
+  background.js            state owner: storage, queue, skip rules, rate limits,
+                           response capture (Firefox event page / Chrome service worker)
   content/main-world.js    MAIN world: X API calls (block / resolve handle)
                            with X's own signer; answers postMessage commands
+  content/capture-hook.js  MAIN world, Chrome only: observes X's GraphQL responses
   content/bridge.js        isolated world: relays between extension and page,
                            runs the queue loop and auto-scroll
+  content/page-ui.js       isolated world: in-page buttons, panel, review dialog
+  lib/compat.js            browser/chrome API shim and cross-browser messaging
   lib/extract-users.js     user extraction from API JSON
   lib/user-list.js         import parsing / CSV export
   lib/dom.js               safe DOM helpers (no innerHTML)
   popup/                   quick status & actions
   dashboard/               full UI (collected, queue, import, blocked, log, settings)
-test/                      node:test unit tests (incl. MAIN-world script in a VM)
+scripts/build.mjs          builds dist/firefox and dist/chrome (Chrome manifest is derived)
+test/                      node:test unit and DOM tests (VM + linkedom)
 ```
 
 Design notes:
@@ -74,24 +84,35 @@ Design notes:
   result. Items leave the queue only after X confirms the block, so a crash never loses work.
 - The background accepts **runner messages only from the tab that holds the
   current run token**, and content scripts cannot call UI/admin actions.
-- **Least privilege**: `storage` plus `webRequest*` only for `x.com` / `api.x.com`.
-  Nothing is sent anywhere except to X, and there is no telemetry.
+- **Cross-browser messaging** goes through `sendResponse` (Chrome ignores
+  Promises returned from `onMessage`). Errors travel back as `{ __error }` and are re-thrown
+  on the sending side.
+- **Least privilege**: `storage` and `unlimitedStorage` (Chrome caps storage at
+  10 MB otherwise), plus `webRequest*` on Firefox only, for `x.com` /
+  `api.x.com`. Nothing is sent anywhere except to X, and there is no telemetry.
 
 ## Develop
 
 ```sh
 npm install
-npm test          # unit tests
-npm run lint      # web-ext lint (one expected warning: the validated dynamic import of X's signer)
-npm start         # launches Firefox with the extension loaded
-npm run build     # zip in dist/
+npm test               # unit + DOM tests
+npm run lint           # web-ext lint of the Firefox build (one expected warning:
+                       # the validated dynamic import of X's signer)
+npm start              # Firefox with the extension loaded (from extension/)
+npm run start:chrome   # Chromium with the Chrome build loaded
+npm run build          # dist/firefox and dist/chrome
+npm run package        # zips both builds into dist/
 ```
 
-Or load it manually: `about:debugging#/runtime/this-firefox` → *Load Temporary
-Add-on…* → choose `extension/manifest.json`.
+Manual install:
 
-In Firefox MV3, host access is opt-in. If the popup says so, click
-**Grant access**, then reload your x.com tab.
+- **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on…*
+  → choose `extension/manifest.json` (or `dist/firefox/manifest.json`).
+  Host access is opt-in in Firefox MV3. If the popup says so, click
+  **Grant access**, then reload your x.com tab.
+- **Chrome / Edge / Brave:** run `npm run build`, open `chrome://extensions`,
+  enable *Developer mode* → *Load unpacked* → choose `dist/chrome`. Chrome 121 or
+  newer is required.
 
 ## Rate limits (defaults)
 
@@ -116,7 +137,9 @@ Account-level errors (401 logged out, 403 locked/challenged, X error codes
   executed is X's own signing module, inside x.com's page, from
   `abs.twimg.com/x-web/…/sign.*.js` (URL validated).
 - **Private traffic is never read.** Response capture skips DM, chat,
-  notification, account, settings, payment and similar operations.
+  notification, account, settings, payment and similar operations on both
+  browsers. On Chrome this check happens inside the page, before a body is read,
+  and again in the background.
 - **Data minimisation.** Collected profiles expire after 30 days. Settings has a
   one-click *Delete all data*.
 - **Wrong-target protections.**
@@ -128,10 +151,14 @@ Account-level errors (401 logged out, 403 locked/challenged, X error codes
 - **Avatars** are only accepted from X's image CDN.
 - **Message boundaries.** The background only accepts queue control from the tab that holds the run token. Content scripts cannot call dashboard/admin actions. All inputs are validated (numeric IDs, 1–15 character handles).
 
-Known trade-off: the MAIN-world command channel (`window.postMessage`) is
-visible to x.com's own scripts. Those scripts already have full access to your
-session, so this grants nothing new, but X *could* detect the extension, as
-it could detect any extension that adds buttons to its page.
+Known trade-offs:
+- The MAIN-world command channel (`window.postMessage`) is visible to x.com's
+  own scripts. Those scripts already have full access to your session, so this
+  grants nothing new, but X *could* detect the extension, as it could detect any
+  extension that adds buttons to its page.
+- On Chrome, the capture hook wraps `fetch`/XHR in the page. This is more
+  detectable than Firefox's passive capture, but it is the only option in Chrome
+  MV3. It observes and never modifies requests or responses.
 
 ## Usage
 
