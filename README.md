@@ -73,6 +73,10 @@ extension/                 source; manifest is the Firefox flavour (≥128)
   popup/                   quick status & actions
   dashboard/               full UI (collected, queue, import, blocked, log, settings)
 scripts/build.mjs          builds dist/firefox and dist/chrome (Chrome manifest is derived)
+scripts/version.mjs        bumps the version in manifest, package.json and lockfile
+scripts/check-version.mjs  verifies versions agree (and match a release tag)
+scripts/changelog.mjs      release notes from Conventional Commits
+.github/                   CI, release pipeline and Dependabot
 test/                      node:test unit and DOM tests (VM + linkedom)
 ```
 
@@ -113,6 +117,49 @@ Manual install:
 - **Chrome / Edge / Brave:** run `npm run build`, open `chrome://extensions`,
   enable *Developer mode* → *Load unpacked* → choose `dist/chrome`. Chrome 121 or
   newer is required.
+
+## Releasing
+
+Releases are fully automated with GitHub Actions:
+
+| Workflow | Runs on | Does |
+| --- | --- | --- |
+| **CI** (`ci.yml`) | push to `main`, pull requests | version check, tests, lint, builds both packages (artifacts) |
+| **Prepare release** (`prepare-release.yml`) | manual (*Actions → Prepare release → Run*) | bumps the version (`patch` / `minor` / `major` / `X.Y.Z`), commits `chore(release): vX.Y.Z`, tags and pushes, then runs **Release** |
+| **Release** (`release.yml`) | a pushed `vX.Y.Z` tag, or called by Prepare release | checks the tag matches the version, tests, lints, packages, creates the GitHub Release (notes from Conventional Commits, both zips attached) and publishes to the stores |
+| **Dependabot** (`dependabot.yml`) | weekly | updates npm dev dependencies and actions |
+
+To release manually instead:
+```sh
+node scripts/version.mjs minor                       # updates manifest, package.json, lockfile
+git commit -am "chore(release): v1.7.0" && git tag -a v1.7.0 -m "X Blocker v1.7.0"
+git push origin main v1.7.0                          # triggers Release
+```
+
+### Store publishing (optional)
+
+Each store job runs only when its repository secrets exist (*Settings → Secrets
+and variables → Actions*). Otherwise it is skipped with a notice, and the GitHub
+Release is still created.
+
+| Store | Secrets | Where to get them |
+| --- | --- | --- |
+| Firefox Add-ons (AMO) | `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` | addons.mozilla.org → *Developer Hub → Manage API Keys* |
+| Chrome Web Store | `CWS_EXTENSION_ID`, `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN` | Google Cloud OAuth client with the Chrome Web Store API enabled; see the [chrome-webstore-upload guide](https://github.com/fregante/chrome-webstore-upload-keys) |
+| Microsoft Edge Add-ons | `EDGE_PRODUCT_ID`, `EDGE_CLIENT_ID`, `EDGE_API_KEY` | Partner Center → *Microsoft Edge → Publish API* |
+
+One-time setup:
+- **First submission to each store is manual.** The listing, description,
+  screenshots and privacy answers have to be created once. After that, every release
+  only uploads a new version.
+- **Firefox extension ID.** Before the first AMO upload, replace the placeholder
+  `browser_specific_settings.gecko.id` (`x-blocker@local.dev`) with an ID you
+  own, e.g. `x-blocker@your-domain`. It must never change after publishing.
+- **Firefox review.** AMO versions are submitted for review and go live once
+  approved. The workflow does not wait for approval. The code is not minified
+  or bundled, so no separate source upload is needed.
+- **Branch protection.** If `main` is protected, allow `github-actions[bot]` to
+  push, or use the manual tag flow above.
 
 ## Rate limits (defaults)
 
