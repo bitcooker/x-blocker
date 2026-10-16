@@ -1,0 +1,181 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// DOM-level tests for content/page-ui.js, run against linkedom in a VM context
+// with a stubbed extension API.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import vm from 'node:vm'
+import { parseHTML } from 'linkedom'
+
+const SOURCE = (await readFile(new URL('../extension/content/page-ui.js', import.meta.url), 'utf8'))
+  // Test hooks: expose the page's list and open the shadow root for inspection.
+  .replace('const pageHandles = new Map()', 'const pageHandles = (globalThis.__handles = new Map())')
+  .replace("attachShadow({ mode: 'closed' })", "attachShadow({ mode: 'open' })")
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// Markup helpers shaped like x-web: account rows have one Follow button,
+// posts are <article>s with header icons and an action bar.
+const cell = (sn, { name = sn, bio = '', followClass = '' } = {}) => `
+  <div class="cell" data-sn="${sn}"><div><a href="/${sn}"><span>${name}</span><div><span class="h">@${sn}</span></div></a>
+  <div>${bio}</div></div><div class="w"><button class="${followClass}"><div><span>Follow</span></div></button></div></div>`
+const mention = (sn) => `<a href="/${sn}"><span>@${sn}</span></a>`
+const post = (sn, text = '') => `
+  <article data-sn="${sn}"><div><a href="/${sn}"><span>Name</span></a><div><a href="/${sn}"><span class="h">@${sn}</span></a><span>·</span><span>1h</span></div>
+  <div class="icons"><div class="g"><button>G</button><span></span></div><div><button>…</button></div></div></div>
+  <p>${text}</p><div><button>reply</button><button>like</button></div></article>`
+
+async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1 } = {}) {
+  const { window, document } = parseHTML(`<html><body>${body}</body></html>`)
+  window.HTMLElement.prototype.getBoundingClientRect = function () {
+    const isButton = this.tagName === 'BUTTON'
+    const width = isButton ? 90 : narrow && this.classList?.contains('cell') ? 300 : 0
+    return { top: 0, left: 0, width, height: isButton ? 36 : 0 }
+  }
+  const listeners = []
+  const sent = []
+  let observerCb = () => {}
+  const browser = {
+    runtime: {
+      sendMessage: async (m) => {
+        sent.push(m)
+        if (m.type === 'page:config') return { inPageButtons: true, blockedScreenNames: [] }
+        if (m.type === 'page:viewer') return { screenName: 'me' }
+        return respond(m)
+      },
+      onMessage: { addListener: (f) => listeners.push(f) },
+    },
+  }
+  const ctx = {
+    window, document, console, URL, setTimeout, clearTimeout,
+    DOMParser: window.DOMParser, Node: window.Node, CustomEvent: window.CustomEvent,
+    NodeFilter: { SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_SKIP: 3 },
+    location: { pathname: path, search },
+    getComputedStyle: (el) => ({
+      position: 'static', display: 'block', flexDirection: 'column', minHeight: '36px',
+      fontSize: '15px', fontFamily: 'TwitterChirp', fontWeight: '700', paddingLeft: '16px',
+      backgroundColor: el.classList?.contains('x-blocked') ? 'rgb(244, 33, 46)' : 'rgb(0, 0, 0)',
+    }),
+    MutationObserver: class { constructor(cb) { observerCb = cb } observe() {} disconnect() {} },
+    requestAnimationFrame: (f) => f(),
+    __xBlockerBridge: {
+      browser,
+      send: (m) => browser.runtime.sendMessage(m),
+      callMain: async (cmd) => (cmd === 'status' ? { viewerId: '1' } : {}),
+      setScrolling() {},
+    },
+  }
+  vm.createContext(ctx)
+  for (let i = 0; i < runs; i++) {
+    vm.runInContext(SOURCE, ctx)
+    await sleep(50)
+  }
+  await sleep(250)
+  const buttons = () => [...document.querySelectorAll('.xb-pill, .xb-icon')]
+  return {
+    document,
+    sent,
+    buttons,
+    visible: () => buttons().filter((b) => !b.hidden).map((b) => b.dataset.sn),
+    handles: () => [...ctx.__handles.values()],
+    shadow: () => document.getElementById('xb-root')?.shadowRoot,
+    message: (m) => listeners.forEach((f) => f(m)),
+    mutate: async (records) => { observerCb(records); await sleep(50) },
+  }
+}
+
+test('followers page lists only the main-column rows of that list', async () => {
+  const page = await load(`<main>
+    <header><span>@target</span></header>
+    ${cell('target')}${cell('alice', { bio: `Fan of ${mention('famous')} and more words here` })}${cell('bob')}${cell('me')}
+    <aside>${cell('BBCWorld')}</aside></main>`)
+  assert.deepEqual(page.handles(), ['alice', 'bob'])
+  // One button per row: no extra button for the @mention in alice's bio.
+  assert.equal(page.buttons().filter((b) => b.closest('[data-sn="alice"]')).length, 1)
+})
+
+test('replies page lists post authors, never mentions or the post owner', async () => {
+  const page = await load(`<main>${post('target')}${post('r1', `hey ${mention('grok')} what is this`)}${post('r2')}</main>`,
+    { path: '/target/status/123' })
+  assert.deepEqual(page.handles(), ['r1', 'r2'])
+})
+
+test('pages without a list show no mass-block panel', async () => {
+  const page = await load(`<main>${post('a')}${cell('b')}</main>`, { path: '/home' })
+  assert.deepEqual(page.handles(), [])
+  assert.equal(page.shadow()?.querySelector('.panel'), undefined)
+})
+
+test('a display name that looks like a handle cannot redirect a block', async () => {
+  const page = await load(`<main>${cell('spammer123', { name: '@yourfriend' })}${cell('alice')}</main>`)
+  assert.deepEqual(page.handles(), ['spammer123', 'alice'])
+  assert.deepEqual(page.visible(), ['spammer123', 'alice'])
+})
+
+test('buttons follow the account when X re-uses a row for someone else', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`)
+  const handle = page.document.querySelector('.h')
+  handle.firstChild.nodeValue = '@bob'
+  page.document.querySelector('[data-sn="alice"] a').setAttribute('href', '/bob')
+  await page.mutate([{ type: 'characterData', target: handle.firstChild, addedNodes: [] }])
+  assert.deepEqual(page.visible(), ['bob'])
+})
+
+test('pill sits after Follow (never between X nodes) and survives a re-render', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`)
+  const wrapper = page.document.querySelector('.w')
+  assert.deepEqual([...wrapper.children].map((c) => c.className), ['', 'xb-pill xb-abs'])
+  assert.match(wrapper.getAttribute('style'), /margin-inline-start:98px/)
+  const pill = wrapper.querySelector('.xb-pill')
+  assert.equal(pill.style.fontFamily, 'TwitterChirp')
+
+  const rerendered = page.document.createElement('button')
+  rerendered.textContent = 'Follow'
+  wrapper.replaceChildren(rerendered)
+  await page.mutate([{ type: 'childList', target: wrapper, addedNodes: [...wrapper.childNodes] }])
+  assert.equal(wrapper.querySelectorAll('.xb-pill').length, 1)
+})
+
+test('narrow rows get a compact icon button', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, { narrow: true })
+  assert.ok(page.buttons()[0].classList.contains('xb-compact'))
+})
+
+test('post buttons join the header icon row before the first icon', async () => {
+  const page = await load(`<main>${post('a')}</main>`, { path: '/home' })
+  const btn = page.buttons()[0]
+  assert.ok(btn.classList.contains('xb-action'))
+  assert.equal(btn.parentElement.className, 'icons')
+  assert.equal(btn.nextElementSibling.className, 'g')
+})
+
+test('already-blocked accounts get no button and are left out of the list', async () => {
+  const page = await load(`<main>${cell('alice')}${cell('bob', { followClass: 'x-blocked' })}${cell('carol')}</main>`, {
+    respond: (m) => (m.type === 'page:lookup' ? { carol: { id: '3', blocking: true }, alice: { id: '1', blocking: false } } : {}),
+  })
+  await sleep(1700) // block-state lookup is debounced
+  assert.deepEqual(page.visible(), ['alice'])
+  assert.deepEqual(page.handles(), ['alice'])
+})
+
+test('re-injection leaves a single UI instance', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, { runs: 3 })
+  assert.equal(page.document.querySelectorAll('#xb-root').length, 1)
+  assert.equal(page.buttons().length, 1)
+  assert.equal(page.document.querySelectorAll('style[data-xb-style]').length, 1)
+})
+
+test('panel shows live queue progress', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`)
+  const sub = () => page.shadow().querySelector('.sub').textContent
+  const runner = (state, extra = {}) => ({ state, done: 4, failed: 0, skipped: 1, lastBeat: Date.now(), ...extra })
+  page.message({ type: 'page:progress', runner: runner('running'), queueLen: 9 })
+  await sleep(200)
+  assert.equal(sub(), 'Blocking · 5 of 14 · 1 skipped')
+  page.message({ type: 'page:progress', runner: runner('paused'), queueLen: 9 })
+  await sleep(200)
+  assert.equal(sub(), 'Paused · 5 of 14 · 1 skipped')
+  page.message({ type: 'page:progress', runner: runner('idle', { done: 12, skipped: 2 }), queueLen: 0 })
+  await sleep(200)
+  assert.equal(sub(), 'Done · 12 blocked · 2 skipped')
+})
