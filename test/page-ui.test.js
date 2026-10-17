@@ -297,6 +297,21 @@ test('on a list page the review offers this list and the Collected list', async 
   assert.deepEqual(block.items.map((i) => i.screenName), ['spam_a']) // only the active tab
 })
 
+test('the review dialog links each handle to its profile without changing the tick', async () => {
+  const page = await load(`<main>${cell('a1')}</main>`, { respond: respondCollected })
+  await page.click('.fab')
+  await page.click('.btn-danger')
+  const dialog = page.shadow().querySelector('.review')
+  const link = dialog.querySelector('li a.hd')
+  assert.equal(link.textContent, '@a1')
+  assert.equal(link.href, 'https://x.com/a1')
+  assert.equal(link.target, '_blank')
+  assert.equal(dialog.querySelectorAll('li input')[0].checked, true)
+  link.dispatchEvent(new page.document.defaultView.Event('click', { bubbles: true }))
+  await sleep(20)
+  assert.equal(dialog.querySelectorAll('li input')[0].checked, true)
+})
+
 test('select all works after unticking everyone', async () => {
   const page = await load(`<main>${cell('a1')}${cell('a2')}${cell('a3')}</main>`, { respond: respondCollected })
   await page.click('.fab')

@@ -680,6 +680,8 @@
       .review .who{display:grid;min-width:0;flex:1}
       .review .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .review .hd{color:var(--muted)}
+      .review a.hd{text-decoration:none;width:max-content;max-width:100%}
+      .review a.hd:hover{color:#1d9bf0;text-decoration:underline}
       .review .tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
       .review .tag{font-size:12px;line-height:18px;padding:0 8px;border-radius:6px;background:var(--hover);color:var(--muted);font-weight:600}
       .review .tag.warn{background:rgba(0,186,124,.15);color:#00ba7c}
@@ -1063,7 +1065,17 @@
             if (r.followedBy) tags.append(el('span', 'tag warn', 'Follows you'))
             if (r.blocking) tags.append(el('span', 'tag', 'Blocked'))
             if (r.verified) tags.append(el('span', 'tag', 'Verified'))
-            const who = el('div', 'who', el('span', 'nm', r.name || `@${r.screenName}`), el('span', 'hd', `@${r.screenName}`))
+            const who = el('div', 'who', el('span', 'nm', r.name || `@${r.screenName}`))
+            // Link the handle so you can open the profile while reviewing. It must
+            // not toggle the row, which is what clicking anywhere else in it does.
+            if (r.screenName) {
+              const a = el('a', 'hd', `@${r.screenName}`)
+              a.href = `https://x.com/${r.screenName}`
+              a.target = '_blank'
+              a.rel = 'noopener noreferrer'
+              a.title = `Open @${r.screenName}'s profile in a new tab`
+              who.append(a)
+            }
             if (r.showSource) who.append(el('span', 'from', r.source))
             const li = el('li', r.checked ? '' : 'off', box, avatar, who, tags)
             const set = (v, quiet) => {
@@ -1073,7 +1085,7 @@
               if (!quiet) sync()
             }
             box.addEventListener('change', () => set(box.checked))
-            li.addEventListener('click', (e) => { if (e.target !== box) set(!r.checked) })
+            li.addEventListener('click', (e) => { if (e.target !== box && !e.target.closest?.('a')) set(!r.checked) })
             r.set = set
             list.append(li)
           }
