@@ -24,7 +24,7 @@ async function render() {
   $('c-collected').textContent = nf.format(counts.collected)
   $('c-queue').textContent = nf.format(counts.queue)
   $('c-24h').textContent = nf.format(counts.last24h)
-  $('c-blocked').textContent = `${nf.format(counts.blocked)} blocked in total`
+  $('c-blocked').textContent = `${nf.format(counts.blocked)} blocked · v${browser.runtime.getManifest().version}`
   $('start').hidden = active
   $('pause').hidden = !active
   $('start').disabled = counts.queue === 0
@@ -57,6 +57,7 @@ $('grant').addEventListener('click', async () => {
 
 async function init() {
   hydrateIcons()
+  $('c-blocked').title = `X Blocker v${browser.runtime.getManifest().version}`
   $('perm').hidden = await browser.permissions.contains(HOSTS)
   ;[activeTab] = await browser.tabs.query({ active: true, currentWindow: true })
   if (activeTab?.url?.startsWith('https://x.com/')) {

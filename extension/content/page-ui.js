@@ -620,6 +620,7 @@
       .panel .prog span{display:block;height:100%;width:0;background:#1d9bf0;transition:width .4s ease}
       .panel .prog[data-state=cooldown] span{background:#ffad1f}
       .panel .prog[data-state=done] span{background:#00ba7c}
+      .panel .sub .on{color:#1d9bf0;font-weight:700}
       .panel .sub .ok{color:#00ba7c;font-weight:700}
       .panel .sub .warn{color:#ffad1f;font-weight:700}
       .panel .sub .err{color:#f4212e;font-weight:700}
@@ -870,8 +871,11 @@
       title.title = title.textContent
       if (info) count.replaceChildren(...progressLine(info))
       else if (collecting) {
-        count.textContent = `Collecting · ${collectedHere.size} saved · scroll or Load all for more`
-      } else count.textContent = `${n} account${n === 1 ? '' : 's'} loaded · scroll or Load all for more`
+        count.replaceChildren(el('span', 'on', `Collecting · ${collectedHere.size} saved`), ' · scroll for more')
+      } else {
+        // Counting the list on screen is not collecting: say so explicitly.
+        count.textContent = `${n} account${n === 1 ? '' : 's'} in this list · not saved`
+      }
       scrollBtn.hidden = !context
       collectBtn.hidden = !context || collectAlways
       collectBtn.setAttribute('aria-pressed', String(collecting))
@@ -883,13 +887,13 @@
       fabLabel.textContent = info?.active
         ? `Blocking ${info.processed}/${info.total}`
         : collecting ? `Collecting ${collectedHere.size}` : 'X Blocker'
-      scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL), scrolling ? 'Stop' : 'Load all')
-      scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll down automatically to load every account in this list'
+      scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL), scrolling ? 'Stop' : 'Scroll list')
+      scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll to the end of this list so every account is shown (nothing is saved)'
       blockAllBtn.textContent = n ? `Review ${n}` : 'Review'
       blockAllBtn.title = 'Review the accounts in this list before blocking them'
       blockAllBtn.disabled = n === 0
       fabBadge.textContent = n > 999 ? '999+' : String(n)
-      fabBadge.hidden = n === 0 || collecting || Boolean(info?.active)
+      fabBadge.hidden = true // a bare count on the pill reads like "collected"; the panel shows it
       scheduleCollect()
       // Also stay visible on other pages while the queue is running.
       const show = enabled && ((Boolean(context) && pageHandles.size > 0) || Boolean(info))

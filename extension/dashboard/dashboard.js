@@ -3,6 +3,7 @@ import {
   h, icon, hydrateIcons, send, stateLabel, download, onStateChange, toast, confirmDialog,
 } from '../lib/dom.js'
 import { parseUserList, itemKey, toCsv } from '../lib/user-list.js'
+import { browser } from '../lib/compat.js'
 
 const $ = (id) => document.getElementById(id)
 const RENDER_LIMIT = 500
@@ -342,6 +343,7 @@ function switchTab(name) {
 }
 
 hydrateIcons()
+$('version').textContent = `v${browser.runtime.getManifest().version}`
 for (const b of document.querySelectorAll('#tabs .nav-item')) b.addEventListener('click', () => switchTab(b.dataset.tab))
 document.querySelector('.brand').addEventListener('click', (e) => { e.preventDefault(); switchTab('collected') })
 
