@@ -107,6 +107,11 @@ function renderChrome() {
   $('start').disabled = counts.queue === 0
   $('start').querySelector('span').textContent = runner.state === 'paused' ? 'Resume blocking' : 'Start blocking'
   $('start').title = counts.queue === 0 ? 'Add accounts to the queue first' : ''
+  $('q-start').hidden = active
+  $('q-pause').hidden = !active
+  $('q-start').disabled = $('start').disabled
+  $('q-start').title = $('start').title
+  $('q-start').querySelector('span').textContent = $('start').querySelector('span').textContent
 
   $('s-collected').textContent = nf.format(counts.collected)
   $('s-queue').textContent = nf.format(counts.queue)
@@ -353,6 +358,8 @@ document.querySelector('.brand').addEventListener('click', (e) => { e.preventDef
 
 $('start').addEventListener('click', () => action(() => send('runner:start')))
 $('pause').addEventListener('click', () => action(() => send('runner:pause')))
+$('q-start').addEventListener('click', () => $('start').click())
+$('q-pause').addEventListener('click', () => $('pause').click())
 
 $('c-filter').addEventListener('input', renderCollected)
 $('c-source').addEventListener('change', renderCollected)

@@ -135,3 +135,10 @@ td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .tag.source { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
 
 .select { width: auto; max-width: 280px; height: 32px; padding: 0 12px; border-radius: 9999px; font-size: 13px; cursor: pointer; }
+/* The play/pause glyphs carry blank space on their left; balance the pill's padding. */
+#q-start, #q-pause { padding: 0 14px 0 8px; }
+/* Let the description shrink instead of pushing the buttons onto their own line,
+   and keep Start/Resume/Pause one width so the toolbar never shifts. */
+#tab-queue .panel-head > div:first-child { flex: 1 1 280px; min-width: 0; }
+#tab-queue .panel-head > .row { flex: none; }
+#q-start, #q-pause { min-width: 168px; }
