@@ -118,6 +118,17 @@
   let scrolling = false
 
   function scrollTarget() {
+    // A list opened in a modal (list members/followers) scrolls inside the modal.
+    const dialog = [...document.querySelectorAll('[role="dialog"]')].pop()
+    if (dialog) {
+      let best = null
+      for (const el of dialog.querySelectorAll('*')) {
+        const oy = getComputedStyle(el).overflowY
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 50 &&
+          (!best || el.scrollHeight > best.scrollHeight)) best = el
+      }
+      if (best) return best
+    }
     const root = document.scrollingElement ?? document.documentElement
     if (root.scrollHeight > root.clientHeight + 50) return root
     let best = root

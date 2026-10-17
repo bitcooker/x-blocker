@@ -97,6 +97,12 @@ test('followers page lists only the main-column rows of that list', async () => 
   assert.equal(page.buttons().filter((b) => b.closest('[data-sn="alice"]')).length, 1)
 })
 
+test('list members open in a modal: only the modal rows are listed', async () => {
+  const page = await load(`<main>${cell('owner')}</main>
+    <div role="dialog"><div>${cell('alice')}${cell('bob')}</div></div>`, { path: '/i/lists/123/members' })
+  assert.deepEqual(page.handles(), ['alice', 'bob'])
+})
+
 test('replies page lists post authors, never mentions or the post owner', async () => {
   const page = await load(`<main>${post('target')}${post('r1', `hey ${mention('grok')} what is this`)}${post('r2')}</main>`,
     { path: '/target/status/123' })

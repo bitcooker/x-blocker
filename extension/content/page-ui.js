@@ -52,8 +52,9 @@
       return q ? { mode: 'any', label: `Search results for "${q}"` } : null
     }
     if (at(0) === 'i' && at(1) === 'lists' && p[2]) {
-      if (at(3) === 'members') return { mode: 'cells', label: `Members of list ${p[2]}` }
-      if (at(3) === 'followers') return { mode: 'cells', label: `Followers of list ${p[2]}` }
+      // X opens these lists in a modal over the list page.
+      if (at(3) === 'members') return { mode: 'cells', dialog: true, label: `Members of list ${p[2]}` }
+      if (at(3) === 'followers') return { mode: 'cells', dialog: true, label: `Followers of list ${p[2]}` }
       return null
     }
     if (at(0) === 'i' && at(1) === 'communities' && p[2] && at(3) === 'members') {
@@ -86,6 +87,8 @@
 
   // The list lives in the main column; sidebars ("Who to follow", trends) never count.
   function inPrimaryColumn(host) {
+    // Modal lists: only the modal counts, not the page behind it (e.g. the list's owner).
+    if (context?.dialog) return Boolean(host.closest('[role="dialog"]'))
     const main = host.closest('main, [role="main"]')
     if (!main || host.closest('aside, [role="complementary"]')) return false
     const m = main.getBoundingClientRect()
@@ -163,7 +166,8 @@
 
   function isAccountHandle(textNode) {
     const el = textNode.parentElement
-    if (!el || el.closest('#xb-root, nav, header, [contenteditable="true"], textarea, [role="dialog"]')) return false
+    if (!el || el.closest('#xb-root, nav, header, [contenteditable="true"], textarea')) return false
+    if (!context?.dialog && el.closest('[role="dialog"]')) return false
     const handle = textNode.nodeValue.trim()
     if (el.textContent.trim() !== handle) return false
     // A mention inside tweet text is a link (just "@name") embedded in a sentence.
