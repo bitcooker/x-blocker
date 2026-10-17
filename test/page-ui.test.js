@@ -103,6 +103,15 @@ test('list members open in a modal: only the modal rows are listed', async () =>
   assert.deepEqual(page.handles(), ['alice', 'bob'])
 })
 
+test('a lone button inside a post never turns a mention into an account row', async () => {
+  const page = await load(`<main><article data-sn="author"><div><a href="/author"><span>Name</span></a>
+    <div><a href="/author"><span class="h">@author</span></a></div></div>
+    <div><div><span>Block this:</span></div><div><a href="/spam"><span>@spam</span></a></div>
+    <div><button>Show translation</button></div></div></article></main>`, { path: '/author/status/1' })
+  assert.equal(page.buttons().filter((b) => b.dataset.sn === 'spam').length, 0)
+  assert.equal(page.document.querySelectorAll('.xb-pill').length, 0)
+})
+
 test('replies page lists post authors, never mentions or the post owner', async () => {
   const page = await load(`<main>${post('target')}${post('r1', `hey ${mention('grok')} what is this`)}${post('r2')}</main>`,
     { path: '/target/status/123' })

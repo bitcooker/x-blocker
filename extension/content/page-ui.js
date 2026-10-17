@@ -183,6 +183,8 @@
   // A user cell (followers list, Who to follow) has exactly one action button:
   // Follow / Following / Unblock. Posts have many buttons and an <article>.
   function findFollowButton(host) {
+    // Inside a post the only lone button nearby is something like "Show translation".
+    if (host.closest('article')) return null
     let el = host
     for (let i = 0; i < 8 && el.parentElement; i++) {
       el = el.parentElement
@@ -245,10 +247,21 @@
   // Posts: join X's own round icon buttons at the top right of the post
   // (Grok, "more" menu) instead of touching the name/@handle/time header.
   // Those are the first buttons of the post in DOM order, above the action bar.
-  function placeInPostActions(article, btn) {
+  function placeInPostActions(article, btn, host) {
     const top = article.getBoundingClientRect().top
-    const buttons = [...article.querySelectorAll('button, [role="button"]')].filter((b) =>
+    let buttons = [...article.querySelectorAll('button, [role="button"]')].filter((b) =>
       !b.classList.contains('xb-icon') && !b.closest('a, [role="link"]') && b.closest('article') === article)
+    // With real layout, the header icons are the small buttons level with the author's
+    // name, the right-most being "more". Pick that row rather than the first button in
+    // DOM order, which on an opened post can be something else.
+    const h = host.getBoundingClientRect()
+    const header = buttons.map((b) => [b, b.getBoundingClientRect()])
+      .filter(([, r]) => r.height > 0 && r.height <= 48 && r.top >= top - 1 && r.bottom <= h.bottom + 24)
+    if (header.length) {
+      const more = header.reduce((a, b) => (b[1].right > a[1].right ? b : a))
+      buttons = header.filter(([, r]) => Math.abs(r.top - more[1].top) < 12)
+        .sort((a, b) => a[1].left - b[1].left).map(([b]) => b)
+    }
     const first = buttons[0]
     if (!first) return false
     const r = first.getBoundingClientRect()
@@ -469,7 +482,7 @@
       btn.className = 'xb-pill'
       followButtons.set(btn, follow)
       placeBeside(follow, btn)
-    } else if (owner && placeInPostActions(owner, btn)) {
+    } else if (owner && placeInPostActions(owner, btn, host)) {
       btn.className = 'xb-icon xb-action'
       btn.append(svg(BLOCK_ICON))
     } else {
