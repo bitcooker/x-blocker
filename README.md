@@ -15,6 +15,30 @@ A browser extension for **Firefox** and **Chrome** (Manifest V3) that mass-block
   that follow you. You can also keep a whitelist and choose to skip verified accounts.
 - **Export**: collected, queued and blocked lists can be exported as CSV.
 
+## Install
+
+**Firefox (128+):** install from
+[addons.mozilla.org](https://addons.mozilla.org/firefox/addon/x-blocker/).
+Updates arrive automatically.
+
+**Chrome, Edge, Brave, Vivaldi, Opera (Chromium 121+):** the extension is not
+in the Chrome Web Store. Install it from GitHub instead:
+
+1. Download `x-blocker-chrome-<version>.zip` from the
+   [latest release](https://github.com/bitcooker/x-blocker/releases/latest)
+   and extract it to a folder you will keep.
+2. Open `chrome://extensions` (`edge://extensions` in Edge) and switch on
+   **Developer mode**.
+3. Click **Load unpacked** and select the extracted folder.
+
+To update, replace the folder's contents with the new release and click the
+reload icon on the extension's card. Settings and data are kept as long as you
+use the same folder. Chromium may show a reminder that developer-mode extensions
+are enabled. That's expected for extensions installed this way.
+
+X Blocker is an independent project and is not affiliated with or
+endorsed by X Corp.
+
 ## How it works with x.com
 
 x.com is served by the **"x-web" client** (ES modules from
@@ -114,52 +138,67 @@ Manual install:
   → choose `extension/manifest.json` (or `dist/firefox/manifest.json`).
   Host access is opt-in in Firefox MV3. If the popup says so, click
   **Grant access**, then reload your x.com tab.
-- **Chrome / Edge / Brave:** run `npm run build`, open `chrome://extensions`,
+- **Chromium (Chrome, Edge, Brave…):** run `npm run build`, open `chrome://extensions`,
   enable *Developer mode* → *Load unpacked* → choose `dist/chrome`. Chrome 121 or
   newer is required.
 
 ## Releasing
 
-Releases are fully automated with GitHub Actions:
+Releases are automated with GitHub Actions:
 
 | Workflow | Runs on | Does |
 | --- | --- | --- |
 | **CI** (`ci.yml`) | push to `main`, pull requests | version check, tests, lint, builds both packages (artifacts) |
-| **Prepare release** (`prepare-release.yml`) | manual (*Actions → Prepare release → Run*) | bumps the version (`patch` / `minor` / `major` / `X.Y.Z`), commits `chore(release): vX.Y.Z`, tags and pushes, then runs **Release** |
-| **Release** (`release.yml`) | a pushed `vX.Y.Z` tag, or called by Prepare release | checks the tag matches the version, tests, lints, packages, creates the GitHub Release (notes from Conventional Commits, both zips attached) and publishes to the stores |
+| **Prepare release** (`prepare-release.yml`) | manual: *Actions → Prepare release → Run* | bumps the version (`patch` / `minor` / `major` / `X.Y.Z`), commits `chore(release): vX.Y.Z`, tags, pushes, then runs **Release** |
+| **Release** (`release.yml`) | a pushed `vX.Y.Z` tag, or called by Prepare release | checks the tag matches the version, tests, lints, packages, creates the GitHub Release and submits the Firefox build to AMO |
 | **Dependabot** (`dependabot.yml`) | weekly | updates npm dev dependencies and actions |
 
-To release manually instead:
+Where each build goes:
+
+| Browser | Channel | How users get updates |
+| --- | --- | --- |
+| Firefox | [addons.mozilla.org](https://addons.mozilla.org/firefox/addon/x-blocker/), listed | automatically, after Mozilla's review |
+| Chromium browsers | `x-blocker-chrome-X.Y.Z.zip` on GitHub Releases | manually (see [Install](#install)) |
+
+Every GitHub Release has generated notes (grouped Conventional Commits), install
+instructions and both zips.
+
+To release from the command line instead of the Actions button:
 ```sh
-node scripts/version.mjs minor                       # updates manifest, package.json, lockfile
-git commit -am "chore(release): v1.7.0" && git tag -a v1.7.0 -m "X Blocker v1.7.0"
-git push origin main v1.7.0                          # triggers Release
+node scripts/version.mjs patch                     # updates manifest, package.json, lockfile
+git commit -am "chore(release): v0.1.1" && git tag -a v0.1.1 -m "X Blocker v0.1.1"
+git push origin main && git push origin v0.1.1     # push the tag separately so it triggers Release
 ```
 
-### Store publishing (optional)
+While the project is at 0.x, use `patch` for fixes and `minor` for features or
+breaking changes.
 
-Each store job runs only when its repository secrets exist (*Settings → Secrets
-and variables → Actions*). Otherwise it is skipped with a notice, and the GitHub
-Release is still created.
+### Firefox Add-ons (AMO)
 
-| Store | Secrets | Where to get them |
-| --- | --- | --- |
-| Firefox Add-ons (AMO) | `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` | addons.mozilla.org → *Developer Hub → Manage API Keys* |
-| Chrome Web Store | `CWS_EXTENSION_ID`, `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN` | Google Cloud OAuth client with the Chrome Web Store API enabled; see the [chrome-webstore-upload guide](https://github.com/fregante/chrome-webstore-upload-keys) |
-| Microsoft Edge Add-ons | `EDGE_PRODUCT_ID`, `EDGE_CLIENT_ID`, `EDGE_API_KEY` | Partner Center → *Microsoft Edge → Publish API* |
+The AMO job needs two repository secrets (*Settings → Secrets and variables →
+Actions*). Without them it's skipped with a notice.
 
-One-time setup:
-- **First submission to each store is manual.** The listing, description,
-  screenshots and privacy answers have to be created once. After that, every release
-  only uploads a new version.
-- **Firefox extension ID.** Before the first AMO upload, replace the placeholder
-  `browser_specific_settings.gecko.id` (`x-blocker@local.dev`) with an ID you
-  own, e.g. `x-blocker@your-domain`. It must never change after publishing.
-- **Firefox review.** AMO versions are submitted for review and go live once
-  approved. The workflow does not wait for approval. The code is not minified
-  or bundled, so no separate source upload is needed.
-- **Branch protection.** If `main` is protected, allow `github-actions[bot]` to
-  push, or use the manual tag flow above.
+| Secret | Value |
+| --- | --- |
+| `AMO_JWT_ISSUER` | *JWT issuer* from AMO → Developer Hub → *Tools → Manage API Keys* |
+| `AMO_JWT_SECRET` | *JWT secret* from the same page (shown only once) |
+
+How it works:
+- `scripts/amo-metadata.mjs` asks AMO whether the add-on (`x-blocker@bitcooker`)
+  exists yet.
+  - **First release:** submits the full listing from `amo-metadata.json`
+    (summary, description, categories, license, notes for reviewers).
+  - **Later releases:** submits the new version with only its license and
+    reviewer notes, so edits made to the listing on the AMO website are never
+    overwritten.
+- Versions are submitted for review and published once Mozilla approves them.
+  The workflow does not wait for approval.
+- After the first submission, add screenshots and a privacy policy on the AMO
+  website. Those can't come from the metadata file.
+- The Firefox ID `x-blocker@bitcooker` is permanent. Never change it.
+- The code is not minified or bundled, so no separate source upload is needed.
+- If `main` is protected, allow `github-actions[bot]` to push, or use the
+  command-line flow above.
 
 ## Rate limits (defaults)
 
