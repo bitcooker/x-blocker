@@ -1,6 +1,6 @@
 {
   "name": "x-blocker",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Firefox and Chrome extension to mass-block accounts on X (Twitter)",
   "type": "module",
