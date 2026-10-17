@@ -86,13 +86,14 @@ td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .log li[data-level="error"] .dot { background: var(--danger); }
 
 /* Settings */
-.settings { display: grid; gap: 12px; max-width: 680px; }
+.settings { display: grid; gap: 12px; }
 .settings h2 { font-size: 17px; font-weight: 800; margin-top: 12px; }
 .list { overflow: hidden; }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
 .setting:last-child { border-bottom: none; }
 .setting:hover { background: var(--bg-hover); }
-.setting > div { display: grid; gap: 2px; }
+/* Cards span the page like everything else; only the text keeps a readable line length. */
+.setting > div { display: grid; gap: 2px; max-width: 760px; }
 .setting > div span { color: var(--muted); font-size: 13px; line-height: 16px; }
 .setting.stack { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 12px; cursor: default; }
 .setting.stack:hover { background: none; }
