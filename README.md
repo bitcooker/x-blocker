@@ -35,11 +35,14 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
 
 ## Privacy
 
-- Everything stays in your browser. No analytics, no servers, no tracking.
+- Everything stays on your own device, in your browser's own storage. There is
+  no analytics, no server, no account and no tracking.
 - Private pages (messages, notifications, settings) are never read.
-- Nothing is collected unless you press **Collect**.
+- Pressing **Collect** only saves those accounts in the extension's own storage
+  on your device. Nothing is uploaded, sent or shared anywhere. It happens only
+  when you press it, and friends or people you merely read about are never saved.
 - Collected profiles are forgotten after 30 days, and **Delete all data** in
-  Settings wipes everything in one click.
+  Settings wipes them in one click.
 
 ## Install
 

@@ -920,7 +920,7 @@
       collectBtn.textContent = collecting ? 'Collecting' : 'Collect'
       collectBtn.title = collecting
         ? 'Adding this list to your Collected list. Click to stop.'
-        : 'Add the accounts of this list to your Collected list (stops when you leave this page)'
+        : 'Add the accounts of this list to your Collected list, saved only in your browser and stopped when you leave this page'
       fabDot.hidden = !collecting
       fabLabel.textContent = info?.active
         ? `Blocking ${info.processed}/${info.total}`
