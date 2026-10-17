@@ -95,6 +95,22 @@ export function itemKey(item) {
   return item.id ? `id:${item.id}` : `sn:${String(item.screenName ?? '').toLowerCase()}`
 }
 
+// Keys of the accounts already in the queue, by ID and by handle, so an account
+// that only knows one of the two still matches (same idea as addToQueue's set).
+export function queueKeys(queue) {
+  const keys = new Set()
+  for (const q of queue) {
+    keys.add(itemKey(q))
+    if (q.id && q.screenName) keys.add(itemKey({ screenName: q.screenName }))
+  }
+  return keys
+}
+
+export function isQueued(user, keys) {
+  return keys.has(itemKey(user)) ||
+    Boolean(user.id && user.screenName && keys.has(itemKey({ screenName: user.screenName })))
+}
+
 export function dedupeItems(items) {
   const seen = new Set()
   return items.filter((it) => {

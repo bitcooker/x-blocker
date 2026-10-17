@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseUserList, parseToken, toCsv } from '../extension/lib/user-list.js'
+import { parseUserList, parseToken, isQueued, queueKeys, toCsv } from '../extension/lib/user-list.js'
 
 test('parses handles, URLs and ids from free text', () => {
   const text = `@alice, bob
@@ -58,4 +58,14 @@ https://x.com/i/user/notanumber https://x.com/i/user/ https://x.com/intent/user?
     { id: '78' },
     { screenName: 'alice' },
   ])
+})
+
+test('queued accounts are matched by ID or handle, either way round', () => {
+  const keys = queueKeys([{ id: '1', screenName: 'Alice' }, { screenName: 'bob' }, { id: '3' }])
+  assert.equal(isQueued({ id: '1', screenName: 'someone-else' }, keys), true)
+  assert.equal(isQueued({ id: '9', screenName: 'alice' }, keys), true)
+  assert.equal(isQueued({ id: '9', screenName: 'BOB' }, keys), true)
+  assert.equal(isQueued({ id: '3', screenName: 'carol' }, keys), true)
+  assert.equal(isQueued({ id: '9', screenName: 'carol' }, keys), false)
+  assert.equal(isQueued({ screenName: 'carol' }, keys), false)
 })

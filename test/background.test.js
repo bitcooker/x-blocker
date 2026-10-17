@@ -107,6 +107,25 @@ test('content scripts cannot call dashboard actions', async () => {
   assert.equal(await send({ type: 'settings:set', patch: { collectAlways: true } }), undefined)
 })
 
+test('the Collected list for the page excludes accounts already in the queue', async () => {
+  const now = Date.now()
+  await boot({
+    settings: { version: 3 },
+    collected: {
+      1: { id: '1', screenName: 'queued', collectedAt: now, sources: ['A'] },
+      2: { id: '2', screenName: 'waiting', collectedAt: now, sources: ['A'] },
+    },
+    queue: [{ id: '1', screenName: 'queued', addedAt: now, tries: 0 }],
+  })
+  const list = await send({ type: 'page:collectedList' })
+  assert.deepEqual(list.map((u) => u.screenName), ['waiting'])
+  const progress = await send({ type: 'page:progress' })
+  assert.equal(progress.collectedCount, 1)
+  // Removing it from the queue puts it back in Collected.
+  await send({ type: 'queue:clear' }, { id: 'ext', url: 'moz-extension://ext/dashboard/dashboard.html' })
+  assert.deepEqual((await send({ type: 'page:collectedList' })).map((u) => u.screenName).sort(), ['queued', 'waiting'])
+})
+
 test('the Collected list for the page excludes blocked accounts', async () => {
   const now = Date.now()
   await boot({

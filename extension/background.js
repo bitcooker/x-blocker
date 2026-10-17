@@ -11,7 +11,7 @@
 //   asks for one item at a time, so progress survives reloads and restarts.
 import { browser, onMessage } from './lib/compat.js'
 import { extractUsers } from './lib/extract-users.js'
-import { dedupeItems, itemKey } from './lib/user-list.js'
+import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 
 // Rate limits: X tolerates roughly 500 blocks per rolling 24 h; beyond that it
 // starts answering 429 and may force-logout the session. Defaults stay under that
@@ -168,9 +168,11 @@ function notify(keys) {
   }, 250)
 }
 
-// Collected accounts that are still blockable (not blocked yet).
+// Collected accounts that are still blockable (not blocked, not queued).
 function pendingCollected(s) {
-  return Object.values(s.collected).filter((u) => !u.blocking && !s.blocked[u.id])
+  const queued = queueKeys(s.queue)
+  return Object.values(s.collected)
+    .filter((u) => !u.blocking && !s.blocked[u.id] && !isQueued(u, queued))
 }
 
 function progressPayload() {
@@ -561,7 +563,7 @@ function summary(s) {
     settings: s.settings,
     runner,
     counts: {
-      collected: Object.keys(s.collected).length,
+      collected: pendingCollected(s).length,
       queue: s.queue.length,
       blocked: Object.keys(s.blocked).length,
       last24h: last24h(s),

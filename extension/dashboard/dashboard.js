@@ -2,7 +2,7 @@
 import {
   h, icon, hydrateIcons, send, stateLabel, download, onStateChange, toast, confirmDialog,
 } from '../lib/dom.js'
-import { parseUserList, itemKey, toCsv } from '../lib/user-list.js'
+import { parseUserList, isQueued, itemKey, queueKeys, toCsv } from '../lib/user-list.js'
 import { browser } from '../lib/compat.js'
 
 const $ = (id) => document.getElementById(id)
@@ -147,7 +147,10 @@ function renderCollected() {
   const hideFriends = pressed('c-hide-following')
   syncSourceOptions()
   const source = $('c-source').value
+  // Queued accounts live in the queue now, not in Collected (see pendingCollected).
+  const queued = queueKeys(data.queue)
   filteredCollected = Object.values(data.collected)
+    .filter((u) => !isQueued(u, queued))
     .filter((u) => !(hideBlocked && isBlocked(u)))
     .filter((u) => !(hideFriends && (u.following || u.followedBy)))
     .filter((u) => !source || (u.sources ?? []).includes(source))
