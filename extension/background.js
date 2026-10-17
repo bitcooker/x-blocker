@@ -225,11 +225,16 @@ function flushCollected() {
       for (const [k, v] of Object.entries(u)) if (v !== undefined && v !== '') merged[k] = v
       merged.seenAt = now
       s.collected[u.id] = merged
-      if (u.blocking && !s.blocked[u.id]) {
+      const record = s.blocked[u.id]
+      if (u.blocking && !record) {
         s.blocked[u.id] = { id: u.id, screenName: u.screenName, name: u.name, at: now, source: 'seen' }
-      } else if (u.blocking === false && s.blocked[u.id]) {
+      } else if (u.blocking === false && record) {
         // X says this account is no longer blocked (unblocked elsewhere).
         delete s.blocked[u.id]
+      } else if (record) {
+        // Accounts blocked by ID get their handle and name once they are seen.
+        if (u.screenName) record.screenName = u.screenName
+        if (u.name) record.name = u.name
       }
     }
     for (const [id, u] of Object.entries(s.collected)) {
@@ -332,6 +337,11 @@ function removeFromQueue(s, item) {
   })
 }
 
+// Drops empty fields so stored records never carry `screenName: undefined`.
+function compact(record) {
+  return Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+}
+
 function label(item) {
   return item.screenName ? `@${item.screenName}` : `id ${item.id}`
 }
@@ -422,10 +432,10 @@ function applyResult(s, msg) {
   if (outcome === 'blocked') {
     r.strikes = 0
     removeFromQueue(s, item)
-    s.blocked[item.id] = {
+    s.blocked[item.id] = compact({
       id: item.id, screenName: item.screenName ?? s.collected[item.id]?.screenName,
       name: s.collected[item.id]?.name, at: now, source: 'x-blocker', reason: item.source,
-    }
+    })
     if (s.collected[item.id]) s.collected[item.id].blocking = true
     s.blockTimes.push(now)
     r.done++
@@ -610,7 +620,7 @@ const pageHandlers = {
   'page:blocked': (s, msg) => mutate(s, ['blocked', 'collected', 'blockTimes', 'log', 'queue'], () => {
     const { id, screenName } = msg.user ?? {}
     if (!/^\d+$/.test(String(id))) return {}
-    s.blocked[id] = { id, screenName, name: s.collected[id]?.name, at: Date.now(), source: 'x-blocker', reason: 'Quick block' }
+    s.blocked[id] = compact({ id, screenName, name: s.collected[id]?.name, at: Date.now(), source: 'x-blocker', reason: 'Quick block' })
     if (s.collected[id]) s.collected[id].blocking = true
     s.blockTimes.push(Date.now())
     removeFromQueue(s, { id, screenName })

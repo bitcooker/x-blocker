@@ -33,18 +33,39 @@ function fmtAgo(t) {
   return rtf.format(Math.round(s / 86400), 'day')
 }
 
-const profileUrl = (sn) => `https://x.com/${encodeURIComponent(sn)}`
+// Accounts known only by ID link to x.com/i/user/<id>, which X redirects to
+// the profile, so every row can be opened even before its @handle is known.
+function profileUrl({ screenName, id }) {
+  if (screenName) return `https://x.com/${encodeURIComponent(screenName)}`
+  return /^\d{1,20}$/.test(String(id)) ? `https://x.com/i/user/${id}` : null
+}
 
-function accountCell({ screenName, name, avatar, description, id }) {
+// Merges account records, ignoring empty fields, so a record stored without a
+// handle never hides one known from elsewhere.
+function merge(...records) {
+  const out = {}
+  for (const r of records) {
+    for (const [k, v] of Object.entries(r ?? {})) if (v !== undefined && v !== null && v !== '') out[k] = v
+  }
+  return out
+}
+
+function accountCell(account) {
+  const { screenName, name, avatar, description, id } = account
+  const url = profileUrl(account)
+  const label = screenName ? `@${screenName}` : `ID ${id}`
   return h('div', { class: 'account' },
     avatar
       ? h('img', { class: 'avatar', src: avatar, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' })
       : h('div', { class: 'avatar' }),
     h('div', { class: 'meta' },
-      h('span', { class: 'name' }, name || (screenName ? `@${screenName}` : `ID ${id}`)),
-      screenName
-        ? h('a', { class: 'handle', href: profileUrl(screenName), target: '_blank', rel: 'noopener noreferrer' }, `@${screenName}`)
-        : h('span', { class: 'handle' }, `ID ${id}`),
+      h('span', { class: 'name' }, name || label),
+      url
+        ? h('a', {
+          class: 'handle', href: url, target: '_blank', rel: 'noopener noreferrer',
+          title: screenName ? `Open @${screenName} on X` : `Open account ${id} on X`,
+        }, label)
+        : h('span', { class: 'handle' }, label),
       description ? h('span', { class: 'bio', title: description }, description) : null))
 }
 
@@ -175,7 +196,7 @@ function renderQueue() {
     const u = (item.id && data.collected[item.id]) || {}
     return h('tr', {},
       h('td', { class: 'when' }, i + 1),
-      h('td', {}, accountCell({ ...u, ...item })),
+      h('td', {}, accountCell(merge(u, item))),
       h('td', {}, sourceTag(item.source)),
       h('td', { class: 'when', title: new Date(item.addedAt).toLocaleString() }, fmtAgo(item.addedAt)),
       h('td', {}, item.tries ? h('span', { class: 'tag' }, `${item.tries} failed`) : ''),
@@ -205,7 +226,7 @@ function blockedList() {
 function renderBlocked() {
   const list = blockedList()
   const rows = list.slice(0, RENDER_LIMIT).map((b) => h('tr', {},
-    h('td', {}, accountCell({ ...data.collected[b.id], ...b })),
+    h('td', {}, accountCell(merge(data.collected[b.id], b))),
     h('td', {}, b.source === 'seen' ? h('span', { class: 'tag' }, 'Already blocked on X') : sourceTag(b.reason)),
     h('td', { class: 'when', title: new Date(b.at).toLocaleString() }, fmtAgo(b.at))))
   if (!rows.length) rows.push(emptyRow(3, 'block', 'No blocks yet', 'Accounts you block will be listed here.'))
