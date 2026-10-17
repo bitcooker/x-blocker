@@ -106,7 +106,7 @@ export function dedupeItems(items) {
 }
 
 function csvCell(v) {
-  let s = v === undefined || v === null ? '' : String(v)
+  let s = v === undefined || v === null ? '' : Array.isArray(v) ? v.join('; ') : String(v)
   // Neutralise spreadsheet formulas (CSV injection): bios are attacker-controlled.
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s

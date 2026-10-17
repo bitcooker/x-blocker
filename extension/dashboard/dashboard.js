@@ -121,13 +121,27 @@ function renderChrome() {
 const pressed = (id) => $(id).getAttribute('aria-pressed') === 'true'
 const isBlocked = (u) => Boolean(u.blocking || data.blocked[u.id])
 
+// Keeps the "From" filter in sync with the sources present in Collected.
+function syncSourceOptions() {
+  const select = $('c-source')
+  const sources = [...new Set(Object.values(data.collected).flatMap((u) => u.sources ?? []))].sort()
+  const current = [...select.options].slice(1).map((o) => o.value)
+  if (sources.join('\n') === current.join('\n')) return
+  const value = select.value
+  select.replaceChildren(h('option', { value: '' }, 'All sources'), ...sources.map((src) => h('option', { value: src }, src)))
+  select.value = sources.includes(value) ? value : ''
+}
+
 function renderCollected() {
   const q = $('c-filter').value.trim().toLowerCase()
   const hideBlocked = pressed('c-hide-blocked')
   const hideFriends = pressed('c-hide-following')
+  const source = $('c-source').value
+  syncSourceOptions()
   filteredCollected = Object.values(data.collected)
     .filter((u) => !(hideBlocked && isBlocked(u)))
     .filter((u) => !(hideFriends && (u.following || u.followedBy)))
+    .filter((u) => !source || (u.sources ?? []).includes(source))
     .filter((u) => !q || `${u.name}\n${u.screenName}\n${u.description}`.toLowerCase().includes(q))
     .sort((a, b) => b.seenAt - a.seenAt)
   for (const id of selected) if (!data.collected[id]) selected.delete(id)
@@ -146,7 +160,8 @@ function renderCollected() {
         u.following ? h('span', { class: 'tag tag-ok' }, 'Following') : null,
         u.followedBy ? h('span', { class: 'tag tag-ok' }, 'Follows you') : null,
         u.verified ? h('span', { class: 'tag tag-accent' }, 'Verified') : null)),
-      h('td', { class: 'when', title: new Date(u.seenAt).toLocaleString() }, fmtAgo(u.seenAt)))
+      h('td', {}, h('div', { class: 'tags' }, (u.sources ?? []).slice(-2).map((src) => sourceTag(src)))),
+      h('td', { class: 'when', title: new Date(u.collectedAt ?? u.seenAt).toLocaleString() }, fmtAgo(u.collectedAt ?? u.seenAt)))
     box.addEventListener('change', () => {
       box.checked ? selected.add(u.id) : selected.delete(u.id)
       tr.classList.toggle('selected', box.checked)
@@ -162,9 +177,9 @@ function renderCollected() {
   })
   if (!rows.length) {
     rows.push(Object.keys(data.collected).length
-      ? emptyRow(5, 'search', 'No matches', 'Try a different search or turn off the filters.')
-      : emptyRow(5, 'people', 'Nothing collected yet',
-        'Open a followers, likes, reposts or search page on x.com and scroll. Accounts show up here automatically.'))
+      ? emptyRow(6, 'search', 'No matches', 'Try a different search or turn off the filters.')
+      : emptyRow(6, 'people', 'Nothing collected yet',
+        'On x.com, open a followers, likes, reposts, replies or search page, open the X Blocker panel at the bottom and press Collect.'))
   }
   $('c-body').replaceChildren(...rows)
   $('c-more').textContent = filteredCollected.length > RENDER_LIMIT
@@ -266,7 +281,7 @@ function renderSettings() {
 function readSettings() {
   const f = $('settings').elements
   return {
-    collect: f.collect.checked,
+    collectAlways: f.collectAlways.checked,
     inPageButtons: f.inPageButtons.checked,
     delayMs: Math.max(2000, Number(f.delayMs.value) || 0),
     jitterMs: Math.max(0, Number(f.jitterMs.value) || 0),
@@ -334,6 +349,7 @@ $('start').addEventListener('click', () => action(() => send('runner:start')))
 $('pause').addEventListener('click', () => action(() => send('runner:pause')))
 
 $('c-filter').addEventListener('input', renderCollected)
+$('c-source').addEventListener('change', renderCollected)
 for (const id of ['c-hide-blocked', 'c-hide-following']) {
   $(id).addEventListener('click', () => {
     $(id).setAttribute('aria-pressed', String(!pressed(id)))
@@ -356,7 +372,7 @@ $('c-remove').addEventListener('click', () => action(async () => {
 }))
 $('c-export').addEventListener('click', () =>
   download('x-blocker-collected.csv', toCsv(filteredCollected,
-    ['id', 'screenName', 'name', 'followers', 'verified', 'following', 'followedBy', 'description'])))
+    ['id', 'screenName', 'name', 'followers', 'verified', 'following', 'followedBy', 'description', 'sources'])))
 $('c-clear').addEventListener('click', async () => {
   if (await confirmDialog({
     title: 'Clear collected accounts?',

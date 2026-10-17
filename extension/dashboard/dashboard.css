@@ -107,3 +107,5 @@ td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
   main { padding: 16px; }
 }
 .tag.source { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+
+.select { width: auto; max-width: 280px; height: 32px; padding: 0 12px; border-radius: 9999px; font-size: 13px; cursor: pointer; }

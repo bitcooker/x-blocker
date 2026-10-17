@@ -51,13 +51,14 @@
         <header class="panel-head">
           <div>
             <h1>Collected accounts</h1>
-            <p class="muted">Gathered automatically as you browse followers, likes, reposts, replies, search and lists on x.com.</p>
+            <p class="muted">Lists you chose to collect on x.com. Open a followers, likes, reposts, replies or search page, open the X Blocker panel at the bottom and press <b>Collect</b>. Collecting stops when you leave the page.</p>
           </div>
         </header>
         <div class="toolbar">
           <label class="search grow"><i data-icon="search"></i><input id="c-filter" class="input" type="search" placeholder="Search name, @handle or bio"></label>
           <button id="c-hide-blocked" class="chip" aria-pressed="true">Hide blocked</button>
           <button id="c-hide-following" class="chip" aria-pressed="true">Hide people I know</button>
+          <select id="c-source" class="input select" aria-label="Filter by source"><option value="">All sources</option></select>
         </div>
         <div id="c-selection" class="selection-bar">
           <label class="row"><input id="c-select-all" type="checkbox" aria-label="Select all shown"><span id="c-selected" class="muted">Select all</span></label>
@@ -69,7 +70,7 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th class="w-check"></th><th>Account</th><th class="num">Followers</th><th>Status</th><th>Seen</th></tr></thead>
+            <thead><tr><th class="w-check"></th><th>Account</th><th class="num">Followers</th><th>Status</th><th>From</th><th>Collected</th></tr></thead>
             <tbody id="c-body"></tbody>
           </table>
         </div>
@@ -162,7 +163,7 @@
         <form id="settings" class="settings">
           <h2>On x.com</h2>
           <div class="card list">
-            <label class="setting"><div><b>Collect accounts</b><span>Save accounts from the pages you browse so you can block them later.</span></div><span class="switch"><input name="collect" type="checkbox"><span></span></span></label>
+            <label class="setting"><div><b>Always collect</b><span>Save every account X shows you, on any page, instead of only the lists you choose to collect. Not recommended: it also saves friends and people you just read about.</span></div><span class="switch"><input name="collectAlways" type="checkbox"><span></span></span></label>
             <label class="setting"><div><b>Block buttons &amp; mass-block panel</b><span>Show X Blocker controls inside x.com. Reload x.com after changing this.</span></div><span class="switch"><input name="inPageButtons" type="checkbox"><span></span></span></label>
           </div>
 
@@ -183,7 +184,7 @@
           </div>
           <h2>Privacy</h2>
           <div class="card list">
-            <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser. Nothing is sent anywhere except your own requests to X. Profiles not seen for 30 days are forgotten automatically, and private pages (messages, notifications, settings) are never read.</span></div>
+            <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser. Nothing is sent anywhere except your own requests to X. Accounts are saved only when you collect a list. Others are kept in a temporary cache, cleared when the browser closes, that is used to protect your friends and detect blocked accounts. Collected profiles not seen for 30 days are forgotten, and private pages (messages, notifications, settings) are never read.</span></div>
               <button id="wipe" type="button" class="btn btn-sm btn-danger-outline">Delete all data</button></div>
           </div>
         </form>

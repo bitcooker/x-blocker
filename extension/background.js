@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Background (Firefox event page / Chrome service worker): single source of
 // truth for extension state.
+// - Accounts seen in X's responses go into a session-only "seen" cache used for
+//   safety checks and lookups. They are saved to the Collected list only when
+//   the user collects a list (or enables "always collect").
 // - Captures users from X GraphQL responses: on Firefox passively via
 //   webRequest.filterResponseData; on Chrome, which has no response-body API,
 //   from bodies forwarded by content/capture-hook.js.
@@ -14,7 +17,7 @@ import { dedupeItems, itemKey } from './lib/user-list.js'
 // starts answering 429 and may force-logout the session. Defaults stay under that
 // with headroom for manual blocks, and pace requests like a human (avg ~6 s).
 const DEFAULT_SETTINGS = {
-  collect: true,
+  collectAlways: false,
   inPageButtons: true,
   delayMs: 4000,
   jitterMs: 4000,
@@ -86,9 +89,8 @@ const BIG_KEYS = new Set(['collected', 'blocked', 'log', 'blockTimes'])
 
 let cache = null
 let lock = Promise.resolve()
-let collectEnabled = true
 
-const SETTINGS_VERSION = 2
+const SETTINGS_VERSION = 3
 const MIN = { delayMs: 2000, jitterMs: 0, cooldownMin: 1, dailyCap: 0 }
 
 // v1 shipped with 3 s delay and no daily limit, which can get accounts
@@ -99,6 +101,8 @@ function migrateSettings(st) {
     if (st.jitterMs === 2000) st.jitterMs = DEFAULT_SETTINGS.jitterMs
     if (st.dailyCap === 0) st.dailyCap = DEFAULT_SETTINGS.dailyCap
   }
+  // v3: collecting became opt-in; the old always-on switch is replaced.
+  delete st.collect
   st.version = SETTINGS_VERSION
   return st
 }
@@ -111,8 +115,14 @@ function load() {
     for (const [k, v] of Object.entries(DEFAULTS)) c[k] = stored[k] ?? structuredClone(v)
     c.settings = migrateSettings({ ...DEFAULT_SETTINGS, ...c.settings })
     c.runner = { ...DEFAULT_RUNNER, ...c.runner }
+    if ((stored.settings?.version ?? 1) < 3) {
+      // Before v3 every account X showed was collected automatically (friends
+      // included). Collecting is now opt-in, so that list starts empty.
+      c.collected = {}
+      await browser.storage.local.set({ collected: {} })
+    }
     if (stored.settings?.version !== SETTINGS_VERSION) await browser.storage.local.set({ settings: c.settings })
-    collectEnabled = c.settings.collect
+    await loadSeen()
     cache = c
     return c
   })()
@@ -174,15 +184,54 @@ function last24h(s) {
   return s.blockTimes.filter((t) => now - t < DAY).length
 }
 
-// screenName (lowercase) -> id, rebuilt lazily after collected changes.
+// ---- seen cache (session only) ---------------------------------------------
+// Every account in X's responses, kept in memory and storage.session (never on
+// disk, cleared when the browser closes). Powers skip rules, the Review
+// dialog, blocked-state detection and handle → ID lookups.
+const MAX_SEEN = 10_000
+const seen = new Map() // id -> user, oldest first
+let seenLoading = null
+let seenSaveTimer = null
+
+function loadSeen() {
+  seenLoading ??= (browser.storage.session?.get('seen') ?? Promise.resolve({}))
+    .then((v) => { for (const u of v?.seen ?? []) if (!seen.has(u.id)) seen.set(u.id, u) })
+    .catch(() => {})
+  return seenLoading
+}
+
+function saveSeen() {
+  seenSaveTimer ??= setTimeout(() => {
+    seenSaveTimer = null
+    browser.storage.session?.set({ seen: [...seen.values()] }).catch(() => {})
+  }, SAVE_DEBOUNCE_MS)
+}
+
+function rememberSeen(u, now) {
+  const merged = { ...seen.get(u.id) }
+  for (const [k, v] of Object.entries(u)) if (v !== undefined && v !== '') merged[k] = v
+  if (merged.description?.length > 200) merged.description = merged.description.slice(0, 200) + '…'
+  merged.seenAt = now
+  seen.delete(u.id) // re-insert to keep most recently seen last
+  seen.set(u.id, merged)
+  while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value)
+}
+
+// Best-known record for an account: collected first, then the seen cache.
+function knownUser(s, id) {
+  return s.collected[id] ?? seen.get(id)
+}
+
+// screenName (lowercase) -> id over seen + collected, rebuilt lazily.
 let snIndex = null
 function bySn(s, sn) {
   if (!snIndex) {
     snIndex = new Map()
+    for (const u of seen.values()) snIndex.set(u.screenName.toLowerCase(), u.id)
     for (const u of Object.values(s.collected)) snIndex.set(u.screenName.toLowerCase(), u.id)
   }
   const id = snIndex.get(String(sn).toLowerCase())
-  return id ? s.collected[id] : undefined
+  return id ? knownUser(s, id) : undefined
 }
 
 // Serialises every read-modify-write so concurrent messages cannot race.
@@ -219,12 +268,17 @@ function flushCollected() {
   collectBuffer.clear()
   return exclusive(async (s) => {
     const now = Date.now()
+    const always = s.settings.collectAlways
     for (const u of users) {
-      const prev = s.collected[u.id]
-      const merged = { ...prev }
-      for (const [k, v] of Object.entries(u)) if (v !== undefined && v !== '') merged[k] = v
-      merged.seenAt = now
-      s.collected[u.id] = merged
+      rememberSeen(u, now)
+      // Already-collected accounts stay up to date; new ones only in "always" mode.
+      if (always || s.collected[u.id]) {
+        const merged = { ...s.collected[u.id] }
+        for (const [k, v] of Object.entries(u)) if (v !== undefined && v !== '') merged[k] = v
+        merged.seenAt = now
+        if (always && !merged.sources?.length) merged.sources = ['Collected automatically']
+        s.collected[u.id] = merged
+      }
       const record = s.blocked[u.id]
       if (u.blocking && !record) {
         s.blocked[u.id] = { id: u.id, screenName: u.screenName, name: u.name, at: now, source: 'seen' }
@@ -246,12 +300,13 @@ function flushCollected() {
       ids.sort((a, b) => s.collected[a].seenAt - s.collected[b].seenAt)
       for (const id of ids.slice(0, ids.length - MAX_COLLECTED)) delete s.collected[id]
     }
+    saveSeen()
     await save('collected', 'blocked')
   })
 }
 
 function captureResponse(details) {
-  if (!collectEnabled || details.tabId < 0 || !isCapturable(details.url)) return
+  if (details.tabId < 0 || !isCapturable(details.url)) return
   let filter
   try {
     filter = browser.webRequest.filterResponseData(details.requestId)
@@ -288,7 +343,7 @@ if (browser.webRequest?.filterResponseData) {
 // ---- queue --------------------------------------------------------------------
 
 function findCollected(s, item) {
-  if (item.id) return s.collected[item.id]
+  if (item.id) return knownUser(s, item.id)
   return item.screenName ? bySn(s, item.screenName) : undefined
 }
 
@@ -335,6 +390,11 @@ function removeFromQueue(s, item) {
     if (keys.has(itemKey(q))) return false
     return !(q.id && q.screenName && keys.has(itemKey({ screenName: q.screenName })))
   })
+}
+
+function markBlocking(s, id) {
+  if (s.collected[id]) s.collected[id].blocking = true
+  if (seen.has(id)) seen.get(id).blocking = true
 }
 
 // Drops empty fields so stored records never carry `screenName: undefined`.
@@ -433,10 +493,10 @@ function applyResult(s, msg) {
     r.strikes = 0
     removeFromQueue(s, item)
     s.blocked[item.id] = compact({
-      id: item.id, screenName: item.screenName ?? s.collected[item.id]?.screenName,
-      name: s.collected[item.id]?.name, at: now, source: 'x-blocker', reason: item.source,
+      id: item.id, screenName: item.screenName ?? knownUser(s, item.id)?.screenName,
+      name: knownUser(s, item.id)?.name, at: now, source: 'x-blocker', reason: item.source,
     })
-    if (s.collected[item.id]) s.collected[item.id].blocking = true
+    markBlocking(s, item.id)
     s.blockTimes.push(now)
     r.done++
     log(s, 'ok', `Blocked ${label(item)}${item.source ? ` · ${item.source}` : ''}`)
@@ -541,7 +601,6 @@ const uiHandlers = {
         if (Number.isFinite(n)) s.settings[k] = Math.max(MIN[k] ?? 0, n)
       } else if (typeof def === 'boolean') s.settings[k] = Boolean(patch[k])
     }
-    collectEnabled = s.settings.collect
     return summary(s)
   }),
   'queue:add': (s, msg) => mutate(s, ['queue'], () => addToQueue(s, msg.items ?? [])),
@@ -570,6 +629,8 @@ const uiHandlers = {
     s.blockTimes = []
     s.queue = []
     s.runner = { ...DEFAULT_RUNNER }
+    seen.clear()
+    browser.storage.session?.remove('seen').catch(() => {})
     snIndex = null
     return {}
   }),
@@ -594,6 +655,7 @@ async function mutate(s, keys, fn) {
 const pageHandlers = {
   'page:config': (s) => ({
     inPageButtons: s.settings.inPageButtons,
+    collectAlways: s.settings.collectAlways,
     blockedScreenNames: Object.values(s.blocked).map((b) => b.screenName?.toLowerCase()).filter(Boolean),
   }),
   'page:lookup': (s, msg) => {
@@ -609,7 +671,30 @@ const pageHandlers = {
     }
     return out
   },
-  'page:viewer': (s, msg) => ({ screenName: s.collected[String(msg.id)]?.screenName ?? null }),
+  'page:viewer': (s, msg) => ({ screenName: knownUser(s, String(msg.id))?.screenName ?? null }),
+  // Saves the accounts of the list the user is collecting from. Handles whose
+  // ID isn't known yet are returned as missing; the page retries them.
+  'page:collect': (s, msg) => mutate(s, ['collected'], () => {
+    const source = String(msg.source ?? '').slice(0, 120) || 'Collected on x.com'
+    const now = Date.now()
+    const saved = []
+    const missing = []
+    for (const sn of (Array.isArray(msg.screenNames) ? msg.screenNames : []).slice(0, 2000)) {
+      if (!/^[A-Za-z0-9_]{1,15}$/.test(String(sn))) continue
+      const u = bySn(s, sn)
+      if (!u) { missing.push(sn); continue }
+      const prev = s.collected[u.id]
+      s.collected[u.id] = {
+        ...prev, ...u,
+        sources: [...new Set([...(prev?.sources ?? []), source])].slice(-10),
+        collectedAt: prev?.collectedAt ?? now,
+        seenAt: now,
+      }
+      saved.push(sn)
+    }
+    snIndex = null
+    return { saved, missing }
+  }),
   'page:progress': () => progressPayload(),
   // Quick blocks count toward the same daily safety limit as the queue.
   'page:quota': (s) => {
@@ -620,8 +705,8 @@ const pageHandlers = {
   'page:blocked': (s, msg) => mutate(s, ['blocked', 'collected', 'blockTimes', 'log', 'queue'], () => {
     const { id, screenName } = msg.user ?? {}
     if (!/^\d+$/.test(String(id))) return {}
-    s.blocked[id] = compact({ id, screenName, name: s.collected[id]?.name, at: Date.now(), source: 'x-blocker', reason: 'Quick block' })
-    if (s.collected[id]) s.collected[id].blocking = true
+    s.blocked[id] = compact({ id, screenName, name: knownUser(s, id)?.name, at: Date.now(), source: 'x-blocker', reason: 'Quick block' })
+    markBlocking(s, id)
     s.blockTimes.push(Date.now())
     removeFromQueue(s, { id, screenName })
     log(s, 'ok', `Blocked @${screenName} (quick block)`)
@@ -634,10 +719,9 @@ onMessage((msg, sender) => {
   if (sender.url?.startsWith('https://x.com/')) {
     if (msg.type === 'capture:body') {
       // Chrome path: bodies relayed from the page; same privacy filter as Firefox.
-      if (collectEnabled && typeof msg.url === 'string' && typeof msg.text === 'string' &&
+      if (typeof msg.url === 'string' && typeof msg.text === 'string' &&
         msg.text.length <= MAX_BODY && isCapturable(msg.url)) {
-        if (cache) collectFromText(msg.text)
-        else load().then(() => collectEnabled && collectFromText(msg.text))
+        collectFromText(msg.text)
       }
       return undefined
     }
@@ -646,9 +730,9 @@ onMessage((msg, sender) => {
     if (msg.type === 'page:resume') {
       return startRunner(sender.tab.id).then(() => ({ ok: true }), (e) => ({ error: String(e.message ?? e) }))
     }
-    if (msg.type === 'page:lookup' && collectBuffer.size) {
+    if ((msg.type === 'page:lookup' || msg.type === 'page:collect') && collectBuffer.size) {
       // Include users captured from responses that haven't been flushed yet.
-      return flushCollected().then(() => exclusive((s) => pageHandlers['page:lookup'](s, msg)))
+      return flushCollected().then(() => exclusive((s) => pageHandlers[msg.type](s, msg)))
     }
     if (pageHandlers[msg.type]) return exclusive((s) => pageHandlers[msg.type](s, msg))
     const h = contentHandlers[msg.type]

@@ -27,6 +27,7 @@
   const MARK = 'xBlocker'
 
   let enabled = true
+  let collectAlways = false
   let viewerScreenName = null
   const pageKey = () => location.pathname + location.search
   let pageUrl = pageKey()
@@ -610,6 +611,11 @@
       .panel .sub{color:var(--muted);font-size:13px;line-height:16px}
       .panel .count{font-variant-numeric:tabular-nums}
       .panel{overflow:hidden}
+      .btn-collect[aria-pressed=true]{border-color:#1d9bf0;color:#1d9bf0;background:rgba(29,155,240,.1)}
+      .btn-collect[aria-pressed=true]::before{content:"";width:8px;height:8px;border-radius:50%;background:#1d9bf0;
+        animation:pulse 1.6s infinite}
+      .fab .dot{width:8px;height:8px;border-radius:50%;background:#1d9bf0;animation:pulse 1.6s infinite}
+      @keyframes pulse{50%{opacity:.35}}
       .panel .prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--border)}
       .panel .prog span{display:block;height:100%;width:0;background:#1d9bf0;transition:width .4s ease}
       .panel .prog[data-state=cooldown] span{background:#ffad1f}
@@ -709,21 +715,72 @@
     const scrollBtn = el('button', 'btn btn-outline')
     const blockAllBtn = el('button', 'btn btn-danger')
     const runBtn = el('button', 'btn btn-outline')
+    const collectBtn = el('button', 'btn btn-outline btn-collect')
     const minBtn = el('button', 'btn-ghost', svg(ICON_MIN))
     minBtn.title = 'Minimize'
     minBtn.setAttribute('aria-label', 'Minimize X Blocker panel')
     const progBar = el('span', '')
     const prog = el('div', 'prog', progBar)
     prog.setAttribute('role', 'progressbar')
-    panel.append(logo, text, scrollBtn, runBtn, blockAllBtn, minBtn, prog)
+    panel.append(logo, text, scrollBtn, collectBtn, runBtn, blockAllBtn, minBtn, prog)
 
     const fabBadge = el('span', 'badge')
-    const fab = el('button', 'fab', svg(BLOCK_ICON), el('span', '', 'X Blocker'), fabBadge)
+    const fabDot = el('span', 'dot')
+    const fabLabel = el('span', '', 'X Blocker')
+    const fab = el('button', 'fab', svg(BLOCK_ICON), fabLabel, fabDot, fabBadge)
     fab.title = 'X Blocker'
     fab.setAttribute('aria-label', 'Open X Blocker panel')
 
-    let minimized = false
+    // Starts minimized on every list page; the user opens it when they want it.
+    let minimized = true
     let scrolling = false
+
+    // ---- collecting: opt-in, for this page's list only ----------------------
+    // Nothing is saved to the Collected list unless the user switches Collect on;
+    // it switches off by itself when they leave the page.
+    let collecting = false
+    const collectedHere = new Set()
+    let collectTimer = null
+
+    function scheduleCollect() {
+      if (!collecting) return
+      clearTimeout(collectTimer)
+      collectTimer = setTimeout(syncCollect, 700)
+    }
+
+    async function syncCollect() {
+      if (!collecting || !context) return
+      const pending = candidates().filter((sn) => !collectedHere.has(sn.toLowerCase()))
+      if (!pending.length) return
+      const source = context.label
+      const r = await send({ type: 'page:collect', screenNames: pending, source }).catch(() => null)
+      if (!collecting || context?.label !== source) return
+      for (const sn of r?.saved ?? []) collectedHere.add(sn.toLowerCase())
+      update()
+      // IDs for some handles may arrive a moment later; try those again.
+      if (r?.missing?.length) collectTimer = setTimeout(syncCollect, 2500)
+    }
+
+    function stopCollecting(notify) {
+      if (!collecting) return
+      collecting = false
+      clearTimeout(collectTimer)
+      if (notify && collectedHere.size) {
+        toast(`Collecting stopped · ${collectedHere.size} account${collectedHere.size === 1 ? '' : 's'} saved`)
+      }
+    }
+
+    collectBtn.addEventListener('click', () => {
+      if (collecting) {
+        stopCollecting(true)
+      } else {
+        collecting = true
+        collectedHere.clear()
+        toast(`Collecting "${context?.label}". Stops when you leave this page.`)
+        syncCollect()
+      }
+      update()
+    })
 
     // Live state of the block queue, mirrored from extension storage.
     let run = { runner: null, queueLen: 0 }
@@ -812,15 +869,28 @@
       title.textContent = context?.label ?? 'Block queue'
       title.title = title.textContent
       if (info) count.replaceChildren(...progressLine(info))
-      else count.textContent = `${n} account${n === 1 ? '' : 's'} loaded · scroll or Load all for more`
+      else if (collecting) {
+        count.textContent = `Collecting · ${collectedHere.size} saved · scroll or Load all for more`
+      } else count.textContent = `${n} account${n === 1 ? '' : 's'} loaded · scroll or Load all for more`
       scrollBtn.hidden = !context
+      collectBtn.hidden = !context || collectAlways
+      collectBtn.setAttribute('aria-pressed', String(collecting))
+      collectBtn.textContent = collecting ? 'Collecting' : 'Collect'
+      collectBtn.title = collecting
+        ? 'Saving this list to the Collected list. Click to stop.'
+        : 'Save the accounts of this list to the Collected list (until you leave this page)'
+      fabDot.hidden = !collecting
+      fabLabel.textContent = info?.active
+        ? `Blocking ${info.processed}/${info.total}`
+        : collecting ? `Collecting ${collectedHere.size}` : 'X Blocker'
       scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL), scrolling ? 'Stop' : 'Load all')
       scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll down automatically to load every account in this list'
       blockAllBtn.textContent = n ? `Review ${n}` : 'Review'
       blockAllBtn.title = 'Review the accounts in this list before blocking them'
       blockAllBtn.disabled = n === 0
       fabBadge.textContent = n > 999 ? '999+' : String(n)
-      fabBadge.hidden = n === 0
+      fabBadge.hidden = n === 0 || collecting || Boolean(info?.active)
+      scheduleCollect()
       // Also stay visible on other pages while the queue is running.
       const show = enabled && ((Boolean(context) && pageHandles.size > 0) || Boolean(info))
       if (show && !host.isConnected) document.body.append(host)
@@ -1008,7 +1078,11 @@
       scheduleUpdate,
       confirm: confirmDialog,
       toast,
-      onNavigate() { scheduleUpdate() },
+      onNavigate() {
+        stopCollecting(true)
+        minimized = true
+        scheduleUpdate()
+      },
     }
   })()
 
@@ -1025,6 +1099,7 @@
   async function init() {
     const cfg = await send({ type: 'page:config' }).catch(() => null)
     enabled = cfg?.inPageButtons !== false
+    collectAlways = cfg?.collectAlways === true
     for (const sn of cfg?.blockedScreenNames ?? []) blockedHere.add(sn)
     if (!enabled) return
     context = pageContext()
