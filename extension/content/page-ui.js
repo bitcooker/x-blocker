@@ -737,7 +737,7 @@
     let scrolling = false
 
     // ---- collecting: opt-in, for this page's list only ----------------------
-    // Nothing is saved to the Collected list unless the user switches Collect on;
+    // Nothing is added to the Collected list unless the user switches Collect on;
     // it switches off by itself when they leave the page.
     let collecting = false
     const collectedHere = new Set()
@@ -756,7 +756,7 @@
       const source = context.label
       const r = await send({ type: 'page:collect', screenNames: pending, source }).catch(() => null)
       if (!collecting || context?.label !== source) return
-      for (const sn of r?.saved ?? []) collectedHere.add(sn.toLowerCase())
+      for (const sn of r?.collected ?? []) collectedHere.add(sn.toLowerCase())
       update()
       // IDs for some handles may arrive a moment later; try those again.
       if (r?.missing?.length) collectTimer = setTimeout(syncCollect, 2500)
@@ -767,7 +767,7 @@
       collecting = false
       clearTimeout(collectTimer)
       if (notify && collectedHere.size) {
-        toast(`Collecting stopped · ${collectedHere.size} account${collectedHere.size === 1 ? '' : 's'} saved`)
+        toast(`Collecting stopped · ${collectedHere.size} account${collectedHere.size === 1 ? '' : 's'} collected`)
       }
     }
 
@@ -871,24 +871,24 @@
       title.title = title.textContent
       if (info) count.replaceChildren(...progressLine(info))
       else if (collecting) {
-        count.replaceChildren(el('span', 'on', `Collecting · ${collectedHere.size} saved`), ' · scroll for more')
+        count.replaceChildren(el('span', 'on', `Collecting · ${collectedHere.size} collected`), ' · scroll for more')
       } else {
         // Counting the list on screen is not collecting: say so explicitly.
-        count.textContent = `${n} account${n === 1 ? '' : 's'} in this list · not saved`
+        count.textContent = `${n} account${n === 1 ? '' : 's'} in this list · not collected`
       }
       scrollBtn.hidden = !context
       collectBtn.hidden = !context || collectAlways
       collectBtn.setAttribute('aria-pressed', String(collecting))
       collectBtn.textContent = collecting ? 'Collecting' : 'Collect'
       collectBtn.title = collecting
-        ? 'Saving this list to the Collected list. Click to stop.'
-        : 'Save the accounts of this list to the Collected list (until you leave this page)'
+        ? 'Adding this list to your Collected list. Click to stop.'
+        : 'Add the accounts of this list to your Collected list (stops when you leave this page)'
       fabDot.hidden = !collecting
       fabLabel.textContent = info?.active
         ? `Blocking ${info.processed}/${info.total}`
         : collecting ? `Collecting ${collectedHere.size}` : 'X Blocker'
       scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL), scrolling ? 'Stop' : 'Scroll list')
-      scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll to the end of this list so every account is shown (nothing is saved)'
+      scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll to the end of this list so every account is shown (nothing is collected)'
       blockAllBtn.textContent = n ? `Review ${n}` : 'Review'
       blockAllBtn.title = 'Review the accounts in this list before blocking them'
       blockAllBtn.disabled = n === 0

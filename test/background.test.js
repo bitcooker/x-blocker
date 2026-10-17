@@ -72,7 +72,7 @@ test('seen accounts are not collected unless the user collects a list', async ()
   assert.equal(info.spammer.id, '2')
 
   const res = await send({ type: 'page:collect', screenNames: ['spammer', 'unknown_yet'], source: 'Followers of @someone' })
-  assert.deepEqual(res, { saved: ['spammer'], missing: ['unknown_yet'] })
+  assert.deepEqual(res, { collected: ['spammer'], missing: ['unknown_yet'] })
   await sleep(2200)
   assert.deepEqual(Object.keys(store.local.collected), ['2'])
   assert.deepEqual(store.local.collected['2'].sources, ['Followers of @someone'])

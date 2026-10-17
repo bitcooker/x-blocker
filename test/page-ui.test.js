@@ -195,7 +195,7 @@ test('panel starts minimized on list pages', async () => {
 test('nothing is collected until Collect is switched on, then only this list', async () => {
   const page = await load(`<main>${cell('target')}${cell('alice', { bio: `hi ${mention('friend')} there and more` })}${cell('bob')}
     <aside>${cell('sidebar_acct')}</aside></main>`, {
-    respond: (m) => (m.type === 'page:collect' ? { saved: m.screenNames, missing: [] } : {}),
+    respond: (m) => (m.type === 'page:collect' ? { collected: m.screenNames, missing: []} : {}),
   })
   const collects = () => page.sent.filter((m) => m.type === 'page:collect')
   await sleep(900)
@@ -207,12 +207,12 @@ test('nothing is collected until Collect is switched on, then only this list', a
   assert.equal(collects().length, 1)
   assert.deepEqual([...collects()[0].screenNames], ['alice', 'bob'])
   assert.equal(collects()[0].source, 'Followers of @target')
-  assert.match(page.shadow().querySelector('.sub').textContent, /Collecting · 2 saved/)
+  assert.match(page.shadow().querySelector('.sub').textContent, /Collecting · 2 collected/)
 })
 
 test('leaving the page stops collecting and minimizes the panel', async () => {
   const page = await load(`<main>${cell('alice')}</main>`, {
-    respond: (m) => (m.type === 'page:collect' ? { saved: m.screenNames, missing: [] } : {}),
+    respond: (m) => (m.type === 'page:collect' ? { collected: m.screenNames, missing: []} : {}),
   })
   await page.click('.fab')
   await page.click('.btn-collect')

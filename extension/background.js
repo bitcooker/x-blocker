@@ -2,7 +2,7 @@
 // Background (Firefox event page / Chrome service worker): single source of
 // truth for extension state.
 // - Accounts seen in X's responses go into a session-only "seen" cache used for
-//   safety checks and lookups. They are saved to the Collected list only when
+//   safety checks and lookups. They are added to the Collected list only when
 //   the user collects a list (or enables "always collect").
 // - Captures users from X GraphQL responses: on Firefox passively via
 //   webRequest.filterResponseData; on Chrome, which has no response-body API,
@@ -677,7 +677,7 @@ const pageHandlers = {
   'page:collect': (s, msg) => mutate(s, ['collected'], () => {
     const source = String(msg.source ?? '').slice(0, 120) || 'Collected on x.com'
     const now = Date.now()
-    const saved = []
+    const collected = []
     const missing = []
     for (const sn of (Array.isArray(msg.screenNames) ? msg.screenNames : []).slice(0, 2000)) {
       if (!/^[A-Za-z0-9_]{1,15}$/.test(String(sn))) continue
@@ -690,10 +690,10 @@ const pageHandlers = {
         collectedAt: prev?.collectedAt ?? now,
         seenAt: now,
       }
-      saved.push(sn)
+      collected.push(sn)
     }
     snIndex = null
-    return { saved, missing }
+    return { collected, missing }
   }),
   'page:progress': () => progressPayload(),
   // Quick blocks count toward the same daily safety limit as the queue.

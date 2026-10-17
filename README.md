@@ -6,8 +6,8 @@ A browser extension for **Firefox** and **Chrome** (Manifest V3) that mass-block
   reposts, replies, search results, lists, communities), the X Blocker panel at
   the bottom (minimized by default) offers **Review**. You see exactly that
   list's accounts and choose who to block.
-- **Collect (opt-in)**: press **Collect** in the panel to save that list's
-  accounts for later. It stops automatically when you leave the page, so
+- **Collect (opt-in)**: press **Collect** in the panel to add that list's
+  accounts to your Collected list for later. It stops automatically when you leave the page, so
   reading friends' mentions or followers never adds them. An auto-scroll helper
   loads long lists for you.
 - **Import**: paste or load @handles, profile URLs, ID links (`x.com/i/user/123`), numeric IDs (`id:123`) or a
@@ -231,7 +231,7 @@ Account-level errors (401 logged out, 403 locked/challenged, X error codes
   notification, account, settings, payment and similar operations on both
   browsers. On Chrome this check happens inside the page, before a body is read,
   and again in the background.
-- **Collecting is opt-in.** Accounts are saved only from lists you choose to
+- **Collecting is opt-in.** Accounts are collected only from lists you choose to
   collect. Everything else X shows you goes into a session-only cache
   (`storage.session`, never written to disk, cleared when the browser closes)
   that protects your friends and detects blocked accounts.
