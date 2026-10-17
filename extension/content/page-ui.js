@@ -820,10 +820,10 @@
           return [el('span', '', `Blocking · ${of}`), tail]
         case 'cooldown': {
           const at = new Date(r.cooldownUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          return [el('span', 'warn', 'Waiting for X rate limit'), ` · resumes ${at} · ${of}`]
+          return [el('span', 'warn', 'Blocking waits for X rate limit'), ` · resumes ${at} · ${of}`]
         }
         case 'paused':
-          return [el('span', 'warn', 'Paused'), ` · ${of}${tail}`]
+          return [el('span', 'warn', 'Blocking paused'), ` · ${of}${tail}`]
         case 'error':
           return [el('span', 'err', 'Stopped'), ` · ${r.message || 'error'}`]
         default:
@@ -840,7 +840,10 @@
       progBar.style.width = `${info.r.state === 'idle' ? 100 : pct}%`
       prog.dataset.state = info.r.state === 'idle' ? 'done' : info.r.state
       prog.setAttribute('aria-valuenow', String(pct))
-      runBtn.textContent = info.active ? 'Pause' : 'Resume'
+      runBtn.textContent = info.active ? 'Pause blocking' : 'Resume blocking'
+      runBtn.title = info.active
+        ? 'Stop blocking the queue after the current account. Collecting is not affected.'
+        : 'Continue blocking the queue'
       return info
     }
 

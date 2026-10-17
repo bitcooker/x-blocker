@@ -184,7 +184,7 @@ test('panel shows live queue progress', async () => {
   assert.equal(sub(), 'Blocking · 5 of 14 · 1 skipped')
   page.message({ type: 'page:progress', runner: runner('paused'), queueLen: 9 })
   await sleep(200)
-  assert.equal(sub(), 'Paused · 5 of 14 · 1 skipped')
+  assert.equal(sub(), 'Blocking paused · 5 of 14 · 1 skipped')
   page.message({ type: 'page:progress', runner: runner('idle', { done: 12, skipped: 2 }), queueLen: 0 })
   await sleep(200)
   assert.equal(sub(), 'Done · 12 blocked · 2 skipped')
