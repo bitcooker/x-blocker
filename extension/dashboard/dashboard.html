@@ -173,15 +173,15 @@
             <label class="setting"><div><b>Skip accounts I follow</b><span>Never block someone you follow.</span></div><span class="switch"><input name="skipFollowing" type="checkbox"><span></span></span></label>
             <label class="setting"><div><b>Skip my followers</b><span>Never block someone who follows you.</span></div><span class="switch"><input name="skipFollowers" type="checkbox"><span></span></span></label>
             <label class="setting"><div><b>Skip verified accounts</b><span>Leave accounts with a checkmark alone.</span></div><span class="switch"><input name="skipVerified" type="checkbox"><span></span></span></label>
-            <label class="setting stack"><div><b>Never block</b><span>One @handle per line.</span></div><textarea name="whitelist" class="input" rows="4" spellcheck="false" placeholder="@friend"></textarea></label>
+            <label class="setting stack"><div><b>Never block</b><span>One @handle per line. These accounts are always skipped, even if they are collected, imported or in a list you block.</span></div><textarea name="whitelist" class="input handles" rows="4" spellcheck="false" autocomplete="off" placeholder="@friend&#10;@family"></textarea></label>
           </div>
 
           <h2>Speed &amp; limits</h2>
           <div class="card list">
-            <label class="setting"><div><b>Delay between blocks</b><span>Milliseconds, minimum 2000. Default 4000.</span></div><input name="delayMs" class="input num-input" type="number" min="2000" step="500"></label>
-            <label class="setting"><div><b>Random extra delay</b><span>Up to this many milliseconds, so requests aren't evenly spaced. Default 4000.</span></div><input name="jitterMs" class="input num-input" type="number" min="0" step="100"></label>
-            <label class="setting"><div><b>Cooldown after rate limit</b><span>Minutes to wait when X says "too many requests". Doubles on each repeat, up to 4 hours. Default 15.</span></div><input name="cooldownMin" class="input num-input" type="number" min="1"></label>
-            <label class="setting"><div><b>Daily safety limit</b><span>Blocks per rolling 24 hours, including quick blocks. X tolerates about 500; going over can force-log you out. Default 450. 0 disables the limit (not recommended).</span></div><input name="dailyCap" class="input num-input" type="number" min="0"></label>
+            <label class="setting"><div><b>Delay between blocks</b><span>Pause after each block. Minimum 2 s. Default 4 s.</span></div><span class="field"><input name="delaySec" type="number" min="2" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
+            <label class="setting"><div><b>Random extra delay</b><span>Adds a random pause of up to this long, so blocks aren't evenly spaced. Default 4 s.</span></div><span class="field"><input name="jitterSec" type="number" min="0" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
+            <label class="setting"><div><b>Cooldown after rate limit</b><span>How long to wait when X says "too many requests". Doubles on each repeat, up to 4 hours. Default 15 min.</span></div><span class="field"><input name="cooldownMin" type="number" min="1" max="240" step="1" inputmode="numeric"><span class="unit">min</span></span></label>
+            <label class="setting"><div><b>Daily safety limit</b><span>Blocks per rolling 24 hours, including quick blocks. X tolerates about 500, and going over can force-log you out. Default 450. 0 turns the limit off (not recommended).</span></div><span class="field"><input name="dailyCap" type="number" min="0" max="5000" step="10" inputmode="numeric"><span class="unit">per day</span></span></label>
           </div>
           <h2>Privacy</h2>
           <div class="card list">

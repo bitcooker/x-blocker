@@ -94,9 +94,33 @@ td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .setting:hover { background: var(--bg-hover); }
 .setting > div { display: grid; gap: 2px; }
 .setting > div span { color: var(--muted); font-size: 13px; line-height: 16px; }
-.setting.stack { display: grid; cursor: default; }
+.setting.stack { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 12px; cursor: default; }
 .setting.stack:hover { background: none; }
-.num-input { width: 120px; text-align: right; }
+
+/* Inputs inside setting cards: one quiet style with X-like focus ring. */
+.setting textarea.handles {
+  width: 100%; min-height: 120px; resize: vertical;
+  font: 15px/22px var(--font); background: var(--bg-subtle);
+}
+.setting textarea.handles:hover { border-color: var(--muted); }
+
+/* Numeric field with its unit inside the box and no browser spinners. */
+.field {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  width: 156px; height: 40px; padding: 0 12px;
+  border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-subtle);
+  cursor: text; transition: border-color .15s, box-shadow .15s;
+}
+.field:hover { border-color: var(--muted); }
+.field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.field input {
+  all: unset; flex: 1; min-width: 0; text-align: right;
+  font: 600 15px/20px var(--font); font-variant-numeric: tabular-nums; color: var(--fg);
+  -moz-appearance: textfield; appearance: textfield;
+}
+.field input::-webkit-outer-spin-button,
+.field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.field .unit { color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }
 
 @media (max-width: 960px) {
   .layout { grid-template-columns: 88px minmax(0, 1fr); }

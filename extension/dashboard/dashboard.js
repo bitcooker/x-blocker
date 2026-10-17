@@ -277,6 +277,9 @@ function renderSettings() {
     else if (Array.isArray(v)) el.value = v.map((s) => `@${s}`).join('\n')
     else el.value = v
   }
+  // Delays are stored in milliseconds but edited in seconds.
+  form.elements.delaySec.value = data.settings.delayMs / 1000
+  form.elements.jitterSec.value = data.settings.jitterMs / 1000
 }
 
 function readSettings() {
@@ -284,8 +287,9 @@ function readSettings() {
   return {
     collectAlways: f.collectAlways.checked,
     inPageButtons: f.inPageButtons.checked,
-    delayMs: Math.max(2000, Number(f.delayMs.value) || 0),
-    jitterMs: Math.max(0, Number(f.jitterMs.value) || 0),
+    // Delays are edited in seconds and stored in milliseconds.
+    delayMs: Math.max(2000, Math.round((Number(f.delaySec.value) || 0) * 1000)),
+    jitterMs: Math.max(0, Math.round((Number(f.jitterSec.value) || 0) * 1000)),
     cooldownMin: Math.max(1, Number(f.cooldownMin.value) || 1),
     dailyCap: Math.max(0, Number(f.dailyCap.value) || 0),
     skipFollowing: f.skipFollowing.checked,
