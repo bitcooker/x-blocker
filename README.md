@@ -9,14 +9,14 @@ A browser extension for **Firefox** and **Chrome** (Manifest V3) that mass-block
 - **Collect (opt-in)**: press **Collect** in the panel to add that list's
   accounts to your Collected list for later. It stops automatically when you leave the page, so
   reading friends' mentions or followers never adds them. An auto-scroll helper
-  loads long lists for you.
+  loads long lists for you, including inside X's pop-ups.
 - **Block your collection without the dashboard**: the panel always shows how
   many accounts are in Collected and appears on any page while the list isn't
   empty. **Review** offers two tabs, *This list* and *Collected*. Pick
   who to block and press **Block**.
 - **Import**: paste or load @handles, profile URLs, ID links (`x.com/i/user/123`), numeric IDs (`id:123`) or a
   CSV with `id` / `screen_name` columns.
-- **Queue**: blocks run one at a time with a delay plus random jitter. Progress is
+- **Queue**: start or pause from the Queue page, the sidebar or the popup. Blocks run one at a time with a delay plus random jitter. Progress is
   saved after every block, so you can pause, reload or restart the browser and resume.
   Rate limits (HTTP 429) trigger an escalating cooldown, and a daily safety
   limit (450 per 24 h by default) keeps the account under X's threshold.
@@ -82,9 +82,10 @@ breaks when X ships a new build:
    relationship data from `relationship_perspectives`. No specific endpoint
    layout is assumed.
 5. **Page-aware lists.** The URL determines which list is being viewed
-   (followers, following, replies, likes, reposts, quotes, search, list or
-   community members). Only accounts from that list in the main column are
-   offered for mass blocking, and always through a review step.
+   (followers, following, replies, likes, reposts, quotes, search, list
+   members/followers or community members). Only accounts from that list in the
+   main column, or in X's pop-up for list members and followers, are offered for
+   mass blocking, and always through a review step.
 
 ## Architecture
 
@@ -261,21 +262,26 @@ Known trade-offs:
 
 ## Usage
 
-On any x.com page you get:
+On x.com you get:
 
-- a red **Block** button next to every account's @handle (user lists, posts, profiles), which blocks that account straight away after you confirm, and
-- a floating panel at the bottom right: **X Blocker · N accounts on this page**,
-  with **Auto-scroll** (loads the whole list) and **Block all (N)** (queues them
-  all and starts blocking in that tab).
+- a **Block** button next to every account's Follow button (user lists, list
+  members, profiles) or @handle (posts), which blocks that account straight away
+  after you confirm, and
+- a floating panel at the bottom centre (minimized by default) on list pages:
+  **Scroll list** loads the whole list, **Collect** adds it to your Collected
+  list, and **Review** lets you pick accounts from this list or from Collected
+  and block them. List members and followers open in X's pop-up, and the panel
+  works inside it.
 
 For larger jobs, use the dashboard:
 
 1. Log in to x.com and open a list of accounts (e.g. `/<user>/followers`,
-   a post's `/likes` or `/retweets`, or a search). Scroll it, or use
-   **Auto-scroll this page** in the popup.
-2. Open the **Dashboard**, filter and select accounts, and click **Queue selected**.
-   You can also paste handles under **Import**.
-3. Press **Start blocking**. Keep one x.com tab open while it runs.
+   a post's `/likes` or `/retweets`, a list's members, or a search). Press
+   **Collect** in the panel, and **Scroll list** to load everyone.
+2. Open the **Dashboard**, filter and select accounts under **Collected**, and
+   click **Queue for blocking**. You can also paste handles under **Import**.
+3. Press **Start blocking** (on the Queue page, in the sidebar or in the popup).
+   Keep one x.com tab open while it runs.
 
 The defaults (about 6 s per block, at most 450 per 24 h) are tuned to stay under X's limits; see *Rate limits* above.
 On a rate limit the queue cools down and then continues by itself.
