@@ -28,6 +28,7 @@
 
   let enabled = true
   let collectAlways = false
+  let panelMinimized = true // last choice, shared by every x.com tab (storage.local)
   let viewerScreenName = null
   const pageKey = () => location.pathname + location.search
   let pageUrl = pageKey()
@@ -756,8 +757,8 @@
     fab.title = 'X Blocker'
     fab.setAttribute('aria-label', 'Open X Blocker panel')
 
-    // Starts minimized on every list page; the user opens it when they want it.
-    let minimized = true
+    // Starts minimized until the user says otherwise; the choice is remembered.
+    let minimized = panelMinimized
     let scrolling = false
 
     // ---- collecting: opt-in, for this page's list only ----------------------
@@ -950,8 +951,15 @@
       timer = setTimeout(update, 150)
     }
 
-    minBtn.addEventListener('click', () => { minimized = true; update(); fab.focus() })
-    fab.addEventListener('click', () => { minimized = false; update(); minBtn.focus() })
+    function saveMinimized(v) {
+      minimized = panelMinimized = v
+      const saved = browser.storage.local.set({ panelMinimized: v })
+      saved?.catch?.(() => {})
+      update()
+    }
+
+    minBtn.addEventListener('click', () => { saveMinimized(true); fab.focus() })
+    fab.addEventListener('click', () => { saveMinimized(false); minBtn.focus() })
     scrollBtn.addEventListener('click', () => {
       scrolling = !scrolling
       update()
@@ -1198,9 +1206,14 @@
       scheduleUpdate,
       confirm: confirmDialog,
       toast,
+      // The user's minimized/maximized choice outlives navigation.
+      setMinimized(v) {
+        if (typeof v !== 'boolean' || v === minimized) return
+        minimized = v
+        scheduleUpdate()
+      },
       onNavigate() {
         stopCollecting(true)
-        minimized = true
         scheduleUpdate()
       },
     }
@@ -1216,7 +1229,19 @@
     }
   })
 
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && typeof changes.panelMinimized?.newValue === 'boolean') {
+      panelMinimized = changes.panelMinimized.newValue
+      ui.setMinimized(panelMinimized)
+    }
+  })
+
   async function init() {
+    const stored = await browser.storage.local.get('panelMinimized').catch(() => null)
+    if (typeof stored?.panelMinimized === 'boolean') {
+      panelMinimized = stored.panelMinimized
+      ui.setMinimized(panelMinimized)
+    }
     const cfg = await send({ type: 'page:config' }).catch(() => null)
     enabled = cfg?.inPageButtons !== false
     collectAlways = cfg?.collectAlways === true

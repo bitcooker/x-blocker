@@ -25,7 +25,7 @@ const post = (sn, text = '') => `
   <div class="icons"><div class="g"><button>G</button><span></span></div><div><button>…</button></div></div></div>
   <p>${text}</p><div><button>reply</button><button>like</button></div></article>`
 
-async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1 } = {}) {
+async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1, storage = {} } = {}) {
   const { window, document } = parseHTML(`<html><body>${body}</body></html>`)
   const location = { pathname: path, search }
   window.HTMLElement.prototype.getBoundingClientRect = function () {
@@ -35,6 +35,8 @@ async function load(body, { path = '/target/followers', search = '', respond = (
   }
   const listeners = []
   const sent = []
+  const changedListeners = []
+  const store = { ...storage } // extension storage.local
   let observerCb = () => {}
   const browser = {
     runtime: {
@@ -45,6 +47,13 @@ async function load(body, { path = '/target/followers', search = '', respond = (
         return respond(m)
       },
       onMessage: { addListener: (f) => listeners.push(f) },
+    },
+    storage: {
+      local: {
+        get: async (keys) => (typeof keys === 'string' ? { [keys]: store[keys] } : { ...store }),
+        set: async (obj) => { Object.assign(store, obj) },
+      },
+      onChanged: { addListener: (f) => changedListeners.push(f) },
     },
   }
   const ctx = {
@@ -81,6 +90,8 @@ async function load(body, { path = '/target/followers', search = '', respond = (
     handles: () => [...ctx.__handles.values()],
     shadow: () => document.getElementById('xb-root')?.shadowRoot,
     message: (m) => listeners.forEach((f) => f(m)),
+    store,
+    storageChanged: (changes, area = 'local') => changedListeners.forEach((f) => f(changes, area)),
     location,
     click: async (selector) => { document.getElementById('xb-root').shadowRoot.querySelector(selector).click(); await sleep(250) },
     mutate: async (records) => { observerCb(records); await sleep(50) },
@@ -225,7 +236,7 @@ test('nothing is collected until Collect is switched on, then only this list', a
   assert.match(page.shadow().querySelector('.sub').textContent, /Collecting · 2 collected/)
 })
 
-test('leaving the page stops collecting and minimizes the panel', async () => {
+test('leaving the page stops collecting but keeps the panel open', async () => {
   const page = await load(`<main>${cell('alice')}</main>`, {
     respond: (m) => (m.type === 'page:collect' ? { collected: m.screenNames, missing: []} : {}),
   })
@@ -240,8 +251,37 @@ test('leaving the page stops collecting and minimizes the panel', async () => {
   await sleep(1200)
   const collected = page.sent.filter((m) => m.type === 'page:collect').flatMap((m) => [...m.screenNames])
   assert.deepEqual(collected, ['alice'])
-  assert.ok(page.shadow().querySelector('.fab'))
-  assert.equal(page.shadow().querySelector('.panel'), null)
+  assert.ok(page.shadow().querySelector('.panel'))
+  assert.equal(page.shadow().querySelector('.fab'), null)
+})
+
+test('the panel remembers the minimized state, across pages and tabs', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`)
+  const panel = () => page.shadow().querySelector('.panel')
+  const fab = () => page.shadow().querySelector('.fab')
+  // Nothing stored yet: minimized.
+  assert.equal(panel(), null)
+  // Maximizing is saved, persists over navigation and follows other tabs.
+  await page.click('.fab')
+  assert.equal(page.store.panelMinimized, false)
+  assert.ok(panel())
+  page.location.pathname = '/friend/following'
+  await page.mutate([{ type: 'childList', target: page.document.querySelector('main'), addedNodes: [] }])
+  await sleep(200)
+  assert.ok(panel())
+  page.storageChanged({ panelMinimized: { newValue: true } })
+  await sleep(200)
+  assert.equal(panel(), null)
+  // Minimizing is saved too.
+  await page.click('.fab')
+  await page.click('.btn-ghost')
+  assert.equal(page.store.panelMinimized, true)
+  assert.equal(panel(), null)
+
+  // A later page opens with the stored choice.
+  const reopened = await load(`<main>${cell('bob')}</main>`, { storage: { panelMinimized: false } })
+  assert.ok(reopened.shadow().querySelector('.panel'))
+  assert.equal(reopened.shadow().querySelector('.fab'), null)
 })
 
 const COLLECTED = [
