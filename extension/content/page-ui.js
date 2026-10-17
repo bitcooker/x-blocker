@@ -928,7 +928,8 @@
       blockAllBtn.title = collectedCount
         ? 'Review this list or your Collected list before blocking'
         : 'Review the accounts in this list before blocking them'
-      blockAllBtn.disabled = n === 0 && collectedCount === 0
+      // Nothing to review (e.g. the home timeline while the queue runs): hide it instead.
+      blockAllBtn.hidden = n === 0 && collectedCount === 0
       fabBadge.textContent = n > 999 ? '999+' : String(n)
       fabBadge.hidden = true // a bare count on the pill reads like "collected"; the panel shows it
       scheduleCollect()
@@ -991,6 +992,7 @@
       } catch (e) {
         toast(String(e.message ?? e), true)
       }
+      blockAllBtn.disabled = false
       update()
     })
 
