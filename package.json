@@ -2,7 +2,7 @@
   "name": "x-blocker",
   "version": "0.1.0",
   "private": true,
-  "description": "Firefox and Chrome extension to mass-block accounts on x.com",
+  "description": "Firefox and Chrome extension to mass-block accounts on X (Twitter)",
   "type": "module",
   "license": "GPL-3.0-or-later",
   "scripts": {
@@ -16,5 +16,10 @@
   "devDependencies": {
     "linkedom": "^0.18.13",
     "web-ext": "^8.10.0"
+  },
+  "homepage": "https://github.com/bitcooker/x-blocker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bitcooker/x-blocker.git"
   }
 }

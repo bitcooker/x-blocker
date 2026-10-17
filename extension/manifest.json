@@ -3,10 +3,11 @@
   "name": "X Blocker",
   "short_name": "X Blocker",
   "version": "0.1.0",
-  "description": "Mass-block accounts on x.com: collect users from any list you browse or import handles, then block them in a rate-limited queue.",
+  "description": "Mass-block X (Twitter) accounts from followers, likes, replies or imported lists. Review first, rate-limited, private.",
+  "homepage_url": "https://github.com/bitcooker/x-blocker",
   "browser_specific_settings": {
     "gecko": {
-      "id": "x-blocker@local.dev",
+      "id": "x-blocker@bitcooker",
       "strict_min_version": "128.0",
       "data_collection_permissions": {
         "required": [
