@@ -207,8 +207,12 @@ How it works:
   website. Those can't come from the metadata file.
 - The Firefox ID `x-blocker@bitcooker` is permanent. Never change it.
 - The code is not minified or bundled, so no separate source upload is needed.
-- If `main` is protected, allow `github-actions[bot]` to push, or use the
-  command-line flow above.
+- `main` is protected by a ruleset (*Settings → Rules → Protect main*): changes
+  go through pull requests with one approval and a passing CI. Only repository
+  admins can push directly. GitHub doesn't let personal repositories exempt
+  `github-actions[bot]`, so **Prepare release** can't push its version bump;
+  release with the command-line flow above instead (pushing the tag still runs
+  **Release**).
 
 ## Rate limits (defaults)
 
