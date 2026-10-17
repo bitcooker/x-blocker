@@ -107,6 +107,25 @@ test('content scripts cannot call dashboard actions', async () => {
   assert.equal(await send({ type: 'settings:set', patch: { collectAlways: true } }), undefined)
 })
 
+test('un-collecting drops accounts from the Collected list by handle or ID', async () => {
+  const now = Date.now()
+  await boot({
+    settings: { version: 3 },
+    collected: {
+      1: { id: '1', screenName: 'byid', collectedAt: now, sources: ['A'] },
+      2: { id: '2', screenName: 'byname', collectedAt: now, sources: ['A'] },
+      3: { id: '3', screenName: 'kept', collectedAt: now, sources: ['A'] },
+    },
+    blocked: { 3: { id: '3', screenName: 'kept', at: now } },
+  })
+  const res = await send({ type: 'page:uncollect', items: [{ id: '1' }, { screenName: 'ByNaMe' }, { screenName: 'not-collected' }] })
+  assert.deepEqual(res.removed.sort(), ['byid', 'byname'])
+  const list = await send({ type: 'page:collectedList' })
+  assert.deepEqual(list.map((u) => u.screenName), [])
+  // Blocked entries are not touched by un-collecting.
+  assert.equal(Object.keys(store.local.blocked).length, 1)
+})
+
 test('the Collected list for the page excludes accounts already in the queue', async () => {
   const now = Date.now()
   await boot({

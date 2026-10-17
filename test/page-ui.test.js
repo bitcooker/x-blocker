@@ -295,6 +295,40 @@ const respondCollected = (m) => {
   return {}
 }
 
+test('unticked accounts can be removed from the Collected list', async () => {
+  const page = await load(`<main>${cell('a1')}${cell('a2')}</main>`, {
+    respond: (m) => {
+      if (m.type === 'page:uncollect') return { removed: m.items.map((i) => i.screenName) }
+      return respondCollected(m)
+    },
+  })
+  await page.click('.fab')
+  await page.click('.btn-danger')
+  const dialog = page.shadow().querySelector('.review')
+  const remove = dialog.querySelector('.bar .uncollect')
+  assert.equal(remove.textContent, 'Remove 2 from Collected')
+
+  // Like the dashboard: the button acts on the ticked rows.
+  const boxes = [...dialog.querySelectorAll('li input')]
+  boxes[0].checked = false
+  boxes[0].dispatchEvent(new page.document.defaultView.Event('change'))
+  await sleep(20)
+  assert.equal(remove.textContent, 'Remove 1 from Collected')
+
+  remove.click()
+  await sleep(250)
+  const sent = page.sent.find((m) => m.type === 'page:uncollect')
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.items)), [{ screenName: 'a2' }])
+  assert.equal(page.sent.filter((m) => m.type === 'page:massBlock').length, 0)
+
+  // Nothing ticked: the button is inert.
+  const left = dialog.querySelector('li input')
+  left.checked = false
+  left.dispatchEvent(new page.document.defaultView.Event('change'))
+  await sleep(20)
+  assert.equal(remove.disabled, true)
+})
+
 test('collected total is shown and reviewable from a page that is not a list', async () => {
   const page = await load(`<main>${post('someone')}</main>`, { path: '/home', respond: respondCollected })
   assert.equal(page.shadow()?.querySelector('.fab'), undefined) // nothing collected yet: no pill

@@ -613,6 +613,7 @@
       .btn{height:36px;padding:0 16px;font-size:14px}
       .btn-icon{width:36px;padding:0;flex:none}
       .btn-icon svg{width:18px;height:18px;fill:currentColor}
+      .btn-sm{height:28px;padding:0 12px;font-size:13px}
       .btn-outline{border:1px solid var(--border);color:var(--fg)}
       .btn-outline:hover:not([disabled]){background:var(--hover)}
       .btn-danger{background:#f4212e;color:#fff}
@@ -675,6 +676,7 @@
       .review .bar{display:flex;align-items:center;gap:12px;padding:10px 24px;border-bottom:1px solid var(--border);
         font-size:14px;color:var(--muted)}
       .review .bar label{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--fg);font-weight:700}
+      .review .bar .uncollect{margin-inline-start:auto}
       .review ul{list-style:none;padding:0;margin:0;overflow:auto;flex:1}
       .review li{display:flex;align-items:center;gap:12px;padding:10px 24px;cursor:pointer;transition:background-color .15s}
       .review li:hover{background:var(--hover)}
@@ -1028,6 +1030,7 @@
         all.type = 'checkbox'
         const allLabel = el('label', '', all, el('span', '', 'Select all'))
         const summary = el('span', '')
+        const uncollectBtn = el('button', 'btn btn-outline btn-sm uncollect')
         const limitNote = el('p', 'limit')
         const list = el('ul', '')
         list.setAttribute('aria-label', 'Accounts to block')
@@ -1038,12 +1041,17 @@
         const tabBar = el('div', 'tabs')
         tabBar.setAttribute('role', 'tablist')
         const tabButtons = tabs.map((t, i) => {
-          const b = el('button', 'tab', `${t.label} · ${t.count}`)
+          const b = el('button', 'tab', '')
           b.setAttribute('role', 'tab')
           b.addEventListener('click', () => select(i))
           return b
         })
+        const labelTab = (i) => {
+          const t = tabs[i]
+          tabButtons[i].textContent = `${t.label} · ${t.loaded ? t.loaded.length : t.count}`
+        }
         tabBar.append(...tabButtons)
+        tabs.forEach((t, i) => labelTab(i))
         tabBar.hidden = tabs.length < 2
 
         const sync = () => {
@@ -1054,6 +1062,10 @@
           all.indeterminate = n > 0 && n < rows.length
           const skipped = rows.length - n
           summary.textContent = skipped ? `${skipped} unticked` : ''
+          // Like the dashboard: pick rows, then choose what to do with them.
+          uncollectBtn.textContent = `Remove ${n} from Collected`
+          uncollectBtn.disabled = n === 0
+          uncollectBtn.title = 'Take the ticked accounts out of your Collected list, so they stop coming back in later reviews'
           if (quota?.cap) {
             const left = Math.max(0, quota.cap - quota.used)
             limitNote.hidden = n <= left
@@ -1064,6 +1076,7 @@
 
         function renderRows() {
           list.replaceChildren()
+          if (!rows.length) list.replaceChildren(el('li', 'loading', 'Nothing to review'))
           for (const r of rows) {
             const box = document.createElement('input')
             box.type = 'checkbox'
@@ -1111,16 +1124,17 @@
           heading.textContent = `Review ${tab.count} account${tab.count === 1 ? '' : 's'}`
           note.textContent = `${tab.note} Untick anyone you don't want to block. People you follow or who follow you start unticked.`
           // Selections are kept per tab while the dialog is open.
-          tab.rows ??= (async () => (await tab.load()).map((r) => ({
+          tab.loaded ??= (await tab.load()).map((r) => ({
             ...r, checked: !(r.following || r.followedBy || r.blocking),
-          })))()
+          }))
           const seq = ++loadSeq
           rows = []
           list.replaceChildren(el('li', 'loading', 'Loading…'))
           sync()
-          const loaded = await tab.rows
+          const loaded = await tab.loaded
           if (seq !== loadSeq) return
           rows = loaded
+          labelTab(i)
           heading.textContent = `Review ${rows.length} account${rows.length === 1 ? '' : 's'}`
           renderRows()
         }
@@ -1133,10 +1147,34 @@
           sync()
         })
 
+        uncollectBtn.addEventListener('click', async () => {
+          const items = rows.filter((r) => r.checked)
+            .map((r) => ({ id: r.id, screenName: r.screenName }))
+          if (!items.length) return
+          uncollectBtn.disabled = true
+          try {
+            const res = await send({ type: 'page:uncollect', items })
+            if (res?.error) throw new Error(res.error)
+            const removed = res?.removed ?? []
+            if (!removed.length) {
+              toast('Nothing removed: already out of the Collected list', { error: true })
+              return
+            }
+            const gone = new Set(removed.map((s) => String(s).toLowerCase()))
+            for (const t of tabs) t.loaded = t.loaded?.filter((r) => !gone.has((r.screenName ?? '').toLowerCase()))
+            toast(`${removed.length} account${removed.length === 1 ? '' : 's'} removed from Collected`)
+            await select(active)
+          } catch (e) {
+            toast(String(e.message ?? e), true)
+          } finally {
+            sync() // also restores the button's enabled state
+          }
+        })
+
         const dialog = el('div', 'review',
           el('div', 'rh', tabBar, src, heading, note),
           limitNote,
-          el('div', 'bar', allLabel, summary),
+          el('div', 'bar', allLabel, summary, uncollectBtn),
           list,
           el('div', 'rf', cancel, confirm))
         dialog.setAttribute('role', 'dialog')

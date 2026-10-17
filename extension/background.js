@@ -706,7 +706,26 @@ const pageHandlers = {
     return { collected, missing }
   }),
   'page:progress': () => progressPayload(),
-  // The Collected list for the in-page Review dialog, newest first.
+  // Un-collect: drop accounts the user decided against from the Collected list,
+  // so they stop coming back in every later review. Returns the handles removed.
+  'page:uncollect': (s, msg) => mutate(s, ['collected'], () => {
+    const ids = new Set()
+    const names = new Set()
+    for (const it of Array.isArray(msg.items) ? msg.items.slice(0, 5000) : []) {
+      const id = String(it?.id ?? '')
+      const sn = String(it?.screenName ?? '')
+      if (/^\d{1,20}$/.test(id)) ids.add(id)
+      if (/^[A-Za-z0-9_]{1,15}$/.test(sn)) names.add(sn.toLowerCase())
+    }
+    const removed = []
+    for (const [id, u] of Object.entries(s.collected)) {
+      if (!ids.has(id) && !(u.screenName && names.has(u.screenName.toLowerCase()))) continue
+      delete s.collected[id]
+      removed.push(u.screenName)
+    }
+    if (removed.length) snIndex = null
+    return { removed }
+  }),
   'page:collectedList': (s) => pendingCollected(s)
     .sort((a, b) => (b.collectedAt ?? b.seenAt ?? 0) - (a.collectedAt ?? a.seenAt ?? 0))
     .slice(0, 5000)
