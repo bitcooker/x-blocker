@@ -11,7 +11,7 @@ const selected = new Set()
 let data = null
 // Which stored collections each tab needs; only those are fetched and re-rendered.
 const NEEDS = {
-  collected: ['collected', 'blocked'],
+  collected: ['collected', 'blocked', 'queue'],
   queue: ['queue', 'collected'],
   import: [],
   blocked: ['blocked', 'collected'],
