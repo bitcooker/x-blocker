@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Builds a tagged version, creates the GitHub Release and publishes to the
-# browser stores. Runs on a pushed vX.Y.Z tag, or is called by "Prepare release".
-# Each store job is skipped (with a notice) when its secrets are not configured.
+# Builds a tagged version, creates the GitHub Release (Firefox + Chrome packages)
+# and submits the Firefox build to addons.mozilla.org. Runs on a pushed vX.Y.Z
+# tag, or is called by "Prepare release". The AMO job is skipped (with a notice)
+# when its secrets are not configured.
 name: Release
 
 on:
@@ -57,7 +58,11 @@ jobs:
         run: npm run package
 
       - name: Release notes
-        run: node scripts/changelog.mjs "$TAG" > dist/RELEASE_NOTES.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node scripts/changelog.mjs "$TAG" > dist/RELEASE_NOTES.md
+          sed "s/{version}/$VERSION/g" .github/release-install.md >> dist/RELEASE_NOTES.md
 
       - uses: actions/upload-artifact@v4
         with:
@@ -103,6 +108,11 @@ jobs:
         if: env.WEB_EXT_API_KEY == '' || env.WEB_EXT_API_SECRET == ''
         run: echo "::notice::AMO_JWT_ISSUER / AMO_JWT_SECRET not set; skipping Firefox Add-ons."
 
+      - uses: actions/checkout@v4
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+        with:
+          ref: ${{ env.TAG }}
+
       - uses: actions/download-artifact@v4
         if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
         with:
@@ -113,6 +123,12 @@ jobs:
         if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
         with:
           node-version: 22
+
+      # Full listing metadata for the first submission; afterwards only the
+      # "version" part, so listing edits made on AMO are never overwritten.
+      - name: Prepare AMO metadata
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+        run: node scripts/amo-metadata.mjs dist/amo-metadata.json
 
       # Submits the version for review on the listed channel and returns
       # immediately; AMO publishes it once approved.
@@ -123,69 +139,5 @@ jobs:
             --source-dir dist/firefox \
             --artifacts-dir dist/amo \
             --channel listed \
+            --amo-metadata dist/amo-metadata.json \
             --approval-timeout 0
-
-  chrome:
-    name: Publish to Chrome Web Store
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
-      CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-      CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-      REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
-    steps:
-      - name: Skip when not configured
-        if: env.EXTENSION_ID == '' || env.CLIENT_ID == '' || env.CLIENT_SECRET == '' || env.REFRESH_TOKEN == ''
-        run: echo "::notice::CWS_* secrets not set; skipping Chrome Web Store."
-
-      - uses: actions/download-artifact@v4
-        if: env.EXTENSION_ID != '' && env.CLIENT_ID != '' && env.CLIENT_SECRET != '' && env.REFRESH_TOKEN != ''
-        with:
-          name: release
-          path: dist
-
-      - uses: actions/setup-node@v4
-        if: env.EXTENSION_ID != '' && env.CLIENT_ID != '' && env.CLIENT_SECRET != '' && env.REFRESH_TOKEN != ''
-        with:
-          node-version: 22
-
-      # Credentials are read from the EXTENSION_ID / CLIENT_ID / CLIENT_SECRET /
-      # REFRESH_TOKEN environment variables, never passed on the command line.
-      - name: Upload and publish
-        if: env.EXTENSION_ID != '' && env.CLIENT_ID != '' && env.CLIENT_SECRET != '' && env.REFRESH_TOKEN != ''
-        run: |
-          npx --yes chrome-webstore-upload-cli@3 upload \
-            --source "dist/x-blocker-chrome-${{ needs.build.outputs.version }}.zip" \
-            --auto-publish
-
-  edge:
-    name: Publish to Microsoft Edge Add-ons
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
-      EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
-      EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
-    steps:
-      - name: Skip when not configured
-        if: env.EDGE_PRODUCT_ID == '' || env.EDGE_CLIENT_ID == '' || env.EDGE_API_KEY == ''
-        run: echo "::notice::EDGE_* secrets not set; skipping Microsoft Edge Add-ons."
-
-      - uses: actions/download-artifact@v4
-        if: env.EDGE_PRODUCT_ID != '' && env.EDGE_CLIENT_ID != '' && env.EDGE_API_KEY != ''
-        with:
-          name: release
-          path: dist
-
-      # Edge accepts the Chrome build unchanged.
-      - name: Upload and submit
-        if: env.EDGE_PRODUCT_ID != '' && env.EDGE_CLIENT_ID != '' && env.EDGE_API_KEY != ''
-        uses: wdzeng/edge-addon@v2
-        with:
-          product-id: ${{ env.EDGE_PRODUCT_ID }}
-          zip-path: dist/x-blocker-chrome-${{ needs.build.outputs.version }}.zip
-          client-id: ${{ env.EDGE_CLIENT_ID }}
-          api-key: ${{ env.EDGE_API_KEY }}

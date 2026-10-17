@@ -36,3 +36,22 @@ test('groups conventional commits into release notes', () => {
     '- Update stuff (eeeeeee)',
   ].join('\n'))
 })
+
+test('AMO JWT is HS256-signed with a short expiry', async () => {
+  const { createHmac } = await import('node:crypto')
+  const { amoJwt } = await import('../scripts/amo-metadata.mjs')
+  const token = amoJwt('user:1:2', 'secret', 1000)
+  const [h, p, sig] = token.split('.')
+  assert.deepEqual(JSON.parse(Buffer.from(h, 'base64url')), { alg: 'HS256', typ: 'JWT' })
+  const payload = JSON.parse(Buffer.from(p, 'base64url'))
+  assert.equal(payload.iss, 'user:1:2')
+  assert.equal(payload.exp - payload.iat, 60)
+  assert.equal(sig, createHmac('sha256', 'secret').update(`${h}.${p}`).digest('base64url'))
+})
+
+test('only the version part is sent once the add-on exists', async () => {
+  const { metadataFor } = await import('../scripts/amo-metadata.mjs')
+  const full = { summary: { 'en-US': 's' }, categories: ['other'], version: { license: 'MIT' } }
+  assert.deepEqual(metadataFor(full, false), full)
+  assert.deepEqual(metadataFor(full, true), { version: { license: 'MIT' } })
+})
