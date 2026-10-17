@@ -228,3 +228,55 @@ test('leaving the page stops collecting and minimizes the panel', async () => {
   assert.ok(page.shadow().querySelector('.fab'))
   assert.equal(page.shadow().querySelector('.panel'), null)
 })
+
+const COLLECTED = [
+  { id: '11', screenName: 'spam_a', name: 'Spam A', sources: ['Followers of @x'] },
+  { id: '12', screenName: 'friend_b', name: 'Friend B', following: true, sources: ['Replies to @y\'s post'] },
+]
+const respondCollected = (m) => {
+  if (m.type === 'page:collectedList') return COLLECTED
+  if (m.type === 'page:massBlock') return { added: m.items.length, skipped: 0 }
+  if (m.type === 'page:quota') return { used: 0, cap: 450, allowed: true }
+  return {}
+}
+
+test('collected total is shown and reviewable from a page that is not a list', async () => {
+  const page = await load(`<main>${post('someone')}</main>`, { path: '/home', respond: respondCollected })
+  assert.equal(page.shadow()?.querySelector('.fab'), undefined) // nothing collected yet: no pill
+  page.message({ type: 'page:progress', runner: null, queueLen: 0, collectedCount: 2 })
+  await sleep(250)
+  assert.match(page.shadow().querySelector('.fab').textContent, /X Blocker · 2 collected/)
+  await page.click('.fab')
+  assert.equal(page.shadow().querySelector('.sub').textContent, '2 accounts collected, ready to review')
+
+  await page.click('.btn-danger') // Review 2
+  const dialog = page.shadow().querySelector('.review')
+  assert.ok(dialog.querySelector('.tabs').hidden) // single tab
+  const names = [...dialog.querySelectorAll('li .hd')].map((e) => e.textContent)
+  assert.deepEqual(names, ['@spam_a', '@friend_b'])
+  assert.equal(dialog.querySelector('li .from').textContent, 'Followers of @x')
+  // The friend starts unticked, so only spam_a is blocked.
+  await page.click('.review .btn-danger')
+  const block = page.sent.find((m) => m.type === 'page:massBlock')
+  assert.deepEqual(JSON.parse(JSON.stringify(block.items)), [{ screenName: 'spam_a', id: '11', source: 'Followers of @x' }])
+})
+
+test('on a list page the review offers this list and the Collected list', async () => {
+  const page = await load(`<main>${cell('alice')}${cell('bob')}</main>`, { respond: respondCollected })
+  page.message({ type: 'page:progress', runner: null, queueLen: 0, collectedCount: 2 })
+  await sleep(250)
+  await page.click('.fab')
+  assert.equal(page.shadow().querySelector('.sub').textContent, '2 accounts in this list · 2 in Collected')
+  await page.click('.btn-danger') // Review 2
+  const dialog = page.shadow().querySelector('.review')
+  const tabs = [...dialog.querySelectorAll('.tab')]
+  assert.deepEqual(tabs.map((t) => t.textContent), ['This list · 2', 'Collected · 2'])
+  assert.deepEqual([...dialog.querySelectorAll('li .hd')].map((e) => e.textContent), ['@alice', '@bob'])
+
+  tabs[1].click()
+  await sleep(150)
+  assert.deepEqual([...dialog.querySelectorAll('li .hd')].map((e) => e.textContent), ['@spam_a', '@friend_b'])
+  await page.click('.review .btn-danger')
+  const block = page.sent.find((m) => m.type === 'page:massBlock')
+  assert.deepEqual(block.items.map((i) => i.screenName), ['spam_a']) // only the active tab
+})

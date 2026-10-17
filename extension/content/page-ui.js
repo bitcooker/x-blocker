@@ -669,6 +669,11 @@
       .review input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:#1d9bf0;cursor:pointer;flex:none}
       .review .limit{margin:0;padding:10px 24px;font-size:13px;line-height:18px;color:#ffad1f;
         background:rgba(255,173,31,.1);border-bottom:1px solid var(--border)}
+      .review .tabs{display:flex;gap:4px;padding:4px;margin-bottom:8px;border-radius:9999px;background:var(--hover);width:fit-content}
+      .review .tab{height:32px;padding:0 14px;font-size:14px;color:var(--muted)}
+      .review .tab[aria-selected=true]{background:var(--bg);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+      .review .from{font-size:12px;color:#1d9bf0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .review li.loading{justify-content:center;color:var(--muted);cursor:default}
       .review .rf{display:flex;gap:12px;justify-content:flex-end;padding:16px 24px;border-top:1px solid var(--border)}
 
       .toasts{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:2147483647;display:flex;
@@ -785,6 +790,7 @@
 
     // Live state of the block queue, mirrored from extension storage.
     let run = { runner: null, queueLen: 0 }
+    let collectedCount = 0 // accounts in the Collected list that aren't blocked yet
     const RECENT = 10 * 60 * 1000
 
     function runInfo() {
@@ -838,6 +844,7 @@
     const applyProgress = (p) => {
       if (!p || !alive) return
       run = { runner: p.runner ?? null, queueLen: p.queueLen ?? 0 }
+      if (typeof p.collectedCount === 'number') collectedCount = p.collectedCount
       scheduleUpdate()
     }
     send({ type: 'page:progress' }).then(applyProgress, () => {})
@@ -867,14 +874,20 @@
       wrap.dataset.theme = document.documentElement.dataset.xbTheme ?? 'light'
       const n = candidates().length
       const info = applyRunState()
-      title.textContent = context?.label ?? 'Block queue'
+      const plural = (k, word) => `${k} ${word}${k === 1 ? '' : 's'}`
+      title.textContent = context?.label ?? (collectedCount ? 'Your Collected list' : 'Block queue')
       title.title = title.textContent
       if (info) count.replaceChildren(...progressLine(info))
       else if (collecting) {
-        count.replaceChildren(el('span', 'on', `Collecting · ${collectedHere.size} collected`), ' · scroll for more')
+        count.replaceChildren(el('span', 'on', `Collecting · ${collectedHere.size} collected`),
+          ` · ${collectedCount} in Collected · scroll for more`)
+      } else if (!context) {
+        count.textContent = `${plural(collectedCount, 'account')} collected, ready to review`
       } else {
         // Counting the list on screen is not collecting: say so explicitly.
-        count.textContent = `${n} account${n === 1 ? '' : 's'} in this list · not collected`
+        count.textContent = collectedCount
+          ? `${plural(n, 'account')} in this list · ${collectedCount} in Collected`
+          : `${plural(n, 'account')} in this list · not collected`
       }
       scrollBtn.hidden = !context
       collectBtn.hidden = !context || collectAlways
@@ -886,17 +899,22 @@
       fabDot.hidden = !collecting
       fabLabel.textContent = info?.active
         ? `Blocking ${info.processed}/${info.total}`
-        : collecting ? `Collecting ${collectedHere.size}` : 'X Blocker'
+        : collecting ? `Collecting ${collectedHere.size}`
+          : collectedCount ? `X Blocker · ${collectedCount} collected` : 'X Blocker'
       scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL), scrolling ? 'Stop' : 'Scroll list')
       scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll to the end of this list so every account is shown (nothing is collected)'
-      blockAllBtn.textContent = n ? `Review ${n}` : 'Review'
-      blockAllBtn.title = 'Review the accounts in this list before blocking them'
-      blockAllBtn.disabled = n === 0
+      const reviewCount = context ? n : collectedCount
+      blockAllBtn.textContent = reviewCount ? `Review ${reviewCount}` : 'Review'
+      blockAllBtn.title = collectedCount
+        ? 'Review this list or your Collected list before blocking'
+        : 'Review the accounts in this list before blocking them'
+      blockAllBtn.disabled = n === 0 && collectedCount === 0
       fabBadge.textContent = n > 999 ? '999+' : String(n)
       fabBadge.hidden = true // a bare count on the pill reads like "collected"; the panel shows it
       scheduleCollect()
-      // Also stay visible on other pages while the queue is running.
-      const show = enabled && ((Boolean(context) && pageHandles.size > 0) || Boolean(info))
+      // Also visible on other pages while the queue runs or the Collected list
+      // has accounts, so a collection can be reviewed and blocked from anywhere.
+      const show = enabled && ((Boolean(context) && pageHandles.size > 0) || Boolean(info) || collectedCount > 0)
       if (show && !host.isConnected) document.body.append(host)
       panel.remove()
       fab.remove()
@@ -916,43 +934,58 @@
       update()
       setScrolling(scrolling, () => { scrolling = false; update() })
     })
-    blockAllBtn.addEventListener('click', async () => {
+    async function listRows() {
       const list = candidates()
-      if (!list.length || !context) return
+      const info = (await send({ type: 'page:lookup', screenNames: list }).catch(() => null)) ?? {}
+      return list.map((sn) => ({ screenName: sn, ...info[sn.toLowerCase()], source: context.label }))
+    }
+
+    async function collectedRows() {
+      const list = (await send({ type: 'page:collectedList' }).catch(() => null)) ?? []
+      return list.map((u) => ({ ...u, source: u.sources?.at(-1) ?? 'Collected list', showSource: true }))
+    }
+
+    blockAllBtn.addEventListener('click', async () => {
       if (scrolling) { scrolling = false; setScrolling(false); update() }
-      const source = context.label
-      const picked = await reviewDialog(list, source)
+      const n = context ? candidates().length : 0
+      const tabs = []
+      if (n) {
+        tabs.push({ label: 'This list', count: n, load: listRows, heading: context.label,
+          note: 'Only accounts from this list are included.' })
+      }
+      if (collectedCount) {
+        tabs.push({ label: 'Collected', count: collectedCount, load: collectedRows, heading: 'Your Collected list',
+          note: 'Every account you collected, on any page, that isn\'t blocked yet.' })
+      }
+      if (!tabs.length) return
+      const picked = await reviewDialog(tabs)
       if (!picked?.length) return
       blockAllBtn.disabled = true
       try {
         const r = await send({
           type: 'page:massBlock',
-          items: picked.map((u) => ({ screenName: u.screenName, id: u.id, source })),
+          items: picked.map((u) => ({ screenName: u.screenName, id: u.id, source: u.source })),
         })
         if (r?.error) throw new Error(r.error)
-        toast(`${r.added} account${r.added === 1 ? '' : 's'} from "${source}" queued for blocking`)
+        toast(`${r.added} account${r.added === 1 ? '' : 's'} queued for blocking`)
       } catch (e) {
         toast(String(e.message ?? e), true)
       }
       update()
     })
 
-    // Lets the user confirm exactly which accounts of this list get blocked.
-    // Accounts with a relationship to the viewer start unticked.
-    async function reviewDialog(screenNames, source) {
-      const [info, quota] = await Promise.all([
-        send({ type: 'page:lookup', screenNames }).catch(() => null).then((v) => v ?? {}),
-        send({ type: 'page:quota' }).catch(() => null),
-      ])
+    // Lets the user confirm exactly which accounts get blocked, from this page's
+    // list or from the Collected list (one tab each). Accounts with a
+    // relationship to the viewer start unticked. Only the active tab is blocked.
+    async function reviewDialog(tabs) {
+      const quota = await send({ type: 'page:quota' }).catch(() => null)
       return new Promise((resolve) => {
         wrap.dataset.theme = document.documentElement.dataset.xbTheme ?? 'light'
         if (!host.isConnected) document.body.append(host)
         const previous = document.activeElement
-        const rows = screenNames.map((sn) => {
-          const u = info[sn.toLowerCase()] ?? {}
-          const risky = Boolean(u.following || u.followedBy || u.blocking)
-          return { screenName: sn, ...u, checked: !risky }
-        })
+        let rows = []
+        let active = 0
+        let loadSeq = 0
 
         const confirm = el('button', 'btn btn-danger')
         const cancel = el('button', 'btn btn-outline', 'Cancel')
@@ -963,12 +996,26 @@
         const limitNote = el('p', 'limit')
         const list = el('ul', '')
         list.setAttribute('aria-label', 'Accounts to block')
+        const src = el('span', 'src')
+        const heading = el('h2', '')
+        heading.id = 'xb-review-title'
+        const note = el('p', '')
+        const tabBar = el('div', 'tabs')
+        tabBar.setAttribute('role', 'tablist')
+        const tabButtons = tabs.map((t, i) => {
+          const b = el('button', 'tab', `${t.label} · ${t.count}`)
+          b.setAttribute('role', 'tab')
+          b.addEventListener('click', () => select(i))
+          return b
+        })
+        tabBar.append(...tabButtons)
+        tabBar.hidden = tabs.length < 2
 
         const sync = () => {
           const n = rows.filter((r) => r.checked).length
           confirm.textContent = n ? `Block ${n}` : 'Block'
           confirm.disabled = n === 0
-          all.checked = n === rows.length
+          all.checked = rows.length > 0 && n === rows.length
           all.indeterminate = n > 0 && n < rows.length
           const skipped = rows.length - n
           summary.textContent = skipped ? `${skipped} unticked` : ''
@@ -980,34 +1027,58 @@
           } else limitNote.hidden = true
         }
 
-        for (const r of rows) {
-          const box = document.createElement('input')
-          box.type = 'checkbox'
-          box.checked = r.checked
-          box.setAttribute('aria-label', `Block @${r.screenName}`)
-          const avatar = r.avatar ? Object.assign(document.createElement('img'), { src: r.avatar, alt: '', loading: 'lazy' }) : el('div', 'ph')
-          if (avatar.tagName === 'IMG') avatar.referrerPolicy = 'no-referrer'
-          const tags = el('div', 'tags')
-          if (r.following) tags.append(el('span', 'tag warn', 'You follow'))
-          if (r.followedBy) tags.append(el('span', 'tag warn', 'Follows you'))
-          if (r.blocking) tags.append(el('span', 'tag', 'Blocked'))
-          if (r.verified) tags.append(el('span', 'tag', 'Verified'))
-          const li = el('li', r.checked ? '' : 'off', box, avatar,
-            el('div', 'who', el('span', 'nm', r.name || `@${r.screenName}`), el('span', 'hd', `@${r.screenName}`)), tags)
-          const set = (v) => { r.checked = v; box.checked = v; li.classList.toggle('off', !v); sync() }
-          box.addEventListener('change', () => set(box.checked))
-          li.addEventListener('click', (e) => { if (e.target !== box) set(!r.checked) })
-          r.set = set
-          list.append(li)
+        function renderRows() {
+          list.replaceChildren()
+          for (const r of rows) {
+            const box = document.createElement('input')
+            box.type = 'checkbox'
+            box.checked = r.checked
+            box.setAttribute('aria-label', `Block @${r.screenName}`)
+            const avatar = r.avatar ? Object.assign(document.createElement('img'), { src: r.avatar, alt: '', loading: 'lazy' }) : el('div', 'ph')
+            if (avatar.tagName === 'IMG') avatar.referrerPolicy = 'no-referrer'
+            const tags = el('div', 'tags')
+            if (r.following) tags.append(el('span', 'tag warn', 'You follow'))
+            if (r.followedBy) tags.append(el('span', 'tag warn', 'Follows you'))
+            if (r.blocking) tags.append(el('span', 'tag', 'Blocked'))
+            if (r.verified) tags.append(el('span', 'tag', 'Verified'))
+            const who = el('div', 'who', el('span', 'nm', r.name || `@${r.screenName}`), el('span', 'hd', `@${r.screenName}`))
+            if (r.showSource) who.append(el('span', 'from', r.source))
+            const li = el('li', r.checked ? '' : 'off', box, avatar, who, tags)
+            const set = (v) => { r.checked = v; box.checked = v; li.classList.toggle('off', !v); sync() }
+            box.addEventListener('change', () => set(box.checked))
+            li.addEventListener('click', (e) => { if (e.target !== box) set(!r.checked) })
+            r.set = set
+            list.append(li)
+          }
+          sync()
         }
+
+        async function select(i) {
+          active = i
+          const tab = tabs[i]
+          tabButtons.forEach((b, j) => b.setAttribute('aria-selected', String(j === i)))
+          src.textContent = tab.heading
+          heading.textContent = `Review ${tab.count} account${tab.count === 1 ? '' : 's'}`
+          note.textContent = `${tab.note} Untick anyone you don't want to block. People you follow or who follow you start unticked.`
+          // Selections are kept per tab while the dialog is open.
+          tab.rows ??= (async () => (await tab.load()).map((r) => ({
+            ...r, checked: !(r.following || r.followedBy || r.blocking),
+          })))()
+          const seq = ++loadSeq
+          rows = []
+          list.replaceChildren(el('li', 'loading', 'Loading…'))
+          sync()
+          const loaded = await tab.rows
+          if (seq !== loadSeq) return
+          rows = loaded
+          heading.textContent = `Review ${rows.length} account${rows.length === 1 ? '' : 's'}`
+          renderRows()
+        }
+
         all.addEventListener('change', () => { for (const r of rows) r.set(all.checked) })
 
-        const heading = el('h2', '', `Review ${rows.length} account${rows.length === 1 ? '' : 's'}`)
-        heading.id = 'xb-review-title'
         const dialog = el('div', 'review',
-          el('div', 'rh', el('span', 'src', source), heading,
-            el('p', '', 'Only accounts from this list are included. Untick anyone you don\'t want to block. ' +
-              'People you follow or who follow you start unticked.')),
+          el('div', 'rh', tabBar, src, heading, note),
           limitNote,
           el('div', 'bar', allLabel, summary),
           list,
@@ -1026,12 +1097,12 @@
           if (e.key === 'Escape') { e.stopPropagation(); close(null) }
         }
         confirm.addEventListener('click', () => close(rows.filter((r) => r.checked)
-          .map(({ screenName, id }) => ({ screenName, id }))))
+          .map(({ screenName, id, source }) => ({ screenName, id, source }))))
         cancel.addEventListener('click', () => close(null))
         backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(null) })
         document.addEventListener('keydown', onKey, true)
-        sync()
         wrap.append(backdrop)
+        select(0)
         confirm.focus()
       })
     }

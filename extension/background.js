@@ -164,13 +164,21 @@ function notify(keys) {
     const keys = [...notifyKeys]
     notifyKeys = new Set()
     browser.runtime.sendMessage({ type: 'state:changed', keys }).catch(() => {})
-    if (cache && (keys.includes('runner') || keys.includes('queue'))) broadcastProgress()
+    if (cache && ['runner', 'queue', 'collected', 'blocked'].some((k) => keys.includes(k))) broadcastProgress()
   }, 250)
+}
+
+// Collected accounts that are still blockable (not blocked yet).
+function pendingCollected(s) {
+  return Object.values(s.collected).filter((u) => !u.blocking && !s.blocked[u.id])
 }
 
 function progressPayload() {
   const { token, ...runner } = cache.runner
-  return { type: 'page:progress', runner, queueLen: cache.queue.length, last24h: last24h(cache) }
+  return {
+    type: 'page:progress', runner, queueLen: cache.queue.length, last24h: last24h(cache),
+    collectedCount: pendingCollected(cache).length,
+  }
 }
 
 async function broadcastProgress() {
@@ -696,6 +704,14 @@ const pageHandlers = {
     return { collected, missing }
   }),
   'page:progress': () => progressPayload(),
+  // The Collected list for the in-page Review dialog, newest first.
+  'page:collectedList': (s) => pendingCollected(s)
+    .sort((a, b) => (b.collectedAt ?? b.seenAt ?? 0) - (a.collectedAt ?? a.seenAt ?? 0))
+    .slice(0, 5000)
+    .map((u) => ({
+      id: u.id, screenName: u.screenName, name: u.name, avatar: u.avatar, verified: u.verified,
+      following: u.following, followedBy: u.followedBy, sources: u.sources ?? [],
+    })),
   // Quick blocks count toward the same daily safety limit as the queue.
   'page:quota': (s) => {
     const used = last24h(s)

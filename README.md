@@ -10,6 +10,10 @@ A browser extension for **Firefox** and **Chrome** (Manifest V3) that mass-block
   accounts to your Collected list for later. It stops automatically when you leave the page, so
   reading friends' mentions or followers never adds them. An auto-scroll helper
   loads long lists for you.
+- **Block your collection without the dashboard**: the panel always shows how
+  many accounts are in Collected and appears on any page while the list isn't
+  empty. **Review** offers two tabs, *This list* and *Collected*. Pick
+  who to block and press **Block**.
 - **Import**: paste or load @handles, profile URLs, ID links (`x.com/i/user/123`), numeric IDs (`id:123`) or a
   CSV with `id` / `screen_name` columns.
 - **Queue**: blocks run one at a time with a delay plus random jitter. Progress is

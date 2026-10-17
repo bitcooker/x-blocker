@@ -106,3 +106,21 @@ test('content scripts cannot call dashboard actions', async () => {
   assert.equal(await send({ type: 'data:wipe' }), undefined)
   assert.equal(await send({ type: 'settings:set', patch: { collectAlways: true } }), undefined)
 })
+
+test('the Collected list for the page excludes blocked accounts', async () => {
+  const now = Date.now()
+  await boot({
+    settings: { version: 3 },
+    collected: {
+      1: { id: '1', screenName: 'old', collectedAt: now - 1000, sources: ['A'] },
+      2: { id: '2', screenName: 'newer', collectedAt: now, sources: ['B'] },
+      3: { id: '3', screenName: 'done', collectedAt: now, sources: ['A'] },
+    },
+    blocked: { 3: { id: '3', screenName: 'done', at: now } },
+  })
+  const list = await send({ type: 'page:collectedList' })
+  assert.deepEqual(list.map((u) => u.screenName), ['newer', 'old'])
+  assert.deepEqual(list[0].sources, ['B'])
+  const progress = await send({ type: 'page:progress' })
+  assert.equal(progress.collectedCount, 2)
+})
