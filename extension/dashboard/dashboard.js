@@ -131,19 +131,22 @@ const isBlocked = (u) => Boolean(u.blocking || data.blocked[u.id])
 function syncSourceOptions() {
   const select = $('c-source')
   const sources = [...new Set(Object.values(data.collected).flatMap((u) => u.sources ?? []))].sort()
+  // Filtering only helps when there is more than one source to choose from.
+  select.hidden = sources.length < 2
   const current = [...select.options].slice(1).map((o) => o.value)
   if (sources.join('\n') === current.join('\n')) return
   const value = select.value
   select.replaceChildren(h('option', { value: '' }, 'All sources'), ...sources.map((src) => h('option', { value: src }, src)))
   select.value = sources.includes(value) ? value : ''
+  if (select.hidden && select.value) select.value = ''
 }
 
 function renderCollected() {
   const q = $('c-filter').value.trim().toLowerCase()
   const hideBlocked = pressed('c-hide-blocked')
   const hideFriends = pressed('c-hide-following')
-  const source = $('c-source').value
   syncSourceOptions()
+  const source = $('c-source').value
   filteredCollected = Object.values(data.collected)
     .filter((u) => !(hideBlocked && isBlocked(u)))
     .filter((u) => !(hideFriends && (u.following || u.followedBy)))
