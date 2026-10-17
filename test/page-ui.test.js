@@ -281,3 +281,23 @@ test('on a list page the review offers this list and the Collected list', async 
   const block = page.sent.find((m) => m.type === 'page:massBlock')
   assert.deepEqual(block.items.map((i) => i.screenName), ['spam_a']) // only the active tab
 })
+
+test('select all works after unticking everyone', async () => {
+  const page = await load(`<main>${cell('a1')}${cell('a2')}${cell('a3')}</main>`, { respond: respondCollected })
+  await page.click('.fab')
+  await page.click('.btn-danger')
+  const dialog = page.shadow().querySelector('.review')
+  const all = dialog.querySelector('.bar input')
+  const ticked = () => [...dialog.querySelectorAll('li input')].map((b) => b.checked)
+  const toggle = async () => { all.checked = !all.checked; all.dispatchEvent(new page.document.defaultView.Event('change')); await sleep(20) }
+
+  assert.deepEqual(ticked(), [true, true, true])
+  await toggle() // untick all
+  assert.deepEqual(ticked(), [false, false, false])
+  await toggle() // select all again
+  assert.deepEqual(ticked(), [true, true, true])
+  assert.equal(dialog.querySelector('.rf .btn-danger').textContent, 'Block 3')
+  await toggle()
+  await toggle()
+  assert.deepEqual(ticked(), [true, true, true])
+})

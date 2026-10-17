@@ -1044,7 +1044,12 @@
             const who = el('div', 'who', el('span', 'nm', r.name || `@${r.screenName}`), el('span', 'hd', `@${r.screenName}`))
             if (r.showSource) who.append(el('span', 'from', r.source))
             const li = el('li', r.checked ? '' : 'off', box, avatar, who, tags)
-            const set = (v) => { r.checked = v; box.checked = v; li.classList.toggle('off', !v); sync() }
+            const set = (v, quiet) => {
+              r.checked = v
+              box.checked = v
+              li.classList.toggle('off', !v)
+              if (!quiet) sync()
+            }
             box.addEventListener('change', () => set(box.checked))
             li.addEventListener('click', (e) => { if (e.target !== box) set(!r.checked) })
             r.set = set
@@ -1075,7 +1080,13 @@
           renderRows()
         }
 
-        all.addEventListener('change', () => { for (const r of rows) r.set(all.checked) })
+        // Read the choice once: sync() updates `all` itself, so reading it inside
+        // the loop would flip every row after the first.
+        all.addEventListener('change', () => {
+          const value = all.checked
+          for (const r of rows) r.set(value, true)
+          sync()
+        })
 
         const dialog = el('div', 'review',
           el('div', 'rh', tabBar, src, heading, note),
