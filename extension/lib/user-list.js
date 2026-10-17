@@ -15,15 +15,32 @@ export function isScreenName(s) {
   return SCREEN_NAME_RE.test(s) && !RESERVED.has(s.toLowerCase())
 }
 
-// Accepts @handle, handle, profile/status URLs, "id:123", or bare IDs that
-// are too long to be a handle (handles are max 15 chars and may be numeric).
+const HOST = String.raw`^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:x|twitter)\.com`
+const USER_ID_LINK = new RegExp(`${HOST}\\/i\\/user\\/(\\d{1,20})(?:[/?#]|$)`, 'i')
+const INTENT_LINK = new RegExp(`${HOST}\\/intent\\/(?:user|follow)\\/?\\?([^#\\s]*)`, 'i')
+const PROFILE_LINK = new RegExp(`${HOST}\\/([^/?#\\s]+)`, 'i')
+
+// Accepts @handle, handle, profile/status URLs, ID links (x.com/i/user/123),
+// intent links (x.com/intent/user?user_id=123 or ?screen_name=name),
+// "id:123", or bare IDs that are too long to be a handle (handles are max
+// 15 chars and may be numeric).
 export function parseToken(raw) {
   let t = raw.trim().replace(/^["']|["']$/g, '')
   if (!t) return null
   const idMatch = /^id[:=](\d+)$/i.exec(t)
   if (idMatch) return { id: idMatch[1] }
   if (/^\d{16,20}$/.test(t)) return { id: t }
-  const url = /^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:x|twitter)\.com\/([^/?#\s]+)/i.exec(t)
+  const idLink = USER_ID_LINK.exec(t)
+  if (idLink) return { id: idLink[1] }
+  const intent = INTENT_LINK.exec(t)
+  if (intent) {
+    const q = new URLSearchParams(intent[1])
+    const id = q.get('user_id')
+    if (id && /^\d{1,20}$/.test(id)) return { id }
+    const sn = q.get('screen_name')?.replace(/^@/, '')
+    return sn && isScreenName(sn) ? { screenName: sn } : null
+  }
+  const url = PROFILE_LINK.exec(t)
   if (url) t = url[1]
   t = t.replace(/^@/, '')
   if (isScreenName(t)) return { screenName: t }

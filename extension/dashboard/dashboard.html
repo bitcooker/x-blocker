@@ -102,11 +102,11 @@
         <header class="panel-head">
           <div>
             <h1>Import a list</h1>
-            <p class="muted">Paste @handles, profile links or IDs (<code>id:12345</code>), separated by spaces, commas or new lines. You can also drop in a .txt or .csv file with an <code>id</code> and/or <code>screen_name</code> column.</p>
+            <p class="muted">Paste @handles, profile links, ID links (<code>x.com/i/user/12345</code>) or IDs (<code>id:12345</code>), separated by spaces, commas or new lines. You can also drop in a .txt or .csv file with an <code>id</code> and/or <code>screen_name</code> column.</p>
           </div>
         </header>
         <div class="card import-card">
-          <textarea id="i-text" class="input" placeholder="@spammer1&#10;https://x.com/spammer2&#10;id:1234567890" spellcheck="false"></textarea>
+          <textarea id="i-text" class="input" placeholder="@spammer1&#10;https://x.com/spammer2&#10;https://x.com/i/user/1234567890&#10;id:1234567890" spellcheck="false"></textarea>
           <div class="row">
             <label class="btn btn-sm file-btn"><i data-icon="import"></i>Choose file<input id="i-file" type="file" accept=".txt,.csv,text/plain,text/csv"></label>
             <span id="i-preview" class="muted grow"></span>

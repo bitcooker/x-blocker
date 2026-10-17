@@ -5,7 +5,7 @@ A browser extension for **Firefox** and **Chrome** (Manifest V3) that mass-block
 - **Collect**: as you browse any list on x.com (followers, likes, reposts,
   replies, search results, lists, communities…), every account in X's API
   responses is collected automatically. An auto-scroll helper loads long lists for you.
-- **Import**: paste or load @handles, profile URLs, numeric IDs (`id:123`) or a
+- **Import**: paste or load @handles, profile URLs, ID links (`x.com/i/user/123`), numeric IDs (`id:123`) or a
   CSV with `id` / `screen_name` columns.
 - **Queue**: blocks run one at a time with a delay plus random jitter. Progress is
   saved after every block, so you can pause, reload or restart the browser and resume.
