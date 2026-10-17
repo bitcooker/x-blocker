@@ -903,8 +903,8 @@
           : collectedCount ? `X Blocker · ${collectedCount} collected` : 'X Blocker'
       scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL), scrolling ? 'Stop' : 'Scroll list')
       scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll to the end of this list so every account is shown (nothing is collected)'
-      const reviewCount = context ? n : collectedCount
-      blockAllBtn.textContent = reviewCount ? `Review ${reviewCount}` : 'Review'
+      // No count on the button: it opens both this list and the whole Collected list.
+      blockAllBtn.textContent = 'Review'
       blockAllBtn.title = collectedCount
         ? 'Review this list or your Collected list before blocking'
         : 'Review the accounts in this list before blocking them'
@@ -954,7 +954,7 @@
           note: 'Only accounts from this list are included.' })
       }
       if (collectedCount) {
-        tabs.push({ label: 'Collected', count: collectedCount, load: collectedRows, heading: 'Your Collected list',
+        tabs.push({ label: 'Total collected', count: collectedCount, load: collectedRows, heading: 'Your Collected list',
           note: 'Every account you collected, on any page, that isn\'t blocked yet.' })
       }
       if (!tabs.length) return

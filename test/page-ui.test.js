@@ -249,7 +249,8 @@ test('collected total is shown and reviewable from a page that is not a list', a
   await page.click('.fab')
   assert.equal(page.shadow().querySelector('.sub').textContent, '2 accounts collected, ready to review')
 
-  await page.click('.btn-danger') // Review 2
+  assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'Review')
+  await page.click('.btn-danger')
   const dialog = page.shadow().querySelector('.review')
   assert.ok(dialog.querySelector('.tabs').hidden) // single tab
   const names = [...dialog.querySelectorAll('li .hd')].map((e) => e.textContent)
@@ -267,10 +268,10 @@ test('on a list page the review offers this list and the Collected list', async 
   await sleep(250)
   await page.click('.fab')
   assert.equal(page.shadow().querySelector('.sub').textContent, '2 accounts in this list · 2 in Collected')
-  await page.click('.btn-danger') // Review 2
+  await page.click('.btn-danger') 
   const dialog = page.shadow().querySelector('.review')
   const tabs = [...dialog.querySelectorAll('.tab')]
-  assert.deepEqual(tabs.map((t) => t.textContent), ['This list · 2', 'Collected · 2'])
+  assert.deepEqual(tabs.map((t) => t.textContent), ['This list · 2', 'Total collected · 2'])
   assert.deepEqual([...dialog.querySelectorAll('li .hd')].map((e) => e.textContent), ['@alice', '@bob'])
 
   tabs[1].click()
