@@ -26,7 +26,7 @@ A browser extension for **Firefox** and **Chrome** (Manifest V3) that mass-block
 
 ## Install
 
-**Firefox (128+):** install from
+**Firefox (140+, Android 142+):** install from
 [addons.mozilla.org](https://addons.mozilla.org/firefox/addon/x-blocker/).
 Updates arrive automatically.
 
@@ -90,7 +90,7 @@ breaks when X ships a new build:
 ## Architecture
 
 ```
-extension/                 source; manifest is the Firefox flavour (≥128)
+extension/                 source; manifest is the Firefox flavour (≥140)
   manifest.json
   background.js            state owner: storage, queue, skip rules, rate limits,
                            response capture (Firefox event page / Chrome service worker)
