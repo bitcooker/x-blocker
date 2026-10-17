@@ -27,6 +27,7 @@ const post = (sn, text = '') => `
 
 async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1 } = {}) {
   const { window, document } = parseHTML(`<html><body>${body}</body></html>`)
+  const location = { pathname: path, search }
   window.HTMLElement.prototype.getBoundingClientRect = function () {
     const isButton = this.tagName === 'BUTTON'
     const width = isButton ? 90 : narrow && this.classList?.contains('cell') ? 300 : 0
@@ -50,7 +51,7 @@ async function load(body, { path = '/target/followers', search = '', respond = (
     window, document, console, URL, setTimeout, clearTimeout,
     DOMParser: window.DOMParser, Node: window.Node, CustomEvent: window.CustomEvent,
     NodeFilter: { SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_SKIP: 3 },
-    location: { pathname: path, search },
+    location,
     getComputedStyle: (el) => ({
       position: 'static', display: 'block', flexDirection: 'column', minHeight: '36px',
       fontSize: '15px', fontFamily: 'TwitterChirp', fontWeight: '700', paddingLeft: '16px',
@@ -80,6 +81,8 @@ async function load(body, { path = '/target/followers', search = '', respond = (
     handles: () => [...ctx.__handles.values()],
     shadow: () => document.getElementById('xb-root')?.shadowRoot,
     message: (m) => listeners.forEach((f) => f(m)),
+    location,
+    click: async (selector) => { document.getElementById('xb-root').shadowRoot.querySelector(selector).click(); await sleep(250) },
     mutate: async (records) => { observerCb(records); await sleep(50) },
   }
 }
@@ -167,6 +170,7 @@ test('re-injection leaves a single UI instance', async () => {
 
 test('panel shows live queue progress', async () => {
   const page = await load(`<main>${cell('alice')}</main>`)
+  await page.click('.fab')
   const sub = () => page.shadow().querySelector('.sub').textContent
   const runner = (state, extra = {}) => ({ state, done: 4, failed: 0, skipped: 1, lastBeat: Date.now(), ...extra })
   page.message({ type: 'page:progress', runner: runner('running'), queueLen: 9 })
@@ -178,4 +182,49 @@ test('panel shows live queue progress', async () => {
   page.message({ type: 'page:progress', runner: runner('idle', { done: 12, skipped: 2 }), queueLen: 0 })
   await sleep(200)
   assert.equal(sub(), 'Done · 12 blocked · 2 skipped')
+})
+
+test('panel starts minimized on list pages', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`)
+  assert.ok(page.shadow().querySelector('.fab'))
+  assert.equal(page.shadow().querySelector('.panel'), null)
+  await page.click('.fab')
+  assert.ok(page.shadow().querySelector('.panel'))
+})
+
+test('nothing is collected until Collect is switched on, then only this list', async () => {
+  const page = await load(`<main>${cell('target')}${cell('alice', { bio: `hi ${mention('friend')} there and more` })}${cell('bob')}
+    <aside>${cell('sidebar_acct')}</aside></main>`, {
+    respond: (m) => (m.type === 'page:collect' ? { saved: m.screenNames, missing: [] } : {}),
+  })
+  const collects = () => page.sent.filter((m) => m.type === 'page:collect')
+  await sleep(900)
+  assert.equal(collects().length, 0)
+
+  await page.click('.fab')
+  await page.click('.btn-collect')
+  await sleep(900)
+  assert.equal(collects().length, 1)
+  assert.deepEqual([...collects()[0].screenNames], ['alice', 'bob'])
+  assert.equal(collects()[0].source, 'Followers of @target')
+  assert.match(page.shadow().querySelector('.sub').textContent, /Collecting · 2 saved/)
+})
+
+test('leaving the page stops collecting and minimizes the panel', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, {
+    respond: (m) => (m.type === 'page:collect' ? { saved: m.screenNames, missing: [] } : {}),
+  })
+  await page.click('.fab')
+  await page.click('.btn-collect')
+  await sleep(900)
+  page.location.pathname = '/friend/following'
+  const row = page.document.createElement('div')
+  row.innerHTML = cell('friend_of_friend')
+  page.document.querySelector('main').append(row)
+  await page.mutate([{ type: 'childList', target: row, addedNodes: [row] }])
+  await sleep(1200)
+  const collected = page.sent.filter((m) => m.type === 'page:collect').flatMap((m) => [...m.screenNames])
+  assert.deepEqual(collected, ['alice'])
+  assert.ok(page.shadow().querySelector('.fab'))
+  assert.equal(page.shadow().querySelector('.panel'), null)
 })
