@@ -139,17 +139,34 @@
     return best
   }
 
+  // Scroll one screenful, then wait for X to append more rows. Polling beats a
+  // fixed pause: fast when X answers quickly, patient when it is slow.
+  async function scrollStep(el, budget = 2000) {
+    const height = el.scrollHeight
+    const top = el.scrollTop
+    el.scrollBy({ top: el.clientHeight * 0.9 })
+    const deadline = Date.now() + budget
+    while (scrolling && Date.now() < deadline) {
+      await sleep(120)
+      if (el.scrollHeight > height) return 'grew'
+    }
+    // No new rows and the page did not move: probably the end of the list.
+    return el.scrollTop <= top && el.scrollHeight === height ? 'end' : 'idle'
+  }
+
   async function autoScroll(onDone) {
     if (scrolling) return
     scrolling = true
     let idle = 0
     try {
-      while (scrolling && idle < 8) {
+      while (scrolling && idle < 6) {
         const el = scrollTarget()
-        const before = el.scrollHeight
-        el.scrollBy({ top: el.clientHeight * 0.9, behavior: 'smooth' })
-        await sleep(1500 + Math.random() * 700)
-        idle = el.scrollHeight > before ? 0 : idle + 1
+        // Reaching the bottom is also what makes X load the next batch, so give
+        // a suspected end one patient retry before stopping.
+        let step = await scrollStep(el)
+        if (step === 'end') step = await scrollStep(el, 4000)
+        if (step === 'end') break
+        idle = step === 'grew' ? 0 : idle + 1
       }
     } finally {
       scrolling = false

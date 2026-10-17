@@ -611,6 +611,8 @@
       button:focus-visible{box-shadow:0 0 0 2px #1d9bf0}
       button[disabled]{opacity:.5;cursor:default}
       .btn{height:36px;padding:0 16px;font-size:14px}
+      .btn-icon{width:36px;padding:0;flex:none}
+      .btn-icon svg{width:18px;height:18px;fill:currentColor}
       .btn-outline{border:1px solid var(--border);color:var(--fg)}
       .btn-outline:hover:not([disabled]){background:var(--hover)}
       .btn-danger{background:#f4212e;color:#fff}
@@ -738,7 +740,7 @@
     const title = el('span', 'title')
     const text = el('div', 'text', el('span', 'eyebrow', 'X Blocker'), title, sub)
     const logo = el('div', 'logo', svg(BLOCK_ICON))
-    const scrollBtn = el('button', 'btn btn-outline')
+    const scrollBtn = el('button', 'btn btn-outline btn-icon')
     const blockAllBtn = el('button', 'btn btn-danger')
     const runBtn = el('button', 'btn btn-outline')
     const collectBtn = el('button', 'btn btn-outline btn-collect')
@@ -924,8 +926,9 @@
         ? `Blocking ${info.processed}/${info.total}`
         : collecting ? `Collecting ${collectedHere.size}`
           : collectedCount ? `X Blocker · ${collectedCount} collected` : 'X Blocker'
-      scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL), scrolling ? 'Stop' : 'Scroll list')
+      scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL))
       scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll to the end of this list so every account is shown (nothing is collected)'
+      scrollBtn.setAttribute('aria-label', scrollBtn.title)
       // No count on the button: it opens both this list and the whole Collected list.
       blockAllBtn.textContent = 'Review'
       blockAllBtn.title = collectedCount
