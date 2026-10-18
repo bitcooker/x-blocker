@@ -53,9 +53,9 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 /* Status */
 .status { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
 .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.status[data-state="running"]::before { background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); animation: pulse 1.6s infinite; }
+.status[data-state="running"]::before { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); animation: pulse 1.6s infinite; }
 .status[data-state="cooldown"]::before { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
-.status[data-state="paused"]::before { background: var(--accent); }
+.status[data-state="paused"]::before { background: var(--warn); }
 .status[data-state="error"]::before { background: var(--danger); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 7px transparent; } }
 

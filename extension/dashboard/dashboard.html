@@ -14,82 +14,101 @@
 <body>
   <div class="layout">
     <aside class="sidebar">
-      <a class="brand" href="#queue">
+      <a class="brand" href="#home">
         <img src="../icons/icon.svg" alt="" width="32" height="32">
         <span>X Blocker</span>
         <small id="version" class="version"></small>
       </a>
       <nav id="tabs" aria-label="Sections">
-        <button class="nav-item" data-tab="queue"><i data-icon="queue"></i><span>Queue</span><b id="n-queue" class="badge"></b></button>
-        <button class="nav-item" data-tab="import"><i data-icon="import"></i><span>Import</span></button>
+        <button class="nav-item" data-tab="home"><i data-icon="home"></i><span>Home</span><b id="n-waiting" class="badge"></b></button>
         <button class="nav-item" data-tab="blocked"><i data-icon="block"></i><span>Blocked</span><b id="n-blocked" class="badge"></b></button>
-        <button class="nav-item" data-tab="log"><i data-icon="activity"></i><span>Activity</span></button>
         <button class="nav-item" data-tab="settings"><i data-icon="settings"></i><span>Settings</span></button>
       </nav>
 
-      <section class="runner card" aria-label="Blocking status">
-        <div class="row">
-          <span id="status" class="status grow">Idle</span>
-          <span id="queue-left" class="muted"></span>
-        </div>
-        <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
-        <p id="message" class="muted small"></p>
-        <button id="start" class="btn btn-primary btn-block"><i data-icon="play"></i><span>Start blocking</span></button>
-        <button id="pause" class="btn btn-block" hidden><i data-icon="pause"></i><span>Pause</span></button>
+      <!-- Compact status, so the queue stays in reach from every section. -->
+      <section class="mini card" aria-label="Queue status">
+        <div class="row"><span id="status" class="status grow">Idle</span><span id="queue-left" class="muted small"></span></div>
+        <div class="meter"><span id="mini-bar"></span></div>
+        <button id="start" class="btn btn-sm btn-block"><i data-icon="play"></i><span>Start</span></button>
+        <button id="pause" class="btn btn-sm btn-block" hidden><i data-icon="pause"></i><span>Pause</span></button>
       </section>
     </aside>
 
     <main>
-      <section class="overview">
-        <div class="stat"><span>In queue</span><b id="s-queue">0</b></div>
-        <div class="stat"><span>Blocked total</span><b id="s-blocked">0</b></div>
-        <div class="stat"><span>Last 24 hours</span><b id="s-24h">0</b></div>
-      </section>
-
-      <!-- Queue -->
-      <section id="tab-queue" class="panel" hidden>
+      <!-- Home -->
+      <section id="tab-home" class="panel">
         <header class="panel-head">
           <div>
-            <h1>Queue</h1>
-            <p class="muted">Accounts waiting to be blocked or unblocked, processed top to bottom. On x.com, open a followers, likes, reposts, replies or search page, open the X Blocker panel at the bottom and press <b>Review</b> to add accounts. Progress is saved after every account, so you can pause or close the browser anytime.</p>
+            <h1>Home</h1>
+            <p class="muted">Each time you press <b>Block</b> in a review on x.com, the accounts become a batch here. Batches are blocked one account at a time, in the background.</p>
           </div>
-          <div class="row">
-            <button id="q-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
-            <button id="q-clear" class="btn btn-sm btn-danger-outline"><i data-icon="trash"></i>Clear</button>
-            <button id="q-start" class="btn btn-sm btn-danger"><i data-icon="play"></i><span>Start blocking</span></button>
-            <button id="q-pause" class="btn btn-sm" hidden><i data-icon="pause"></i><span>Pause</span></button>
-          </div>
+          <button id="open-import" class="btn btn-sm"><i data-icon="import"></i>Import a list</button>
         </header>
-        <div id="legacy" class="card list" hidden>
-          <div class="setting"><div><b id="legacy-title">Accounts from your old Collected list</b><span>X Blocker no longer keeps a Collected list: you now review a list on x.com and queue it right away. Decide once what happens to the accounts that were still waiting there.</span></div>
-            <div class="row">
-              <button id="legacy-discard" class="btn btn-sm">Discard</button>
-              <button id="legacy-queue" class="btn btn-sm btn-danger"><i data-icon="block"></i>Queue for blocking</button>
-            </div></div>
+
+        <div id="legacy" class="card notice" hidden>
+          <div class="grow"><b id="legacy-title">Accounts from your old Collected list</b>
+            <span class="muted">X Blocker no longer keeps a Collected list: you now review a list on x.com and queue it right away. Decide once what happens to the accounts that were still waiting there.</span></div>
+          <div class="row">
+            <button id="legacy-discard" class="btn btn-sm">Discard</button>
+            <button id="legacy-queue" class="btn btn-sm btn-danger">Queue for blocking</button>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>#</th><th>Account</th><th>From</th><th>Added</th><th>Attempts</th><th></th></tr></thead>
-            <tbody id="q-body"></tbody>
-          </table>
-        </div>
-        <p id="q-more" class="foot muted"></p>
+
+        <!-- What is happening now -->
+        <section class="card now" aria-labelledby="now-title">
+          <div class="now-head">
+            <div class="grow">
+              <span id="now-status" class="status">Idle</span>
+              <h2 id="now-title">Nothing waiting</h2>
+              <p id="now-detail" class="muted"></p>
+            </div>
+            <button id="now-start" class="btn btn-danger"><i data-icon="play"></i><span>Start</span></button>
+            <button id="now-pause" class="btn" hidden><i data-icon="pause"></i><span>Pause</span></button>
+          </div>
+          <div class="meter meter-lg"><span id="now-bar"></span></div>
+          <div class="limits">
+            <div class="limit"><div class="row"><span class="muted grow">This hour</span><b id="lim-hour"></b></div><div class="meter"><span id="lim-hour-bar"></span></div></div>
+            <div class="limit"><div class="row"><span class="muted grow">Last 24 hours</span><b id="lim-day"></b></div><div class="meter"><span id="lim-day-bar"></span></div></div>
+          </div>
+        </section>
+
+        <section aria-labelledby="batches-title" class="stack">
+          <h2 id="batches-title" class="section-title">Batches</h2>
+          <ol id="batches" class="batches card"></ol>
+          <p id="batches-more" class="foot muted"></p>
+        </section>
+
+        <details id="waiting" class="card waiting">
+          <summary><b>Waiting accounts</b> <span id="waiting-count" class="muted"></span>
+            <span class="grow"></span>
+            <button id="q-export" class="btn btn-xs" type="button">Export</button>
+            <button id="q-clear" class="btn btn-xs btn-danger-outline" type="button">Clear all</button></summary>
+          <div class="table-wrap flush">
+            <table>
+              <thead><tr><th>#</th><th>Account</th><th>Batch</th><th>Attempts</th><th></th></tr></thead>
+              <tbody id="q-body"></tbody>
+            </table>
+          </div>
+          <p id="q-more" class="foot muted"></p>
+        </details>
       </section>
 
-      <!-- Import -->
+      <!-- Import (opened from Home) -->
       <section id="tab-import" class="panel" hidden>
         <header class="panel-head">
           <div>
+            <button class="btn btn-sm btn-quiet back" data-go="home"><i data-icon="back"></i>Home</button>
             <h1>Import a list</h1>
-            <p class="muted">Paste @handles, profile links, ID links (<code>x.com/i/user/12345</code>) or IDs (<code>id:12345</code>), separated by spaces, commas or new lines. You can also drop in a .txt or .csv file with an <code>id</code> and/or <code>screen_name</code> column.</p>
+            <p class="muted">Paste @handles, profile links, ID links (<code>x.com/i/user/12345</code>) or IDs (<code>id:12345</code>), separated by spaces, commas or new lines. You can also drop in a .txt or .csv file with an <code>id</code> and/or <code>screen_name</code> column. The accounts become one batch.</p>
           </div>
         </header>
         <div class="card import-card">
           <textarea id="i-text" class="input" placeholder="@spammer1&#10;https://x.com/spammer2&#10;https://x.com/i/user/1234567890&#10;id:1234567890" spellcheck="false"></textarea>
           <div class="row">
             <label class="btn btn-sm file-btn"><i data-icon="import"></i>Choose file<input id="i-file" type="file" accept=".txt,.csv,text/plain,text/csv"></label>
+            <input id="i-name" class="input name" type="text" placeholder="Batch name (optional)" maxlength="80">
             <span id="i-preview" class="muted grow"></span>
-            <button id="i-add" class="btn btn-danger" disabled><i data-icon="block"></i>Add to queue</button>
+            <button id="i-add" class="btn btn-danger" disabled>Add to queue</button>
           </div>
         </div>
       </section>
@@ -99,16 +118,16 @@
         <header class="panel-head">
           <div>
             <h1>Blocked</h1>
-            <p class="muted">Accounts blocked by X Blocker, and accounts seen as already blocked. Blocked a group by mistake? Filter by where they came from, select them and press <b>Unblock</b>. Unblocks go through the queue at the same safe pace. Clearing this history does not unblock anyone.</p>
+            <p class="muted">Accounts blocked by X Blocker, and accounts seen as already blocked. To undo a whole batch, use <b>Undo</b> on Home; here you can pick individual accounts.</p>
           </div>
           <div class="row">
             <button id="b-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
-            <button id="b-clear" class="btn btn-sm btn-danger-outline"><i data-icon="trash"></i>Clear history</button>
+            <button id="b-clear" class="btn btn-sm btn-danger-outline">Clear history</button>
           </div>
         </header>
         <div class="toolbar">
           <label class="search grow"><i data-icon="search"></i><input id="b-filter" class="input" type="search" placeholder="Search blocked accounts"></label>
-          <select id="b-source" class="input select" aria-label="Filter by where they came from"><option value="">All sources</option></select>
+          <select id="b-batch" class="input select" aria-label="Filter by batch"><option value="">All batches</option></select>
         </div>
         <div id="b-selection" class="selection-bar">
           <label class="row"><input id="b-select-all" type="checkbox" aria-label="Select all shown"><span id="b-selected" class="muted">Select all</span></label>
@@ -117,23 +136,11 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th class="w-check"></th><th>Account</th><th>From</th><th>When</th></tr></thead>
+            <thead><tr><th class="w-check"></th><th>Account</th><th>Batch</th><th>When</th></tr></thead>
             <tbody id="b-body"></tbody>
           </table>
         </div>
         <p id="b-more" class="foot muted"></p>
-      </section>
-
-      <!-- Log -->
-      <section id="tab-log" class="panel" hidden>
-        <header class="panel-head">
-          <div>
-            <h1>Activity</h1>
-            <p class="muted">The most recent 300 events.</p>
-          </div>
-          <button id="l-clear" class="btn btn-sm"><i data-icon="trash"></i>Clear</button>
-        </header>
-        <ol id="l-body" class="log"></ol>
       </section>
 
       <!-- Settings -->
@@ -163,19 +170,24 @@
             <label class="setting"><div><b>Delay between blocks</b><span>Pause after each block. Minimum 2 s. Default 4 s.</span></div><span class="field"><input name="delaySec" type="number" min="2" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
             <label class="setting"><div><b>Random extra delay</b><span>Adds a random pause of up to this long, so blocks aren't evenly spaced. Default 4 s.</span></div><span class="field"><input name="jitterSec" type="number" min="0" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
             <label class="setting"><div><b>Cooldown after rate limit</b><span>X usually says when its limit resets, and blocking resumes right then. This wait is used only when X doesn't say, or after repeated limits in a row. Doubles on each repeat, up to 4 hours. Default 15 min.</span></div><span class="field"><input name="cooldownMin" type="number" min="1" max="240" step="1" inputmode="numeric"><span class="unit">min</span></span></label>
-            <label class="setting"><div><b>Hourly safety limit</b><span>Blocks per rolling hour, including quick blocks. Spreading blocks out looks less automated than a burst. Default 150. 0 turns the limit off.</span></div><span class="field"><input name="hourlyCap" type="number" min="0" max="1000" step="10" inputmode="numeric"><span class="unit">per hour</span></span></label>
-            <label class="setting"><div><b>Daily safety limit</b><span>Blocks per rolling 24 hours, including quick blocks. X publishes no block limit; heavy blockers report being logged out after several hundred blocks in a burst. Default 1000. 0 turns the limit off (not recommended).</span></div><span class="field"><input name="dailyCap" type="number" min="0" max="5000" step="10" inputmode="numeric"><span class="unit">per day</span></span></label>
+            <label class="setting"><div><b>Hourly safety limit</b><span>Blocks and unblocks per rolling hour, including quick blocks. Spreading them out looks less automated than a burst. Default 150. 0 turns the limit off.</span></div><span class="field"><input name="hourlyCap" type="number" min="0" max="1000" step="10" inputmode="numeric"><span class="unit">per hour</span></span></label>
+            <label class="setting"><div><b>Daily safety limit</b><span>Blocks and unblocks per rolling 24 hours. X publishes no block limit; heavy blockers report being logged out after several hundred blocks in a burst. Default 1000. 0 turns the limit off (not recommended).</span></div><span class="field"><input name="dailyCap" type="number" min="0" max="5000" step="10" inputmode="numeric"><span class="unit">per day</span></span></label>
           </div>
-          <h2>Reset</h2>
-          <div class="card list">
-            <div class="setting"><div><b>Restore default settings</b><span>Puts every setting on this page back to its default. Your never-block list, queue and history are kept.</span></div>
-              <button id="reset-settings" type="button" class="btn btn-sm">Reset settings</button></div>
-          </div>
-          <h2>Privacy</h2>
+
+          <h2>Data &amp; privacy</h2>
           <div class="card list">
             <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser, on your device, and nothing is sent anywhere except your own requests to X. Only the accounts you queue and the ones you block are kept. Accounts X shows you are held in a temporary cache, cleared when the browser closes, that is used to protect your friends and detect blocked accounts. Private pages (messages, notifications, settings) are never read.</span></div>
               <button id="wipe" type="button" class="btn btn-sm btn-danger-outline">Delete all data</button></div>
+            <div class="setting"><div><b>Restore default settings</b><span>Puts every setting on this page back to its default. Your never-block list, queue and history are kept.</span></div>
+              <button id="reset-settings" type="button" class="btn btn-sm">Reset settings</button></div>
           </div>
+
+          <h2>Diagnostics</h2>
+          <details class="card diag">
+            <summary><b>Activity log</b> <span class="muted">The most recent 300 events, for when something seems wrong.</span>
+              <span class="grow"></span><button id="l-clear" class="btn btn-xs" type="button">Clear</button></summary>
+            <ol id="l-body" class="log"></ol>
+          </details>
         </form>
       </section>
     </main>

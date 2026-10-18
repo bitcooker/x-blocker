@@ -227,3 +227,68 @@ test('lookup reports queued accounts, and unqueue removes them', async () => {
   assert.deepEqual(res.removed.sort(), ['by_name', 'queued_one'])
   assert.equal((await send({ type: 'page:progress' })).queueLen, 0)
 })
+
+test('each queued group is a batch that counts its outcomes and can be cancelled', async () => {
+  await boot({ settings: { version: 5 } })
+  const res = await send({ type: 'queue:add', source: 'Replies to @a', items: [{ id: '1', screenName: 'one' }, { id: '2', screenName: 'two' }, { id: '3', screenName: 'three' }] }, DASH)
+  assert.equal(res.added, 3)
+  const { batches, queue } = await send({ type: 'data:get', keys: ['batches', 'queue'] }, DASH)
+  assert.equal(batches.length, 1)
+  assert.deepEqual([batches[0].source, batches[0].total, batches[0].waiting], ['Replies to @a', 3, 3])
+  assert.ok(queue.every((q) => q.batch === batches[0].id))
+
+  await boot({ settings: { version: 5 }, queue, batches: { [batches[0].id]: { ...batches[0] } },
+    runner: { state: 'running', tabId: 7, token: 't', lastBeat: Date.now(), done: 0, failed: 0, skipped: 0, strikes: 0 } })
+  const next = await send({ type: 'runner:next', token: 't' })
+  await send({ type: 'runner:result', token: 't', item: next.item, outcome: 'blocked' })
+  await send({ type: 'batch:cancel', id: next.item.batch }, DASH)
+  const after = await send({ type: 'data:get', keys: ['batches', 'queue', 'blocked'] }, DASH)
+  assert.deepEqual([after.batches[0].done, after.batches[0].cancelled, after.batches[0].waiting], [1, 2, 0])
+  assert.equal(after.queue.length, 0)
+  assert.equal(after.blocked['1'].batch, next.item.batch)
+})
+
+test('a batch can be undone: its blocked accounts are queued for unblocking', async () => {
+  const now = Date.now()
+  await boot({
+    settings: { version: 5 },
+    batches: { b1: { id: 'b1', source: 'Followers of @x', action: 'block', createdAt: now, total: 2, done: 2, skipped: 0, failed: 0, cancelled: 0 } },
+    blocked: {
+      1: { id: '1', screenName: 'a', at: now, source: 'x-blocker', reason: 'Followers of @x', batch: 'b1' },
+      2: { id: '2', screenName: 'b', at: now, source: 'x-blocker', reason: 'Followers of @x', batch: 'b1' },
+      3: { id: '3', screenName: 'c', at: now, source: 'x-blocker', reason: 'Quick block' },
+    },
+  })
+  await send({ type: 'batch:unblock', id: 'b1' }, DASH) // no x.com tab here: queued, not started
+  const { queue, batches } = await send({ type: 'data:get', keys: ['queue', 'batches'] }, DASH)
+  assert.deepEqual(queue.map((q) => [q.id, q.action]), [['1', 'unblock'], ['2', 'unblock']])
+  assert.equal(batches[0].source, 'Undo: Followers of @x')
+  assert.equal(batches[0].action, 'unblock')
+})
+
+test('past blocks and waiting accounts are grouped into batches on upgrade', async () => {
+  const day = Date.parse('2026-10-01T12:00:00Z')
+  await boot({
+    settings: { version: 5 },
+    blocked: {
+      1: { id: '1', at: day, source: 'x-blocker', reason: 'Followers of @x' },
+      2: { id: '2', at: day + 1000, source: 'x-blocker', reason: 'Followers of @x' },
+      3: { id: '3', at: day, source: 'x-blocker', reason: 'Quick block' },
+      4: { id: '4', at: day, source: 'seen' },
+    },
+    queue: [{ id: '5', source: 'Imported list', addedAt: day, tries: 0 }],
+  })
+  const { batches } = await send({ type: 'data:get', keys: ['batches'] }, DASH)
+  assert.deepEqual(batches.map((b) => [b.source, b.total, b.waiting]).sort(),
+    [['Followers of @x', 2, 0], ['Imported list', 1, 1], ['Quick block', 1, 0]])
+  assert.equal(store.local.blocked['4'].batch, undefined, 'accounts X already showed as blocked are not ours to undo')
+})
+
+test('quick blocks of a day share one batch', async () => {
+  await boot({ settings: { version: 5 } })
+  await send({ type: 'page:blocked', user: { id: '1', screenName: 'a' } })
+  await send({ type: 'page:blocked', user: { id: '2', screenName: 'b' } })
+  const { batches } = await send({ type: 'data:get', keys: ['batches'] }, DASH)
+  assert.equal(batches.length, 1)
+  assert.deepEqual([batches[0].source, batches[0].done], ['Quick blocks', 2])
+})

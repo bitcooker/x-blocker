@@ -48,6 +48,9 @@ const DEFAULTS = {
   // queue or discard what is left, once.
   collected: {},
   queue: [],
+  // One batch per Review → Block (or import, undo, quick-block day): what the
+  // dashboard lists, and what can be cancelled or undone as a whole.
+  batches: {},
   blocked: {},
   blockTimes: [],
   log: [],
@@ -134,6 +137,10 @@ function load() {
       // included). Collecting is now opt-in, so that list starts empty.
       c.collected = {}
       await browser.storage.local.set({ collected: {} })
+    }
+    if (!stored.batches) {
+      migrateBatches(c)
+      await browser.storage.local.set({ batches: c.batches, blocked: c.blocked, queue: c.queue })
     }
     if (stored.settings?.version !== SETTINGS_VERSION) await browser.storage.local.set({ settings: c.settings })
     await loadSeen()
@@ -371,9 +378,74 @@ function skipReason(s, item) {
   return null
 }
 
+// ---- batches ------------------------------------------------------------------
+
+const MAX_BATCHES = 500
+
+function newBatch(s, source, action, id) {
+  id ??= `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+  s.batches[id] ??= { id, source: String(source || 'Added in the dashboard').slice(0, 120), action, createdAt: Date.now(),
+    total: 0, done: 0, skipped: 0, failed: 0, cancelled: 0 }
+  // Keep the newest; old finished batches are history only.
+  const ids = Object.keys(s.batches)
+  if (ids.length > MAX_BATCHES) {
+    const waiting = new Set(s.queue.map((q) => q.batch))
+    ids.filter((b) => !waiting.has(b)).sort((a, b) => s.batches[a].createdAt - s.batches[b].createdAt)
+      .slice(0, ids.length - MAX_BATCHES).forEach((b) => delete s.batches[b])
+  }
+  return s.batches[id]
+}
+
+// Counts an outcome for the batch an item belongs to.
+function countBatch(s, item, field, n = 1) {
+  const b = item?.batch && s.batches[item.batch]
+  if (b) b[field] = (b[field] ?? 0) + n
+}
+
+// Quick blocks from the page: one batch per day, so a day's clicks can be undone together.
+function quickBatch(s) {
+  const day = new Date().toISOString().slice(0, 10)
+  return newBatch(s, 'Quick blocks', 'block', `quick-${day}`)
+}
+
+// Batches for the dashboard, newest first, with how many accounts still wait.
+function batchList(s) {
+  const waiting = {}
+  for (const q of s.queue) if (q.batch) waiting[q.batch] = (waiting[q.batch] ?? 0) + 1
+  return Object.values(s.batches)
+    .map((b) => ({ ...b, waiting: waiting[b.id] ?? 0 }))
+    .sort((a, b) => b.createdAt - a.createdAt)
+}
+
+// Before batches existed: group past blocks by source and day, and waiting
+// accounts by source, so they can be undone and cancelled the same way.
+function migrateBatches(c) {
+  c.batches = {}
+  const day = (t) => new Date(t || 0).toISOString().slice(0, 10)
+  for (const b of Object.values(c.blocked)) {
+    if (b.source === 'seen' || b.batch) continue
+    const source = b.reason || 'Quick blocks'
+    const id = `m-${day(b.at)}-${source}`.replace(/[^\w-]+/g, '_').slice(0, 80)
+    const batch = c.batches[id] ??= { id, source, action: 'block', createdAt: b.at, total: 0, done: 0, skipped: 0, failed: 0, cancelled: 0 }
+    batch.createdAt = Math.min(batch.createdAt, b.at || batch.createdAt)
+    batch.total++
+    batch.done++
+    b.batch = id
+  }
+  for (const q of c.queue) {
+    if (q.batch) continue
+    const source = q.source || 'Added in the dashboard'
+    const id = `m-queue-${q.action ?? 'block'}-${source}`.replace(/[^\w-]+/g, '_').slice(0, 80)
+    const batch = c.batches[id] ??= { id, source, action: q.action ?? 'block', createdAt: q.addedAt || Date.now(), total: 0, done: 0, skipped: 0, failed: 0, cancelled: 0 }
+    batch.total++
+    q.batch = id
+  }
+}
+
 // Adds blocks (default) or unblocks to the queue. An account is in the queue
 // at most once; unblocks need a known ID and an account recorded as blocked.
-function addToQueue(s, items, action = 'block') {
+function addToQueue(s, items, action = 'block', batchSource) {
+  let batch = null
   const existing = new Set(s.queue.map(itemKey))
   for (const q of s.queue) if (q.id && q.screenName) existing.add(itemKey({ screenName: q.screenName }))
   let added = 0
@@ -393,10 +465,12 @@ function addToQueue(s, items, action = 'block') {
     } else if (existing.has(itemKey(item)) || (item.id && s.blocked[item.id])) { skipped++; continue }
     existing.add(itemKey(item))
     if (item.screenName) existing.add(itemKey({ screenName: item.screenName }))
-    s.queue.push({ ...item, addedAt: Date.now(), tries: 0 })
+    batch ??= newBatch(s, batchSource ?? item.source, action)
+    batch.total++
+    s.queue.push({ ...item, batch: batch.id, addedAt: Date.now(), tries: 0 })
     added++
   }
-  return { added, skipped }
+  return { added, skipped, batch: batch?.id }
 }
 
 function removeFromQueue(s, item) {
@@ -406,6 +480,18 @@ function removeFromQueue(s, item) {
     if (keys.has(itemKey(q))) return false
     return !(q.id && q.screenName && keys.has(itemKey({ screenName: q.screenName })))
   })
+}
+
+// Takes waiting accounts out of the queue, counting them as cancelled in their batch.
+function cancelWhere(s, pred) {
+  let n = 0
+  s.queue = s.queue.filter((q) => {
+    if (!pred(q)) return true
+    countBatch(s, q, 'cancelled')
+    n++
+    return false
+  })
+  return n
 }
 
 function markBlocking(s, id, value = true) {
@@ -503,6 +589,7 @@ function nextItem(s, token) {
       return { item, delayMs: delayMs + Math.floor(Math.random() * jitterMs) }
     }
     s.queue.shift()
+    countBatch(s, item, 'skipped')
     r.skipped++
     log(s, 'info', `Skipped ${label(item)}: ${reason}`)
   }
@@ -522,8 +609,9 @@ function applyResult(s, msg) {
     removeFromQueue(s, item)
     s.blocked[item.id] = compact({
       id: item.id, screenName: item.screenName ?? knownUser(s, item.id)?.screenName,
-      name: knownUser(s, item.id)?.name, at: now, source: 'x-blocker', reason: item.source,
+      name: knownUser(s, item.id)?.name, at: now, source: 'x-blocker', reason: item.source, batch: item.batch,
     })
+    countBatch(s, item, 'done')
     markBlocking(s, item.id)
     s.blockTimes.push(now)
     r.done++
@@ -538,11 +626,13 @@ function applyResult(s, msg) {
     // Unblocks are requests to X too, so they count toward the same limits.
     s.blockTimes.push(now)
     r.unblocked = (r.unblocked ?? 0) + 1
+    countBatch(s, item, 'done')
     log(s, 'ok', `Unblocked ${label(item)}`)
     return { stop: false }
   }
   if (outcome === 'skipped') {
     removeFromQueue(s, item)
+    countBatch(s, item, 'skipped')
     r.skipped++
     log(s, 'info', `Skipped ${label(item)}: ${msg.reason}`)
     return { stop: false }
@@ -579,6 +669,7 @@ function applyResult(s, msg) {
     return { stop: false }
   }
   removeFromQueue(s, item)
+  countBatch(s, item, 'failed')
   r.failed++
   log(s, 'error', `Failed ${label(item)}: ${err.message}`)
   return { stop: false }
@@ -601,15 +692,32 @@ function summary(s) {
       queue: s.queue.length,
       blocked: Object.keys(s.blocked).length,
       last24h: last24h(s),
+      lastHour: s.blockTimes.filter((t) => Date.now() - t < HOUR).length,
+      etaMs: estimateMs(s),
     },
   }
 }
 
+// Rough time to finish the queue at the configured pace and safety limits.
+function estimateMs(s) {
+  const left = s.queue.length
+  if (!left) return 0
+  const { delayMs, jitterMs, hourlyCap, dailyCap } = s.settings
+  const now = Date.now()
+  const perItem = delayMs + jitterMs / 2 + 1500 // + the request itself
+  const perHour = Math.min(hourlyCap || Infinity, HOUR / perItem)
+  const wait = s.runner.state === 'cooldown' ? Math.max(0, (s.runner.cooldownUntil ?? now) - now) : 0
+  let eta = wait + (left / perHour) * HOUR
+  const dayLeft = dailyCap ? Math.max(0, dailyCap - last24h(s)) : Infinity
+  if (left > dayLeft) eta = Math.max(eta, Math.ceil((left - dayLeft) / dailyCap) * DAY)
+  return Math.round(eta)
+}
+
 const contentHandlers = {
-  'runner:next': (s, msg) => mutate(s, ['queue', 'runner', 'log', 'blockTimes'], () => nextItem(s, msg.token)),
+  'runner:next': (s, msg) => mutate(s, ['queue', 'runner', 'log', 'blockTimes', 'batches'], () => nextItem(s, msg.token)),
   'runner:check': (s, msg) => ({ skip: skipReason(s, msg.item) }),
   'runner:result': (s, msg) =>
-    mutate(s, ['queue', 'runner', 'log', 'blocked', 'blockTimes', 'collected'], () => {
+    mutate(s, ['queue', 'runner', 'log', 'blocked', 'blockTimes', 'collected', 'batches'], () => {
       const res = applyResult(s, msg)
       if ((msg.outcome === 'blocked' || msg.outcome === 'unblocked') && msg.item.screenName) {
         browser.tabs.sendMessage(s.runner.tabId, {
@@ -632,7 +740,10 @@ const uiHandlers = {
   'state:get': (s) => summary(s),
   'data:get': (s, msg) => {
     const out = summary(s)
-    for (const k of msg.keys ?? []) if (k in DEFAULTS && k !== 'runner') out[k] = s[k]
+    for (const k of msg.keys ?? []) {
+      if (k === 'batches') out.batches = batchList(s)
+      else if (k in DEFAULTS && k !== 'runner') out[k] = s[k]
+    }
     return out
   },
   'settings:set': (s, msg) => mutate(s, ['settings'], () => {
@@ -654,28 +765,44 @@ const uiHandlers = {
     s.settings = { ...structuredClone(DEFAULT_SETTINGS), whitelist: s.settings.whitelist, version: SETTINGS_VERSION }
     return summary(s)
   }),
-  'queue:add': (s, msg) => mutate(s, ['queue'], () => addToQueue(s, msg.items ?? [])),
-  'queue:remove': (s, msg) => mutate(s, ['queue'], () => {
+  'queue:add': (s, msg) => mutate(s, ['queue', 'batches'], () => addToQueue(s, msg.items ?? [], 'block', msg.source)),
+  'queue:remove': (s, msg) => mutate(s, ['queue', 'batches'], () => {
     const keys = new Set(msg.keys ?? [])
-    s.queue = s.queue.filter((q) => !keys.has(itemKey(q)))
+    cancelWhere(s, (q) => keys.has(itemKey(q)))
     return {}
   }),
-  'queue:clear': (s) => mutate(s, ['queue'], () => { s.queue = []; return {} }),
+  'queue:clear': (s) => mutate(s, ['queue', 'batches'], () => { cancelWhere(s, () => true); return {} }),
+  // Cancel what is still waiting in a batch; what was already done stays done.
+  'batch:cancel': (s, msg) => mutate(s, ['queue', 'batches'], () => ({ cancelled: cancelWhere(s, (q) => q.batch === msg.id) })),
+  // Forget a finished batch (the accounts it blocked stay blocked and listed).
+  'batch:forget': (s, msg) => mutate(s, ['batches', 'blocked'], () => {
+    if (s.queue.some((q) => q.batch === msg.id)) return { error: 'Cancel or finish this batch first' }
+    delete s.batches[msg.id]
+    for (const b of Object.values(s.blocked)) if (b.batch === msg.id) delete b.batch
+    return {}
+  }),
   // One-time choice for what is left in the old Collected list.
-  'legacy:queue': (s) => mutate(s, ['queue', 'collected'], () => {
+  'legacy:queue': (s) => mutate(s, ['queue', 'collected', 'batches'], () => {
     const res = addToQueue(s, pendingCollected(s).map((u) => ({
       id: u.id, screenName: u.screenName, source: u.sources?.at(-1) ?? 'Collected list',
-    })))
+    })), 'block', 'Your old Collected list')
     s.collected = {}
     snIndex = null
     return res
   }),
   'legacy:discard': (s) => mutate(s, ['collected'], () => { s.collected = {}; snIndex = null; return {} }),
-  'blocked:clear': (s) => mutate(s, ['blocked'], () => { s.blocked = {}; return {} }),
+  'blocked:clear': (s) => mutate(s, ['blocked', 'batches'], () => {
+    s.blocked = {}
+    // Finished batches are only history of those blocks; waiting ones stay.
+    const waiting = new Set(s.queue.map((q) => q.batch))
+    for (const id of Object.keys(s.batches)) if (!waiting.has(id)) delete s.batches[id]
+    return {}
+  }),
   'log:clear': (s) => mutate(s, ['log'], () => { s.log = []; return {} }),
   // Privacy: wipe everything the extension stored (settings are kept).
-  'data:wipe': (s) => mutate(s, ['collected', 'blocked', 'log', 'blockTimes', 'queue', 'runner'], () => {
+  'data:wipe': (s) => mutate(s, ['collected', 'blocked', 'log', 'blockTimes', 'queue', 'runner', 'batches'], () => {
     s.collected = {}
+    s.batches = {}
     s.blocked = {}
     s.log = []
     s.blockTimes = []
@@ -732,7 +859,7 @@ const pageHandlers = {
   'page:viewer': (s, msg) => ({ screenName: knownUser(s, String(msg.id))?.screenName ?? null }),
   'page:progress': () => progressPayload(),
   // Takes accounts back out of the block queue (by ID or handle).
-  'page:unqueue': (s, msg) => mutate(s, ['queue'], () => {
+  'page:unqueue': (s, msg) => mutate(s, ['queue', 'batches'], () => {
     const keys = new Set()
     for (const it of Array.isArray(msg.items) ? msg.items.slice(0, 5000) : []) {
       const id = String(it?.id ?? '')
@@ -741,10 +868,10 @@ const pageHandlers = {
       if (/^[A-Za-z0-9_]{1,15}$/.test(sn)) keys.add(itemKey({ screenName: sn }))
     }
     const removed = []
-    s.queue = s.queue.filter((q) => {
-      const hit = keys.has(itemKey(q)) || (q.screenName && keys.has(itemKey({ screenName: q.screenName })))
+    cancelWhere(s, (q) => {
+      const hit = keys.has(itemKey(q)) || Boolean(q.screenName && keys.has(itemKey({ screenName: q.screenName })))
       if (hit) removed.push(q.screenName ?? knownUser(s, q.id)?.screenName ?? q.id)
-      return !hit
+      return hit
     })
     return { removed }
   }),
@@ -757,10 +884,13 @@ const pageHandlers = {
     const limit = cap > 0 && used >= cap ? 'daily' : hourly > 0 && usedHour >= hourly ? 'hourly' : ''
     return { used, cap, usedHour, hourly, limit, allowed: !limit }
   },
-  'page:blocked': (s, msg) => mutate(s, ['blocked', 'collected', 'blockTimes', 'log', 'queue'], () => {
+  'page:blocked': (s, msg) => mutate(s, ['blocked', 'collected', 'blockTimes', 'log', 'queue', 'batches'], () => {
     const { id, screenName } = msg.user ?? {}
     if (!/^\d+$/.test(String(id))) return {}
-    s.blocked[id] = compact({ id, screenName, name: knownUser(s, id)?.name, at: Date.now(), source: 'x-blocker', reason: 'Quick block' })
+    const batch = quickBatch(s)
+    batch.total++
+    batch.done++
+    s.blocked[id] = compact({ id, screenName, name: knownUser(s, id)?.name, at: Date.now(), source: 'x-blocker', reason: 'Quick block', batch: batch.id })
     markBlocking(s, id)
     s.blockTimes.push(Date.now())
     removeFromQueue(s, { id, screenName })
@@ -798,7 +928,16 @@ onMessage((msg, sender) => {
     })
   }
   if (msg.type === 'runner:start') return startRunner(msg.tabId).then(() => exclusive(summary))
-  if (msg.type === 'blocked:unblock') return massQueue(null, msg.items, 'unblock')
+  if (msg.type === 'blocked:unblock') return massQueue(null, msg.items, 'unblock', msg.source)
+  if (msg.type === 'batch:unblock') {
+    // Undo a whole batch: unblock every account it blocked that is still blocked.
+    return exclusive((s) => {
+      const b = s.batches[msg.id]
+      const items = Object.values(s.blocked).filter((r) => r.batch === msg.id)
+        .map((r) => ({ id: r.id, screenName: r.screenName, source: r.reason }))
+      return { items, source: b ? `Undo: ${b.source}` : 'Undo' }
+    }).then(({ items, source }) => massQueue(null, items, 'unblock', source))
+  }
   if (msg.type === 'collect:flush') return flushCollected().then(() => exclusive(summary))
   const h = uiHandlers[msg.type]
   return h ? exclusive((s) => h(s, msg)) : undefined
@@ -806,14 +945,14 @@ onMessage((msg, sender) => {
 
 // Queues accounts and makes sure the runner is going. Unblocks requested from
 // the dashboard have no tab of their own: the runner picks (or opens) an x.com tab.
-async function massQueue(tabId, items, action = 'block') {
+async function massQueue(tabId, items, action = 'block', source) {
   try {
-    const { added, skipped, active } = await exclusive((s) => mutate(s, ['queue'], () => ({
-      ...addToQueue(s, items ?? [], action),
+    const { added, skipped, active, batch } = await exclusive((s) => mutate(s, ['queue', 'batches'], () => ({
+      ...addToQueue(s, items ?? [], action, source),
       active: (s.runner.state === 'running' || s.runner.state === 'cooldown') && runnerAlive(s.runner),
     })))
     if (!active && (added || tabId != null)) await startRunner(tabId ?? undefined)
-    return { added, skipped }
+    return { added, skipped, batch }
   } catch (e) {
     return { error: String(e.message ?? e) }
   }
