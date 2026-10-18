@@ -336,7 +336,7 @@
     setButtonState(btn, 'busy')
     try {
       const r = await send({ type: 'page:quickBlock', items: [{ screenName }] })
-      if (!r) throw new Error('No answer from the extension')
+      if (!r) throw new Error('The extension did not respond')
       // Queued is what matters; a run that could not start yet (no reachable tab)
       // only means it waits. Only report failure when nothing was queued.
       if (!r.added) {
@@ -930,7 +930,7 @@
       if (scrolling) {
         stateIcon.replaceChildren(el('span', 'dot dot-accent live'))
         loadBtn.textContent = 'Stop'
-        loadBtn.title = 'Stop loading; what is loaded so far stays'
+        loadBtn.title = 'Stop loading. Accounts loaded so far stay.'
         return ['Loading ', num, ofTotal, loadBtn]
       }
       if (ended) {
@@ -942,8 +942,8 @@
       stateIcon.replaceChildren()
       loadBtn.textContent = 'Load all'
       loadBtn.title = listTotal > 2000
-        ? 'Large list: loading everything takes a while and many requests to X. Consider blocking in batches.'
-        : 'Scroll this list to its end so every account is loaded'
+        ? 'This list is large. Loading it all takes a while and sends many requests to X, so consider blocking it in parts.'
+        : 'Scroll to the end of the list to load every account'
       // Nothing left to review here yet: say why, and offer the way to the rest.
       if (!candidates().length) return ['All ', num, ' loaded accounts are already blocked', loadBtn]
       return [num, ` loaded${ofTotal || ' so far'}`, loadBtn]
@@ -989,7 +989,7 @@
           const at = new Date(r.cooldownUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           const why = r.limit === 'daily' ? 'Daily safety limit reached'
             : r.limit === 'hourly' ? 'Hourly safety limit reached'
-            : r.limit === 'lookup' ? 'Waiting for X lookup limit' : `${verb} waits for X rate limit`
+            : r.limit === 'lookup' ? 'Paused by X lookup limit' : 'Paused by X rate limit'
           return [el('b', '', why), ` · resumes ${at} · ${of}`]
         }
         case 'paused':
@@ -1019,7 +1019,7 @@
       runText.title = runText.textContent
       runBtn.hidden = !(info.active || ((r.state === 'paused' || r.state === 'error') && run.queueLen > 0))
       runBtn.textContent = info.active ? 'Pause' : 'Resume'
-      runBtn.title = info.active ? 'Pause after the current account' : 'Resume the queue'
+      runBtn.title = info.active ? 'Pause after the current account' : 'Resume blocking'
       return info
     }
 
@@ -1176,7 +1176,7 @@
           })
           return b
         }
-        const knownChip = filterChip('known', 'Hide people I know')
+        const knownChip = filterChip('known', 'Hide accounts I know')
         const verifiedChip = filterChip('verified', 'Hide verified')
         const filters = el('div', 'filters', knownChip, verifiedChip)
         const eta = el('span', 'eta')
@@ -1225,19 +1225,19 @@
           unqueueBtn.hidden = !visible.some((r) => r.queued)
           unqueueBtn.textContent = `Remove ${nQueued} from queue`
           unqueueBtn.disabled = nQueued === 0
-          unqueueBtn.title = 'Take the ticked accounts out of the block queue, so they won\'t be blocked'
+          unqueueBtn.title = 'Take the selected accounts out of the queue so they won\'t be blocked'
           if (quota?.cap) {
             const left = Math.max(0, quota.cap - quota.used)
             limitNote.hidden = nBlock <= left
-            limitNote.textContent = `Safety limit: ${left} of ${quota.cap} blocks left in the last 24 h. ` +
-              `The other ${Math.max(0, nBlock - left)} will wait and continue automatically when the limit frees up.`
+            limitNote.textContent = `Only ${left} of ${quota.cap} blocks left in the last 24 h. ` +
+              `The other ${Math.max(0, nBlock - left)} will be blocked automatically later.`
           } else limitNote.hidden = true
         }
 
         function renderRows() {
           list.replaceChildren()
           const visible = shown()
-          if (!visible.length) list.replaceChildren(el('li', 'loading', rows.length ? 'Everyone is hidden by the filters' : 'Nothing to review'))
+          if (!visible.length) list.replaceChildren(el('li', 'loading', rows.length ? 'Your filters hide every account' : 'Nothing to review'))
           for (const r of visible) {
             const box = document.createElement('input')
             box.type = 'checkbox'
@@ -1287,7 +1287,7 @@
           note.textContent = `${tab.note} Untick anyone you don't want to block. People you follow or who follow you, and accounts already queued, start unticked.`
           if (tab.more) {
             const load = el('button', 'link', 'Load all')
-            load.title = 'Close this and load the rest of the list'
+            load.title = 'Close this and load the whole list'
             load.addEventListener('click', () => { close(null); startLoading() })
             note.append(el('span', 'more', ` ${tab.more} `), load)
           }
@@ -1335,7 +1335,7 @@
             }
             toast(removed.length
               ? `${removed.length} account${removed.length === 1 ? '' : 's'} removed from the queue`
-              : 'Nothing removed: already out of the queue', !removed.length)
+              : 'These accounts were not in the queue', !removed.length)
             renderRows()
           } catch (e) {
             toast(String(e.message ?? e), true)

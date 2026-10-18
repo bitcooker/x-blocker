@@ -561,7 +561,7 @@ async function startRunner(preferredTabId) {
       state: 'running', tabId: tab.id, token, lastBeat: Date.now(), cooldownUntil: 0, message: '', limit: '',
       ...(resume ? {} : { done: 0, unblocked: 0, failed: 0, skipped: 0, strikes: 0 }),
     })
-    log(s, 'info', `Started on tab ${tab.id} with ${s.queue.length} queued`)
+    log(s, 'info', `Started on tab ${tab.id} with ${s.queue.length} in the queue`)
     updateBadge(s)
     await save('runner', 'log')
   })
@@ -578,14 +578,14 @@ function nextItem(s, token) {
     r.state = 'running'
     r.message = ''
     r.limit = ''
-    log(s, 'info', 'Cooldown over, resuming')
+    log(s, 'info', 'Pause over, resuming')
   }
   s.blockTimes = s.blockTimes.filter((t) => now - t < DAY)
   if (s.settings.dailyCap > 0 && s.blockTimes.length >= s.settings.dailyCap) {
     r.state = 'cooldown'
     r.limit = 'daily'
     r.cooldownUntil = s.blockTimes[0] + DAY
-    r.message = `Daily cap of ${s.settings.dailyCap} reached`
+    r.message = `Daily limit of ${s.settings.dailyCap} blocks reached`
     log(s, 'warn', r.message)
     return { waitMs: r.cooldownUntil - now }
   }
@@ -594,7 +594,7 @@ function nextItem(s, token) {
     r.state = 'cooldown'
     r.limit = 'hourly'
     r.cooldownUntil = lastHour[0] + HOUR
-    r.message = `Hourly limit of ${s.settings.hourlyCap} reached`
+    r.message = `Hourly limit of ${s.settings.hourlyCap} blocks reached`
     log(s, 'info', r.message)
     return { waitMs: r.cooldownUntil - now }
   }
@@ -612,7 +612,7 @@ function nextItem(s, token) {
   }
   r.state = 'idle'
   const undone = r.unblocked ? `${r.unblocked} unblocked, ` : ''
-  r.message = `Finished: ${r.done} blocked, ${undone}${r.failed} failed, ${r.skipped} skipped`
+  r.message = `Done. ${r.done} blocked, ${undone}${r.failed} failed, ${r.skipped} skipped`
   log(s, 'info', r.message)
   return { stop: true }
 }
@@ -665,8 +665,8 @@ function applyResult(s, msg) {
     r.state = 'cooldown'
     r.limit = err.scope === 'lookup' ? 'lookup' : 'block'
     r.cooldownUntil = told && r.strikes <= TRUST_RESET_STRIKES ? told : Math.max(told, now + backoff)
-    const what = r.limit === 'lookup' ? 'X limited account lookups' : 'Rate limited by X'
-    r.message = `${what}, waiting until ${new Date(r.cooldownUntil).toLocaleTimeString()}`
+    const what = r.limit === 'lookup' ? 'X is limiting account lookups' : 'X is limiting blocks'
+    r.message = `${what}. Resuming at ${new Date(r.cooldownUntil).toLocaleTimeString()}`
     log(s, 'warn', r.message)
     return { stop: false }
   }
@@ -698,7 +698,7 @@ function summary(s) {
   const runner = { ...s.runner }
   if ((runner.state === 'running' || runner.state === 'cooldown') && !runnerAlive(runner)) {
     runner.state = 'paused'
-    runner.message = 'Runner tab stopped responding; press Start to resume'
+    runner.message = 'The x.com tab stopped responding. Press Start to resume.'
   }
   delete runner.token
   return {
@@ -750,7 +750,7 @@ const contentHandlers = {
   'runner:fatal': (s, msg) => mutate(s, ['runner', 'log'], () => {
     if (msg.token && msg.token !== s.runner.token) return {}
     s.runner.state = 'error'
-    s.runner.message = msg.error?.message ?? 'Runner failed'
+    s.runner.message = msg.error?.message ?? 'Something went wrong. Press Start to try again.'
     log(s, 'error', s.runner.message)
     return {}
   }),
@@ -797,7 +797,7 @@ const uiHandlers = {
   'batch:cancel': (s, msg) => mutate(s, ['queue', 'batches'], () => ({ cancelled: cancelWhere(s, (q) => q.batch === msg.id) })),
   // Forget a finished batch (the accounts it blocked stay blocked and listed).
   'batch:forget': (s, msg) => mutate(s, ['batches', 'blocked'], () => {
-    if (s.queue.some((q) => q.batch === msg.id)) return { error: 'Cancel or finish this batch first' }
+    if (s.queue.some((q) => q.batch === msg.id)) return { error: 'Cancel this batch or let it finish first' }
     delete s.batches[msg.id]
     for (const b of Object.values(s.blocked)) if (b.batch === msg.id) delete b.batch
     return {}
@@ -806,7 +806,7 @@ const uiHandlers = {
   'legacy:queue': (s) => mutate(s, ['queue', 'collected', 'batches'], () => {
     const res = addToQueue(s, pendingCollected(s).map((u) => ({
       id: u.id, screenName: u.screenName, source: u.sources?.at(-1) ?? 'Collected list',
-    })), 'block', 'Your old Collected list')
+    })), 'block', 'Your old collected list')
     s.collected = {}
     snIndex = null
     return res
@@ -838,7 +838,7 @@ const uiHandlers = {
     if (s.runner.state === 'running' || s.runner.state === 'cooldown') {
       s.runner.state = 'paused'
       s.runner.message = 'Paused'
-      log(s, 'info', 'Paused by user')
+      log(s, 'info', 'Paused')
     }
     return summary(s)
   }),
@@ -999,7 +999,7 @@ browser.tabs.onRemoved.addListener((tabId) => {
     if (s.runner.tabId !== tabId) return
     if (s.runner.state === 'running' || s.runner.state === 'cooldown') {
       s.runner.state = 'paused'
-      s.runner.message = 'Runner tab was closed; press Start to resume'
+      s.runner.message = 'The x.com tab was closed. Press Start to resume.'
       log(s, 'warn', s.runner.message)
       updateBadge(s)
       await save('runner', 'log')
