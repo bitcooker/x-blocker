@@ -77,22 +77,25 @@
 
         <section aria-labelledby="glance-title" class="stack">
           <h2 id="glance-title" class="section-title">At a glance</h2>
-          <div class="stats">
-            <button class="stat card" data-go="batches">
-              <b id="s-batches" class="stat-num">0</b>
+          <div class="stats card">
+            <a class="stat" href="#batches" data-go="batches" data-tone="accent">
+              <span class="stat-icon"><i data-icon="layers"></i></span>
               <span class="stat-label">Batches</span>
-              <span id="s-batches-sub" class="stat-sub muted"></span>
-            </button>
-            <button class="stat card" data-go="queue">
-              <b id="s-queue" class="stat-num">0</b>
+              <b id="s-batches" class="stat-num">0</b>
+              <span id="s-batches-sub" class="stat-sub"></span>
+            </a>
+            <a class="stat" href="#queue" data-go="queue" data-tone="warn">
+              <span class="stat-icon"><i data-icon="queue"></i></span>
               <span class="stat-label">Waiting to block</span>
-              <span id="s-queue-sub" class="stat-sub muted"></span>
-            </button>
-            <button class="stat card" data-go="blocked">
-              <b id="s-blocked" class="stat-num">0</b>
+              <b id="s-queue" class="stat-num">0</b>
+              <span id="s-queue-sub" class="stat-sub"></span>
+            </a>
+            <a class="stat" href="#blocked" data-go="blocked" data-tone="danger">
+              <span class="stat-icon"><i data-icon="block"></i></span>
               <span class="stat-label">Blocked</span>
-              <span class="stat-sub muted">Open the list</span>
-            </button>
+              <b id="s-blocked" class="stat-num">0</b>
+              <span class="stat-sub">All time</span>
+            </a>
           </div>
         </section>
       </section>
