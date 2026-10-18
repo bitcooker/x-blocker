@@ -323,3 +323,20 @@ test('the old in-page switches become the new choices, and only known values are
   st = (await send({ type: 'state:get' }, DASH)).settings
   assert.equal(st.blockButtons, 'lists')
 })
+
+test('an imported handle that is out of date does not get past the Never block list', async () => {
+  await boot({
+    settings: { version: 6, whitelist: ['friend'] },
+    runner: { state: 'running', tabId: 7, lastBeat: Date.now() },
+    queue: [{ id: '5', screenName: 'oldname', batch: 'b1', addedAt: 1, tries: 0 }],
+  })
+  // X Blocker has since seen account 5 under its new handle.
+  await send(response(user('5', 'friend'), user('6', 'newname')))
+  await sleep(1300)
+  const check = await send({ type: 'runner:check', item: { id: '5', screenName: 'oldname' } })
+  assert.equal(check.skip, 'whitelisted')
+
+  // A blocked account is stored under the handle X shows now, not the file's.
+  await send({ type: 'runner:result', item: { id: '6', screenName: 'stale', batch: 'b1' }, outcome: 'blocked' })
+  assert.equal(store.local.blocked?.['6']?.screenName ?? (await send({ type: 'data:get', keys: ['blocked'] }, DASH)).blocked['6'].screenName, 'newname')
+})

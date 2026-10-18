@@ -384,10 +384,12 @@ function skipReason(s, item) {
     // Only undo what is (still) recorded as blocked.
     return id && s.blocked[id] ? null : 'not blocked'
   }
-  const sn = (item.screenName ?? u?.screenName ?? '').toLowerCase()
+  // An imported handle may be out of date: check the current one too, so a
+  // renamed friend on the Never block list is still skipped.
+  const names = [u?.screenName, item.screenName].filter(Boolean).map((n) => n.toLowerCase())
   if (id && s.blocked[id]) return 'already blocked'
   if (u?.blocking) return 'already blocked'
-  if (sn && s.settings.whitelist.includes(sn)) return 'whitelisted'
+  if (names.some((n) => s.settings.whitelist.includes(n))) return 'whitelisted'
   if (s.settings.skipFollowing && u?.following) return 'you follow them'
   if (s.settings.skipFollowers && u?.followedBy) return 'they follow you'
   if (s.settings.skipVerified && u?.verified) return 'verified account'
@@ -624,9 +626,11 @@ function applyResult(s, msg) {
   if (outcome === 'blocked') {
     r.strikes = 0
     removeFromQueue(s, item)
+    // Prefer what X last showed for this ID over the handle in an imported file.
+    const known = knownUser(s, item.id)
     s.blocked[item.id] = compact({
-      id: item.id, screenName: item.screenName ?? knownUser(s, item.id)?.screenName,
-      name: knownUser(s, item.id)?.name, at: now, source: 'x-blocker', reason: item.source, batch: item.batch,
+      id: item.id, screenName: known?.screenName ?? item.screenName,
+      name: known?.name, at: now, source: 'x-blocker', reason: item.source, batch: item.batch,
     })
     countBatch(s, item, 'done')
     markBlocking(s, item.id)
