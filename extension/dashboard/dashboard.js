@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Dashboard: Home (what is happening, batches), Blocked (individual accounts),
-// Settings. Import is opened from Home; the activity log lives in Settings.
+// Dashboard: Home (overview), Import, Batches, Queue, Blocked, Settings.
 import {
   h, icon, hydrateIcons, send, stateLabel, download, onStateChange, toast, confirmDialog,
   fmtNum, fmtAgo, fmtDuration,
@@ -17,6 +16,8 @@ let data = null
 const NEEDS = {
   home: ['batches', 'queue'],
   import: [],
+  batches: ['batches'],
+  queue: ['queue'],
   blocked: ['blocked', 'queue', 'batches'],
   settings: ['log'],
 }
@@ -138,7 +139,7 @@ function renderStatus() {
   $('legacy-title').textContent = `${plural(legacy, 'account')} from your old Collected list`
 }
 
-// ---- Home: batches --------------------------------------------------------------
+// ---- Batches & queue ------------------------------------------------------------
 
 function batchCounts(b) {
   const verb = b.action === 'unblock' ? 'unblocked' : 'blocked'
@@ -229,8 +230,7 @@ async function undoBatch(b) {
 function renderWaiting() {
   const queue = data.queue ?? []
   const names = Object.fromEntries((data.batches ?? []).map((b) => [b.id, b.source]))
-  $('waiting').hidden = !queue.length
-  $('waiting-count').textContent = queue.length ? `· ${nf.format(queue.length)}` : ''
+  $('q-actions').hidden = !queue.length
   const rows = queue.slice(0, RENDER_LIMIT).map((item, i) => h('tr', {},
     h('td', { class: 'when' }, i + 1),
     h('td', {}, accountCell(item)),
@@ -242,13 +242,26 @@ function renderWaiting() {
       class: 'btn btn-sm btn-quiet btn-icon', title: 'Remove from queue', 'aria-label': 'Remove from queue',
       onclick: () => action(() => send('queue:remove', { keys: [itemKey(item)] })),
     }, icon('close')))))
+  if (!rows.length) {
+    rows.push(emptyRow(5, 'queue', 'Nothing waiting',
+      'Queue accounts from a review on x.com, or import a list, and they show up here.'))
+  }
   $('q-body').replaceChildren(...rows)
   $('q-more').textContent = queue.length > RENDER_LIMIT ? `Showing the next ${RENDER_LIMIT} of ${nf.format(queue.length)}` : ''
 }
 
+// Home is the overview: the run card is drawn by renderStatus, and these are the
+// counts that lead into Batches, Queue and Blocked.
 function renderHome() {
-  renderBatches()
-  renderWaiting()
+  const batches = data.batches ?? []
+  const active = batches.filter((b) => b.waiting).length
+  $('s-batches').textContent = nf.format(batches.length)
+  $('s-batches-sub').textContent = active ? `${nf.format(active)} in progress`
+    : batches.length ? 'All done' : 'None yet'
+  const waiting = data.counts.queue
+  $('s-queue').textContent = nf.format(waiting)
+  $('s-queue-sub').textContent = waiting ? `${fmtDuration(data.counts.etaMs)} at this pace` : 'Nothing waiting'
+  $('s-blocked').textContent = nf.format(data.counts.blocked)
 }
 
 // ---- Blocked ----------------------------------------------------------------------
@@ -411,7 +424,10 @@ $('settings').addEventListener('submit', (e) => e.preventDefault())
 
 // ---- routing & refresh ---------------------------------------------------------------
 
-const renderers = { home: renderHome, import: () => {}, blocked: renderBlocked, settings: renderSettings }
+const renderers = {
+  home: renderHome, import: () => {}, batches: renderBatches, queue: renderWaiting,
+  blocked: renderBlocked, settings: renderSettings,
+}
 
 async function refresh(changed) {
   // Home's status card needs the batches and queue whichever section is open.
@@ -425,9 +441,8 @@ async function refresh(changed) {
 
 function go(name) {
   current = ROUTES.includes(name) ? name : 'home'
-  const nav = current === 'import' ? 'home' : current
   for (const b of document.querySelectorAll('#tabs .nav-item')) {
-    if (b.dataset.tab === nav) b.setAttribute('aria-current', 'page')
+    if (b.dataset.tab === current) b.setAttribute('aria-current', 'page')
     else b.removeAttribute('aria-current')
   }
   for (const s of document.querySelectorAll('main .panel')) s.hidden = s.id !== `tab-${current}`
@@ -555,8 +570,8 @@ $('wipe').addEventListener('click', async () => {
 })
 
 onStateChange((changed) => refresh(changed).catch(() => {}), 400)
-// Old links (#queue, #log) land on their new home.
-const legacyRoutes = { queue: 'home', log: 'settings', collected: 'home' }
+// Old links (#log, #collected) land on their new home.
+const legacyRoutes = { log: 'settings', collected: 'home' }
 const start = location.hash.slice(1)
 go(legacyRoutes[start] ?? start)
 refresh().catch((e) => toast(e, { error: true }))

@@ -20,7 +20,10 @@
         <small id="version" class="version"></small>
       </a>
       <nav id="tabs" aria-label="Sections">
-        <button class="nav-item" data-tab="home"><i data-icon="home"></i><span>Home</span><b id="n-waiting" class="badge"></b></button>
+        <button class="nav-item" data-tab="home"><i data-icon="home"></i><span>Home</span></button>
+        <button class="nav-item" data-tab="import"><i data-icon="import"></i><span>Import</span></button>
+        <button class="nav-item" data-tab="batches"><i data-icon="layers"></i><span>Batches</span></button>
+        <button class="nav-item" data-tab="queue"><i data-icon="queue"></i><span>Queue</span><b id="n-waiting" class="badge"></b></button>
         <button class="nav-item" data-tab="blocked"><i data-icon="block"></i><span>Blocked</span><b id="n-blocked" class="badge"></b></button>
         <button class="nav-item" data-tab="settings"><i data-icon="settings"></i><span>Settings</span></button>
       </nav>
@@ -72,32 +75,32 @@
           </div>
         </section>
 
-        <section aria-labelledby="batches-title" class="stack">
-          <h2 id="batches-title" class="section-title">Batches</h2>
-          <ol id="batches" class="batches card"></ol>
-          <p id="batches-more" class="foot muted"></p>
-        </section>
-
-        <details id="waiting" class="card waiting">
-          <summary><b>Waiting accounts</b> <span id="waiting-count" class="muted"></span>
-            <span class="grow"></span>
-            <button id="q-export" class="btn btn-xs" type="button">Export</button>
-            <button id="q-clear" class="btn btn-xs btn-danger-outline" type="button">Clear all</button></summary>
-          <div class="table-wrap flush">
-            <table>
-              <thead><tr><th>#</th><th>Account</th><th>Batch</th><th>Attempts</th><th></th></tr></thead>
-              <tbody id="q-body"></tbody>
-            </table>
+        <section aria-labelledby="glance-title" class="stack">
+          <h2 id="glance-title" class="section-title">At a glance</h2>
+          <div class="stats">
+            <button class="stat card" data-go="batches">
+              <b id="s-batches" class="stat-num">0</b>
+              <span class="stat-label">Batches</span>
+              <span id="s-batches-sub" class="stat-sub muted"></span>
+            </button>
+            <button class="stat card" data-go="queue">
+              <b id="s-queue" class="stat-num">0</b>
+              <span class="stat-label">Waiting to block</span>
+              <span id="s-queue-sub" class="stat-sub muted"></span>
+            </button>
+            <button class="stat card" data-go="blocked">
+              <b id="s-blocked" class="stat-num">0</b>
+              <span class="stat-label">Blocked</span>
+              <span class="stat-sub muted">Open the list</span>
+            </button>
           </div>
-          <p id="q-more" class="foot muted"></p>
-        </details>
+        </section>
       </section>
 
-      <!-- Import (opened from Home) -->
+      <!-- Import -->
       <section id="tab-import" class="panel" hidden>
         <header class="panel-head">
           <div>
-            <button class="btn btn-sm btn-quiet back" data-go="home"><i data-icon="back"></i>Home</button>
             <h1>Import a list</h1>
             <p class="muted">Paste @handles, profile links, ID links (<code>x.com/i/user/12345</code>) or IDs (<code>id:12345</code>), separated by spaces, commas or new lines. You can also drop in a .txt or .csv file with an <code>id</code> and/or <code>screen_name</code> column. The accounts become one batch.</p>
           </div>
@@ -113,12 +116,45 @@
         </div>
       </section>
 
+      <!-- Batches -->
+      <section id="tab-batches" class="panel" hidden>
+        <header class="panel-head">
+          <div>
+            <h1>Batches</h1>
+            <p class="muted">Every review you block becomes a batch, worked through one account at a time in the background. Cancel what is still waiting, or unblock a whole batch.</p>
+          </div>
+        </header>
+        <ol id="batches" class="batches card"></ol>
+        <p id="batches-more" class="foot muted"></p>
+      </section>
+
+      <!-- Queue -->
+      <section id="tab-queue" class="panel" hidden>
+        <header class="panel-head">
+          <div>
+            <h1>Queue</h1>
+            <p class="muted">Accounts waiting to be blocked, in the order they will be done. The pace and safety limits live in Settings.</p>
+          </div>
+          <div id="q-actions" class="row">
+            <button id="q-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
+            <button id="q-clear" class="btn btn-sm btn-danger-outline">Clear all</button>
+          </div>
+        </header>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Account</th><th>Batch</th><th>Attempts</th><th></th></tr></thead>
+            <tbody id="q-body"></tbody>
+          </table>
+        </div>
+        <p id="q-more" class="foot muted"></p>
+      </section>
+
       <!-- Blocked -->
       <section id="tab-blocked" class="panel" hidden>
         <header class="panel-head">
           <div>
             <h1>Blocked</h1>
-            <p class="muted">Accounts blocked by X Blocker, and accounts seen as already blocked. To undo a whole batch, use <b>Undo</b> on Home; here you can pick individual accounts.</p>
+            <p class="muted">Accounts blocked by X Blocker, and accounts seen as already blocked. To undo a whole batch, use <b>Undo</b> on Batches; here you can pick individual accounts.</p>
           </div>
           <div class="row">
             <button id="b-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
