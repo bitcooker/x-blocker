@@ -431,3 +431,40 @@ test('select all works after unticking everyone', async () => {
   await toggle()
   assert.deepEqual(ticked(), [true, true, true])
 })
+
+test('accounts removed in Review stay out while collecting, and come back on a fresh Collect', async () => {
+  const page = await load(`<main>${cell('a1')}${cell('a2')}</main>`, {
+    respond: (m) => {
+      if (m.type === 'page:collect') return { collected: m.screenNames, missing: [] }
+      if (m.type === 'page:lookup') return { a1: { collected: true }, a2: { collected: true } }
+      if (m.type === 'page:uncollect') return { removed: m.items.map((i) => i.screenName) }
+      return respondCollected(m)
+    },
+  })
+  await page.click('.fab')
+  await page.click('.btn-collect')
+  await sleep(900)
+  const collectBtn = page.shadow().querySelector('.btn-collect')
+  assert.equal(collectBtn.textContent, 'Collecting · 2')
+
+  await page.click('.btn-danger')
+  const dialog = page.shadow().querySelector('.review')
+  dialog.querySelector('.bar .uncollect').click()
+  await sleep(250)
+  assert.equal(collectBtn.textContent, 'Collecting · 0')
+
+  // Still collecting: later scans skip them.
+  dialog.querySelector('.rf .btn-outline').click()
+  page.message({ type: 'page:progress', runner: null, queueLen: 0, collectedCount: 0 })
+  await sleep(900)
+  const collects = () => page.sent.filter((m) => m.type === 'page:collect')
+  assert.equal(collects().length, 1)
+  assert.equal(collectBtn.textContent, 'Collecting · 0')
+
+  // Switching Collect off and on is a fresh start: they are collected again.
+  await page.click('.btn-collect')
+  await page.click('.btn-collect')
+  await sleep(900)
+  assert.deepEqual([...collects().at(-1).screenNames].sort(), ['a1', 'a2'])
+  assert.equal(collectBtn.textContent, 'Collecting · 2')
+})

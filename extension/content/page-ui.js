@@ -785,6 +785,9 @@
     // it switches off by itself when they leave the page.
     let collecting = false
     const collectedHere = new Set()
+    // Taken out of Collected in Review during this collecting run: not
+    // re-collected until the user switches Collect off and on again.
+    const removedHere = new Set()
     let collectTimer = null
 
     function scheduleCollect() {
@@ -795,12 +798,14 @@
 
     async function syncCollect() {
       if (!collecting || !context) return
-      const pending = candidates().filter((sn) => !collectedHere.has(sn.toLowerCase()))
+      const pending = candidates().filter((sn) => !collectedHere.has(sn.toLowerCase()) && !removedHere.has(sn.toLowerCase()))
       if (!pending.length) return
       const source = context.label
       const r = await send({ type: 'page:collect', screenNames: pending, source }).catch(() => null)
       if (!collecting || context?.label !== source) return
-      for (const sn of r?.collected ?? []) collectedHere.add(sn.toLowerCase())
+      for (const sn of r?.collected ?? []) {
+        if (!removedHere.has(sn.toLowerCase())) collectedHere.add(sn.toLowerCase())
+      }
       update()
       // IDs for some handles may arrive a moment later; try those again.
       if (r?.missing?.length) collectTimer = setTimeout(syncCollect, 2500)
@@ -821,6 +826,7 @@
       } else {
         collecting = true
         collectedHere.clear()
+        removedHere.clear()
         toast(`Collecting "${context?.label}". Stops when you leave this page.`)
         syncCollect()
       }
@@ -1197,6 +1203,11 @@
               return
             }
             const gone = new Set(removed.map((s) => String(s).toLowerCase()))
+            for (const sn of gone) {
+              collectedHere.delete(sn)
+              removedHere.add(sn)
+            }
+            update()
             const isGone = (r) => gone.has((r.screenName ?? '').toLowerCase())
             // They leave the Collected tab, but stay in "This list": they're still on the page.
             for (const t of tabs) {
@@ -1206,7 +1217,8 @@
               } else for (const r of t.loaded ?? []) if (isGone(r)) r.collected = false
             }
             tabs.forEach((t, i) => labelTab(i))
-            toast(`${removed.length} account${removed.length === 1 ? '' : 's'} removed from Collected`)
+            const what = `${removed.length} account${removed.length === 1 ? '' : 's'} removed from Collected`
+            toast(collecting ? `${what}. Switch Collect off and on to collect them again.` : what)
             await select(active)
           } catch (e) {
             toast(String(e.message ?? e), true)
@@ -1325,6 +1337,7 @@
       },
       onNavigate() {
         stopCollecting(true)
+        removedHere.clear()
         scheduleUpdate()
       },
     }
