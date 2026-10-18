@@ -11,22 +11,30 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   replies, search results, list members or followers, or community members on
   x.com. The X Blocker panel at the bottom offers **Review**: you see exactly
   that list's accounts, untick anyone you want to keep, and block the rest.
-- **Block buttons everywhere.** Every account gets its own **Block** button next
-  to X's Follow button, and every post gets one next to the author.
+- **One-click Block buttons.** Accounts get a **Block** button next to X's
+  Follow button, and posts get one next to the ⋯ menu. A click adds the account
+  to the queue, so single blocks follow the same pace and limits as lists.
+  Today's clicks are grouped in one **Quick blocks** batch. Show the buttons
+  everywhere, only on lists, or turn them off in Settings.
 - **Long lists, a batch at a time.** The panel shows how many accounts are
   loaded (and the list's size for followers and following). **Load all**
   scrolls the list to its end for you. Or review what is loaded, block, scroll,
   and review again: accounts already queued or blocked are left out.
-- **Batches you can undo.** Every review you block becomes a batch. Right
-  after blocking, **Undo** takes it back out of the queue; later, **Undo** on
-  the dashboard unblocks the whole batch. Single accounts can be unblocked in
-  the Blocked list.
-- **Import.** Paste or upload @handles, profile links, user IDs or a CSV.
-- **Runs in the background.** Accounts are blocked one by one. Pause and resume
-  anytime, even after closing the browser.
+- **Batches you can undo.** Every list you block or import is a batch. Right
+  after blocking, **Undo** takes it back out of the queue. Later, **Undo** on
+  the dashboard's Batches page unblocks everyone in it. Single accounts can be
+  unblocked on the Blocked page.
+- **Import and share lists.** Paste or upload @handles, profile links, user IDs
+  or a CSV. The Blocked and Queue pages export a CSV with IDs and @handles that
+  anyone can import, and IDs keep working after people change their handle.
+- **Runs in the background.** Accounts are blocked one by one while you keep
+  browsing. Pause and resume anytime, even after closing the browser. After a
+  rate limit, the queue resumes by itself, and moves to another x.com tab if
+  its tab is gone.
 - **Toolbar menu and dashboard.** The toolbar menu shows the queue, the time
-  left and the safety limits, and what you can do on the current tab. The
-  dashboard lists your batches, every blocked account, imports and settings.
+  left, the safety limits, and what you can do on the current tab. The
+  dashboard has a Home overview and pages for Import, Batches, Queue, Blocked
+  and Settings. **Details** in the panel on x.com opens the queue there.
 
 ## Safety
 
@@ -36,7 +44,7 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   X's limit resets, then resumes by itself.
 - **Protects your friends.** Never blocks you, and by default skips people you
   follow and people who follow you. You can also skip verified accounts and keep
-  a never-block list.
+  a Never block list, which also catches people who changed their handle.
 - **Blocks only who you meant.** Look-alike display names and @mentions can't
   redirect a block to someone else.
 
@@ -77,8 +85,9 @@ reload icon on the extension's card. Your settings and data are kept.
 3. Untick anyone you want to keep and press **Block**.
 
 Accounts are blocked in the background while you keep browsing; just keep one
-x.com tab open. The **Dashboard** (from the extension's toolbar button) shows
-the queue, lets you import lists and undo blocks.
+x.com tab open. To block a single account, click its **Block** button. The
+**Dashboard** (from the extension's toolbar button) shows your batches and the
+queue, and lets you import, export and undo blocks.
 
 ## Contributing
 
