@@ -17,8 +17,7 @@ import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 // logged out after several hundred blocks in a burst, so the defaults spread
 // blocks out (avg ~6 s, at most 150 an hour) rather than only capping the day.
 const DEFAULT_SETTINGS = {
-  inPageButtons: true,
-  buttonsEverywhere: true, // false: per-account Block buttons only on list pages
+  blockButtons: 'everywhere', // per-account Block buttons: everywhere | lists | off
   delayMs: 4000,
   jitterMs: 4000,
   cooldownMin: 15,
@@ -101,7 +100,9 @@ const BIG_KEYS = new Set(['collected', 'blocked', 'log', 'blockTimes'])
 let cache = null
 let lock = Promise.resolve()
 
-const SETTINGS_VERSION = 5
+const SETTINGS_VERSION = 6
+// Settings with a fixed set of values; the first is the default.
+const CHOICES = { blockButtons: ['everywhere', 'lists', 'off'] }
 const MIN = { delayMs: 2000, jitterMs: 0, cooldownMin: 1, hourlyCap: 0, dailyCap: 0 }
 
 // v1 shipped with 3 s delay and no daily limit, which can get accounts
@@ -121,6 +122,16 @@ function migrateSettings(st) {
   // Loading a whole list is a panel action now, not an opt-in button.
   delete st.collectAlways
   delete st.autoScroll
+  // v6: the panel can't be switched off any more (it is how lists are reviewed,
+  // and minimizing keeps it out of the way); "off" now only hides Block buttons.
+  delete st.panelMode
+  if ('inPageButtons' in st || 'buttonsEverywhere' in st) {
+    if (st.inPageButtons === false) st.blockButtons = 'off'
+    else if (st.buttonsEverywhere === false) st.blockButtons = 'lists'
+    delete st.inPageButtons
+    delete st.buttonsEverywhere
+  }
+  for (const [k, values] of Object.entries(CHOICES)) if (!values.includes(st[k])) st[k] = values[0]
   st.version = SETTINGS_VERSION
   return st
 }
@@ -765,6 +776,7 @@ const uiHandlers = {
         const n = Math.round(Number(patch[k]))
         if (Number.isFinite(n)) s.settings[k] = Math.max(MIN[k] ?? 0, n)
       } else if (typeof def === 'boolean') s.settings[k] = Boolean(patch[k])
+      else if (CHOICES[k]?.includes(patch[k])) s.settings[k] = patch[k]
     }
     return summary(s)
   }),
@@ -841,8 +853,7 @@ async function mutate(s, keys, fn) {
 // Requests from the in-page UI (content/page-ui.js) on any x.com tab.
 const pageHandlers = {
   'page:config': (s) => ({
-    inPageButtons: s.settings.inPageButtons,
-    buttonsEverywhere: s.settings.buttonsEverywhere,
+    blockButtons: s.settings.blockButtons,
     blockedScreenNames: Object.values(s.blocked).map((b) => b.screenName?.toLowerCase()).filter(Boolean),
   }),
   'page:lookup': (s, msg) => {

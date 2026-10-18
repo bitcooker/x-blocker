@@ -147,6 +147,17 @@ td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .field input::-webkit-outer-spin-button, .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .field .unit { color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }
 
+/* Segmented choice (a few exclusive options) */
+.setting.choice { cursor: default; }
+.setting.choice:hover { background: none; }
+.setting > .seg, .seg { display: inline-flex; max-width: none; flex: none; padding: 3px; gap: 2px; border-radius: 9999px; background: var(--bg-subtle); border: 1px solid var(--border); }
+.seg label { position: relative; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span { display: block; padding: 6px 14px; border-radius: 9999px; font: 600 13px/18px var(--font); color: var(--muted); white-space: nowrap; transition: background-color .15s, color .15s; }
+.seg label:hover span { color: var(--fg); }
+.seg input:checked + span { background: var(--bg); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 @media (max-width: 960px) {
   .layout { grid-template-columns: 76px minmax(0, 1fr); }
   .brand span, .brand .version, .nav-item span, .nav-item .badge, .mini .row, .mini .meter { display: none; }

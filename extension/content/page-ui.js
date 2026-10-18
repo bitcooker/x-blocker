@@ -26,8 +26,8 @@
   const HANDLE_RE = /^@([A-Za-z0-9_]{1,15})$/
   const MARK = 'xBlocker'
 
-  let enabled = true
-  let buttonsEverywhere = true // false: Block buttons only on list pages
+  let blockButtons = 'everywhere' // per-account Block buttons: everywhere | lists | off
+  const showButtons = () => blockButtons === 'everywhere' || (blockButtons === 'lists' && Boolean(context))
   let panelMinimized = true // last choice, shared by every x.com tab (storage.local)
   let viewerScreenName = null
   const pageKey = () => location.pathname + location.search
@@ -446,7 +446,8 @@
   }
 
   function decorate(textNode) {
-    if (!buttonsEverywhere && !context) return
+    // Off a list page there is nothing to detect, so skip it unless buttons are wanted.
+    if (!context && !showButtons()) return
     const m = HANDLE_RE.exec(textNode.nodeValue.trim())
     if (!m) return
     const screenName = m[1]
@@ -480,6 +481,12 @@
     }
     host.dataset.xbKind = follow ? 'cells' : 'authors'
     addToList(host, screenName)
+    if (!showButtons()) {
+      // No button, but the account still counts for the list and its block state is checked.
+      liveHosts.add(host)
+      if (!blockedHere.has(key)) unknownState.add(key)
+      return
+    }
     const btn = document.createElement('button')
     btn.type = 'button'
     btn.dataset.handle = key
@@ -518,7 +525,7 @@
   }
 
   function scan(root) {
-    if (!enabled || !root) return
+    if (!root) return
     if (root.nodeType === Node.TEXT_NODE) {
       if (textFilter.acceptNode(root) === NodeFilter.FILTER_ACCEPT) decorate(root)
       return
@@ -578,7 +585,7 @@
       pageHandles.clear()
       fullScan = true
       // Buttons only on list pages: clear them when leaving one.
-      if (!buttonsEverywhere && !context) for (const host of [...liveHosts]) undecorate(host)
+      if (!showButtons()) for (const host of [...liveHosts]) undecorate(host)
       ui.onNavigate()
     }
     if (!fullScan) {
@@ -653,7 +660,7 @@
       .fab.done::after{content:"✓";color:var(--ok);font-weight:700}
       .link{display:inline;color:var(--accent);font-weight:700;font-size:inherit;line-height:inherit;border-radius:4px}
       .link:hover{text-decoration:underline}
-      .fab{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;height:40px;
+      .fab{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;height:40px;border-radius:9999px;
         padding:0 14px 0 12px;gap:8px;background:var(--bg);color:var(--fg);font-size:14px;
         border:1px solid var(--border);box-shadow:var(--shadow);animation:rise .2s ease-out}
       .fab svg{color:var(--danger)}
@@ -700,7 +707,7 @@
       .review .limit{margin:0;padding:10px 24px;font-size:13px;line-height:18px;color:var(--warn);
         background:var(--warn-soft);border-bottom:1px solid var(--border)}
       .review .tabs{display:flex;gap:4px;padding:4px;margin-bottom:8px;border-radius:9999px;background:var(--hover);width:fit-content}
-      .review .tab{height:32px;padding:0 14px;font-size:14px;color:var(--muted)}
+      .review .tab{height:32px;padding:0 14px;font-size:14px;color:var(--muted);border-radius:9999px}
       .review .tab[aria-selected=true]{background:var(--bg);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.2)}
       .review .from{font-size:12px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .review li.loading{justify-content:center;color:var(--muted);cursor:default}
@@ -1006,7 +1013,7 @@
       // Nothing to review (e.g. the home timeline while the queue runs): hide it instead.
       blockAllBtn.hidden = n === 0
       // Also visible on other pages while the queue runs, to follow and pause it.
-      const show = enabled && ((Boolean(context) && pageHandles.size > 0) || Boolean(info))
+      const show = (Boolean(context) && pageHandles.size > 0) || Boolean(info)
       if (show && !host.isConnected) document.body.append(host)
       panel.remove()
       fab.remove()
@@ -1355,14 +1362,19 @@
 
     return {
       update,
-      // What the toolbar popup shows about this tab.
+      // What the toolbar popup shows about this tab, and the actions it can start here.
       pageInfo() {
-        if (!enabled || !context) return { list: false }
+        if (!context) return { list: false }
         const { loaded, ended } = listState()
-        return { list: true, label: context.label, loaded, total: listTotal, ended, reviewable: candidates().length }
+        return { list: true, label: context.label, loaded, total: listTotal, ended, loading: scrolling, reviewable: candidates().length }
       },
-      openPanel() {
-        saveMinimized(false)
+      review() {
+        if (minimized) saveMinimized(false)
+        if (candidates().length) blockAllBtn.click()
+      },
+      loadAll() {
+        if (minimized) saveMinimized(false)
+        startLoading()
       },
       scheduleUpdate,
       confirm: confirmDialog,
@@ -1391,8 +1403,8 @@
       sendResponse(ui.pageInfo())
       return false
     }
-    if (msg?.type === 'tab:openPanel') {
-      ui.openPanel()
+    if (msg?.type === 'tab:review' || msg?.type === 'tab:loadAll') {
+      msg.type === 'tab:review' ? ui.review() : ui.loadAll()
       sendResponse({ ok: true })
       return false
     }
@@ -1425,10 +1437,8 @@
       ui.setMinimized(panelMinimized)
     }
     const cfg = await send({ type: 'page:config' }).catch(() => null)
-    enabled = cfg?.inPageButtons !== false
-    buttonsEverywhere = cfg?.buttonsEverywhere !== false
+    blockButtons = cfg?.blockButtons ?? 'everywhere'
     for (const sn of cfg?.blockedScreenNames ?? []) blockedHere.add(sn)
-    if (!enabled) return
     context = pageContext()
     callMain('status', {}, 10_000).then(async (st) => {
       if (!st.viewerId) return

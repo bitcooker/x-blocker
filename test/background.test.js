@@ -83,7 +83,7 @@ test('upgrading drops the collecting settings and keeps the rest', async () => {
   })
   await send({ type: 'page:config' })
   assert.deepEqual(store.local.collected, {})
-  assert.equal(store.local.settings.version, 5)
+  assert.equal(store.local.settings.version, 6)
   assert.equal('collectAlways' in store.local.settings, false)
   assert.equal('collect' in store.local.settings, false)
   assert.equal('autoScroll' in store.local.settings, false)
@@ -94,7 +94,7 @@ test('upgrading drops the collecting settings and keeps the rest', async () => {
 test('content scripts cannot call dashboard actions', async () => {
   await boot()
   assert.equal(await send({ type: 'data:wipe' }), undefined)
-  assert.equal(await send({ type: 'settings:set', patch: { inPageButtons: false } }), undefined)
+  assert.equal(await send({ type: 'settings:set', patch: { blockButtons: 'off' } }), undefined)
   assert.equal(await send({ type: 'legacy:queue' }), undefined)
 })
 
@@ -178,7 +178,7 @@ test('v4 moves an untouched old daily limit and keeps custom values', async () =
   await boot({ settings: { version: 3, delayMs: 4000, jitterMs: 4000, dailyCap: 450 } })
   await send({ type: 'page:config' })
   const st = store.local.settings
-  assert.deepEqual([st.version, st.delayMs, st.jitterMs, st.dailyCap, st.hourlyCap], [5, 4000, 4000, 1000, 150])
+  assert.deepEqual([st.version, st.delayMs, st.jitterMs, st.dailyCap, st.hourlyCap], [6, 4000, 4000, 1000, 150])
 
   await boot({ settings: { version: 3, delayMs: 5000, jitterMs: 4000, dailyCap: 300 } })
   await send({ type: 'page:config' })
@@ -204,11 +204,11 @@ test('the hourly limit pauses the queue until the oldest block leaves the hour',
 })
 
 test('resetting settings restores defaults but keeps the never-block list', async () => {
-  await boot({ settings: { version: 5, delayMs: 9000, hourlyCap: 20, inPageButtons: false, whitelist: ['friend'] } })
+  await boot({ settings: { version: 6, delayMs: 9000, hourlyCap: 20, blockButtons: 'off', whitelist: ['friend'] } })
   assert.equal(await send({ type: 'settings:reset' }), undefined, 'content scripts cannot reset settings')
   await send({ type: 'settings:reset' }, DASH)
   const { settings } = await send({ type: 'data:get', keys: ['settings'] }, DASH)
-  assert.deepEqual([settings.delayMs, settings.hourlyCap, settings.inPageButtons], [4000, 150, true])
+  assert.deepEqual([settings.delayMs, settings.hourlyCap, settings.blockButtons], [4000, 150, 'everywhere'])
   assert.deepEqual(settings.whitelist, ['friend'])
 })
 
@@ -292,4 +292,19 @@ test('quick blocks of a day share one batch', async () => {
   const { batches } = await send({ type: 'data:get', keys: ['batches'] }, DASH)
   assert.equal(batches.length, 1)
   assert.deepEqual([batches[0].source, batches[0].done], ['Quick blocks', 2])
+})
+
+test('the old in-page switches become the new choices, and only known values are accepted', async () => {
+  await boot({ settings: { version: 5, inPageButtons: false, buttonsEverywhere: true } })
+  await send({ type: 'page:config' })
+  let st = store.local.settings
+  assert.deepEqual([st.blockButtons, 'inPageButtons' in st, 'buttonsEverywhere' in st], ['off', false, false])
+
+  await boot({ settings: { version: 5, inPageButtons: true, buttonsEverywhere: false } })
+  const cfg = await send({ type: 'page:config' })
+  assert.equal(cfg.blockButtons, 'lists')
+
+  await send({ type: 'settings:set', patch: { blockButtons: 'sometimes' } }, DASH)
+  st = (await send({ type: 'state:get' }, DASH)).settings
+  assert.equal(st.blockButtons, 'lists')
 })

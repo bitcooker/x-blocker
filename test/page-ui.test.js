@@ -43,7 +43,7 @@ async function load(body, { path = '/target/followers', search = '', respond = (
     runtime: {
       sendMessage: async (m) => {
         sent.push(m)
-        if (m.type === 'page:config') return { inPageButtons: true, blockedScreenNames: [], ...config }
+        if (m.type === 'page:config') return { blockButtons: 'everywhere', blockedScreenNames: [], ...config }
         if (m.type === 'page:viewer') return { screenName: 'me' }
         return respond(m)
       },
@@ -452,15 +452,25 @@ test('accounts loaded by scrolling show up in the counts, even when minimized', 
   assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'Review 3')
 })
 
-test('the toolbar popup can ask the page about its list and open the panel', async () => {
-  const page = await load(`<main>${cell('alice')}${cell('bob', { followClass: 'x-blocked' })}</main>`)
+test('the toolbar popup can ask the page about its list and start Review or Load all there', async () => {
+  const page = await load(`<main>${cell('alice')}${cell('bob', { followClass: 'x-blocked' })}</main>`, { respond: respondReview })
   await sleep(300)
   assert.deepEqual(JSON.parse(JSON.stringify(page.ask({ type: 'tab:page' }))),
-    { list: true, label: 'Followers of @target', loaded: 2, total: null, ended: false, reviewable: 1 })
+    { list: true, label: 'Followers of @target', loaded: 2, total: null, ended: false, loading: false, reviewable: 1 })
   assert.equal(page.shadow().querySelector('.panel'), null)
-  page.ask({ type: 'tab:openPanel' })
-  await sleep(200)
+
+  // Review from the toolbar opens the panel and its review on the page.
+  page.ask({ type: 'tab:review' })
+  await sleep(300)
   assert.ok(page.shadow().querySelector('.panel'))
+  assert.ok(page.shadow().querySelector('.review'))
+  page.shadow().querySelector('.review .rf .btn:not(.btn-danger)').click()
+  await sleep(50)
+
+  page.ask({ type: 'tab:loadAll' })
+  await sleep(200)
+  assert.equal(page.scroll().on, true)
+  assert.equal(page.ask({ type: 'tab:page' }).loading, true)
 
   const home = await load(`<main>${post('someone')}</main>`, { path: '/home' })
   assert.deepEqual(JSON.parse(JSON.stringify(home.ask({ type: 'tab:page' }))), { list: false })
@@ -508,10 +518,17 @@ test('review filters hide people you know and verified accounts, and estimate th
 })
 
 test('Block buttons can be limited to list pages', async () => {
-  const home = await load(`<main>${post('a')}</main>`, { path: '/home', config: { buttonsEverywhere: false } })
+  const home = await load(`<main>${post('a')}</main>`, { path: '/home', config: { blockButtons: 'lists' } })
   assert.equal(home.buttons().length, 0)
-  const list = await load(`<main>${cell('alice')}</main>`, { config: { buttonsEverywhere: false } })
+  const list = await load(`<main>${cell('alice')}</main>`, { config: { blockButtons: 'lists' } })
   assert.equal(list.buttons().length, 1)
   const everywhere = await load(`<main>${post('a')}</main>`, { path: '/home' })
   assert.equal(everywhere.buttons().length, 1)
+})
+
+test('with Block buttons off, lists can still be loaded and reviewed', async () => {
+  const page = await load(`<main>${cell('alice')}${cell('bob')}</main>`, { config: { blockButtons: 'off' } })
+  assert.equal(page.buttons().length, 0)
+  await page.click('.fab')
+  assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'Review 2')
 })

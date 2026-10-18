@@ -77,6 +77,17 @@ async function renderTab() {
   $('tab-detail').textContent = info.ended
     ? `All ${fmtNum(info.loaded)} loaded · ${fmtNum(info.reviewable)} to review`
     : `${fmtNum(info.loaded)} loaded${of} · ${fmtNum(info.reviewable)} to review`
+  // The same two actions as the panel, started on the page.
+  $('tab-review').textContent = info.reviewable ? `Review ${fmtNum(info.reviewable)}` : 'Nothing to review'
+  $('tab-review').disabled = !info.reviewable
+  $('tab-load').hidden = info.ended
+  $('tab-load').disabled = info.loading
+  $('tab-load').textContent = info.loading ? 'Loading…' : 'Load all'
+}
+
+async function onTab(type) {
+  await browser.tabs.sendMessage(activeTab.id, { type }).catch(() => {})
+  window.close()
 }
 
 async function action(fn) {
@@ -92,10 +103,8 @@ async function action(fn) {
 $('start').addEventListener('click', () => action(() =>
   send('runner:start', { tabId: activeTab?.url?.startsWith('https://x.com/') ? activeTab.id : undefined })))
 $('pause').addEventListener('click', () => action(() => send('runner:pause')))
-$('open-panel').addEventListener('click', async () => {
-  await browser.tabs.sendMessage(activeTab.id, { type: 'tab:openPanel' }).catch(() => {})
-  window.close()
-})
+$('tab-review').addEventListener('click', () => onTab('tab:review'))
+$('tab-load').addEventListener('click', () => onTab('tab:loadAll'))
 $('open-x').addEventListener('click', () => {
   browser.tabs.create({ url: 'https://x.com/home' })
   window.close()
