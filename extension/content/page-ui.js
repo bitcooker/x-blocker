@@ -631,6 +631,12 @@
       .panel .title{font-weight:700;font-size:15px}
       .panel .sub{color:var(--muted);font-size:13px;line-height:16px}
       .panel .count{font-variant-numeric:tabular-nums}
+      .panel .sub{display:flex;align-items:center;gap:5px}
+      .panel .run{position:relative;width:14px;height:14px;flex:none;border:1px solid currentColor;color:var(--fg)}
+      .panel .run::after{content:"";position:absolute;inset:-6px}
+      .panel .run:hover:not([disabled]){background:var(--hover)}
+      .panel .run svg{width:8px;height:8px}
+      .panel .run[data-state=paused]{color:#ffad1f}
       .panel{overflow:hidden}
       .btn-collect[aria-pressed=true]{border-color:#1d9bf0;color:#1d9bf0;background:rgba(29,155,240,.1);font-variant-numeric:tabular-nums}
       .btn-collect[aria-pressed=true]::before{content:"";width:8px;height:8px;border-radius:50%;background:#1d9bf0;
@@ -712,7 +718,7 @@
       @keyframes spin{to{transform:rotate(360deg)}}
       @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
       @media (max-width:700px){.panel{left:8px;right:8px;transform:none;bottom:72px;border-radius:16px}
-        .panel .sub{display:none}@keyframes rise{from{opacity:0}}}
+        .panel .sub .count{display:none}@keyframes rise{from{opacity:0}}}
     `
     const wrap = document.createElement('div')
     wrap.className = 'wrap'
@@ -731,6 +737,8 @@
     }
     const ICON_SCROLL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 15.59l-4.29-4.3-1.42 1.42L12 18.41l5.71-5.7-1.42-1.42L12 15.59zm0-6l-4.29-4.3-1.42 1.42L12 12.41l5.71-5.7-1.42-1.42L12 9.59z"/></svg>'
     const ICON_STOP = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></svg>'
+    const ICON_PLAY = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
+    const ICON_PAUSE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
     const ICON_MIN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 11h14v2H5z"/></svg>'
 
     // Panel
@@ -738,13 +746,13 @@
     panel.setAttribute('role', 'region')
     panel.setAttribute('aria-label', 'X Blocker')
     const count = el('span', 'count')
-    const sub = el('span', 'sub', count)
+    const runBtn = el('button', 'run')
+    const sub = el('span', 'sub', runBtn, count)
     const title = el('span', 'title')
     const text = el('div', 'text', el('span', 'eyebrow', 'X Blocker'), title, sub)
     const logo = el('div', 'logo', svg(BLOCK_ICON))
     const scrollBtn = el('button', 'btn btn-outline btn-icon')
     const blockAllBtn = el('button', 'btn btn-danger')
-    const runBtn = el('button', 'btn btn-outline')
     const collectBtn = el('button', 'btn btn-outline btn-collect')
     const minBtn = el('button', 'btn-ghost', svg(ICON_MIN))
     minBtn.title = 'Minimize'
@@ -752,7 +760,7 @@
     const progBar = el('span', '')
     const prog = el('div', 'prog', progBar)
     prog.setAttribute('role', 'progressbar')
-    panel.append(logo, text, scrollBtn, collectBtn, runBtn, blockAllBtn, minBtn, prog)
+    panel.append(logo, text, scrollBtn, collectBtn, blockAllBtn, minBtn, prog)
 
     const fabBadge = el('span', 'badge')
     const fabDot = el('span', 'dot')
@@ -860,10 +868,12 @@
       progBar.style.width = `${info.r.state === 'idle' ? 100 : pct}%`
       prog.dataset.state = info.r.state === 'idle' ? 'done' : info.r.state
       prog.setAttribute('aria-valuenow', String(pct))
-      runBtn.textContent = info.active ? 'Pause blocking' : 'Resume blocking'
+      runBtn.replaceChildren(svg(info.active ? ICON_PAUSE : ICON_PLAY))
+      runBtn.dataset.state = info.active ? 'running' : 'paused'
       runBtn.title = info.active
-        ? 'Stop blocking the queue after the current account. Collecting is not affected.'
-        : 'Continue blocking the queue'
+        ? 'Pause blocking after the current account. Collecting is not affected.'
+        : 'Resume blocking the queue'
+      runBtn.setAttribute('aria-label', info.active ? 'Pause blocking' : 'Resume blocking')
       return info
     }
 
