@@ -246,53 +246,66 @@
     })
   }
 
-  // Posts: join X's own round icon buttons at the top right of the post
-  // (Grok, "more" menu) instead of touching the name/@handle/time header.
-  // Those are the first buttons of the post in DOM order, above the action bar.
+  // Posts: join X's own round icon buttons at the top right ("more" menu, and
+  // Grok when it is there) instead of touching the name/@handle/time header.
+  // The header is the top-most row of small buttons the post owns to the right
+  // of the handle; inside it we park right before the "more" menu trigger.
   function placeInPostActions(article, btn, host) {
     const top = article.getBoundingClientRect().top
-    let buttons = [...article.querySelectorAll('button, [role="button"]')].filter((b) =>
-      !b.classList.contains('xb-icon') && !b.closest('a, [role="link"]') && b.closest('article') === article)
-    // With real layout, the header icons are the small buttons level with the author's
-    // name, the right-most being "more". Pick that row rather than the first button in
-    // DOM order, which on an opened post can be something else.
     const h = host.getBoundingClientRect()
-    const header = buttons.map((b) => [b, b.getBoundingClientRect()])
-      .filter(([, r]) => r.height > 0 && r.height <= 48 && r.top >= top - 1 && r.bottom <= h.bottom + 24)
-    if (header.length) {
-      const more = header.reduce((a, b) => (b[1].right > a[1].right ? b : a))
-      buttons = header.filter(([, r]) => Math.abs(r.top - more[1].top) < 12)
-        .sort((a, b) => a[1].left - b[1].left).map(([b]) => b)
-    }
-    const first = buttons[0]
-    if (!first) return false
-    const r = first.getBoundingClientRect()
-    if (r.height > 0 && (r.top - top > 80 || r.height > 48)) return false
-
-    // The row is the closest element holding both top icons (Grok and "more");
-    // insert as a sibling inside it, right before the Grok icon's branch.
-    const second = buttons[1]
-    const r2 = second?.getBoundingClientRect()
-    const sameRow = second && (r.height === 0 || Math.abs(r2.top - r.top) < 12)
-    let target = first
-    if (sameRow) {
-      let row = first.parentElement
-      while (row && row !== article && !row.contains(second)) row = row.parentElement
-      if (!row || row === article) return false
-      while (target.parentElement !== row) target = target.parentElement
-    } else {
-      // Only one icon up there: make its own wrapper a row so ours sits beside it.
-      const wrap = first.parentElement
-      wrap.style.display = 'flex'
-      wrap.style.flexDirection = 'row'
-      wrap.style.alignItems = 'center'
-    }
-    target.before(btn)
+    // Buttons the post owns, to the right of the author's @handle, ignoring any
+    // button inside one of the post's own links (the name/@handle anchors). X
+    // wraps the whole card — and a quoted card — in a clickable role="link", so
+    // a link that *holds* the article (or sits outside it) is not a link around
+    // the button. Missing this used to hide every button and drop the icon beside
+    // the @handle instead of in the header.
+    //
+    // Only real <button>s are header actions. X renders Follow, Grok and "more"
+    // as <button>s, while the verified tick and the name/@handle links are not,
+    // and must never become the anchor.
+    const buttons = [...article.querySelectorAll('button')].filter((b) => {
+      if (b.classList.contains('xb-icon') || b.closest('article') !== article) return false
+      const link = b.closest('a')
+      return !(link && article.contains(link))
+    }).map((b) => [b, b.getBoundingClientRect()])
+      // X gives the header icons negative margins, so they can sit slightly above
+      // the article's own box; allow for that.
+      .filter(([, r]) => r.height > 0 && r.height <= 48 && r.top >= top - 24 && r.left >= h.right - 1)
+    if (!buttons.length) return false
+    // The header row is the top-most row. Inside it the "more" menu is the menu
+    // trigger; prefer it over whatever happens to be furthest right (the opened
+    // post can lay out Follow first, with Grok and "more" arriving later).
+    const rowTop = Math.min(...buttons.map(([, r]) => r.top))
+    const row = buttons.filter(([, r]) => r.top <= rowTop + 12)
+    const menus = row.filter(([b]) => b.getAttribute('aria-haspopup') === 'menu')
+    const [more, r] = (menus.length ? menus : row)
+      .reduce((a, b) => (b[1].right > a[1].right ? b : a))
+    if (r.height > 0 && r.top - top > 80) return false
+    // Join the other header icons in their row, rather than nest inside the
+    // "more" button's own wrapper: there the row's gap is missing on the right
+    // and the spacing around our icon comes out uneven.
+    const anchor = headerRowChild(more, row, article)
     btn.classList.add('xb-action')
     if (r.height >= 24 && r.height <= 48) {
       btn.style.width = btn.style.height = `${Math.round(r.height)}px`
     }
+    // Already parked right in front of the anchor? Nothing to move.
+    if (btn.nextElementSibling === anchor && postAnchor.get(btn) === anchor) return true
+    postAnchor.set(btn, anchor)
+    anchor.before(btn)
     return true
+  }
+
+  // The direct child of the header row that holds `more`, so our icon becomes a
+  // sibling of the other icons and takes the row's even gap.
+  function headerRowChild(more, row, article) {
+    const others = row.map(([b]) => b).filter((b) => b !== more)
+    let parent = more.parentElement
+    while (parent && parent !== article && !others.some((o) => parent.contains(o))) parent = parent.parentElement
+    if (!parent || parent === article) return more
+    let child = more
+    while (child.parentElement && child.parentElement !== parent) child = child.parentElement
+    return child.parentElement === parent ? child : more
   }
 
   function setButtonState(btn, state) {
@@ -351,6 +364,7 @@
   // ---- knowing who is already blocked ---------------------------------------
 
   const hostButtons = new WeakMap() // handle element -> our button
+  const postAnchor = new WeakMap() // post button -> the header element it sits in front of
   const claimed = new WeakSet() // Follow buttons / posts that already have their account's button
   const followButtons = new WeakMap() // our pill -> X's Follow/Blocked button
   const unknownState = new Set() // handles whose block state hasn't been confirmed yet
@@ -424,6 +438,7 @@
   }
 
   const liveHosts = new Set() // handle elements that currently own one of our buttons
+  const pendingPosts = new Set() // posts whose header icons have not rendered yet
   const hostOwner = new WeakMap() // handle element -> Follow button / article it claimed
 
   // Remove our button from a host so it can be re-evaluated (X re-used the
@@ -433,10 +448,12 @@
     if (btn) {
       const wrapper = btn.parentElement
       btn.remove()
+      postAnchor.delete(btn)
       if (wrapper && btn.classList.contains('xb-abs')) wrapper.style.marginInlineStart = ''
     }
     const owner = hostOwner.get(host)
     if (owner) claimed.delete(owner)
+    pendingPosts.delete(host)
     hostButtons.delete(host)
     hostOwner.delete(host)
     liveHosts.delete(host)
@@ -498,6 +515,21 @@
     } else if (owner && placeInPostActions(owner, btn, host)) {
       btn.className = 'xb-icon xb-action'
       btn.append(svg(BLOCK_ICON))
+    } else if (owner) {
+      // A quoted card is an <article> nested in the post that quotes it: it has
+      // no header icon row of its own, so show no button there. The account is
+      // still listed and stays blockable from the panel.
+      if (owner.parentElement?.closest('article')) {
+        liveHosts.add(host)
+        if (!blockedHere.has(key)) unknownState.add(key)
+        return
+      }
+      // A post header can render after the post itself. Keep the button out of
+      // the way and place it once the header exists, instead of dropping it next
+      // to the @handle where it looks wrong.
+      btn.className = 'xb-icon xb-action'
+      btn.append(svg(BLOCK_ICON))
+      pendingPosts.add(host)
     } else {
       btn.className = 'xb-icon'
       btn.append(svg(BLOCK_ICON))
@@ -535,6 +567,16 @@
     for (let n = walker.nextNode(); n; n = walker.nextNode()) decorate(n)
   }
 
+  // Our icon belongs immediately in front of the header-row element that holds
+  // the "more" menu. It is only settled once that anchor really is the menu (so
+  // a header that has so far only rendered Follow is re-checked), and once the
+  // icon is in place.
+  function postSettled(btn) {
+    const anchor = postAnchor.get(btn)
+    return !!anchor && anchor.isConnected && btn.nextElementSibling === anchor &&
+      (anchor.getAttribute('aria-haspopup') === 'menu' || !!anchor.querySelector('button[aria-haspopup="menu"]'))
+  }
+
   // Re-check hosts we already decorated: dropped from the page, rebuilt by X,
   // or re-used for a different account while scrolling.
   function recheckLive() {
@@ -545,8 +587,24 @@
         continue
       }
       const tn = [...host.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.nodeValue.includes('@'))
-      if (tn) decorate(tn)
-      else undecorate(host)
+      if (!tn) {
+        undecorate(host)
+        continue
+      }
+      // Post buttons are re-evaluated until they sit in front of the header's
+      // "more" menu. Opened posts render the Follow button first and the Grok
+      // and "more" icons a beat later, so the first placement can be wrong; this
+      // also covers posts whose header was not ready at all (pendingPosts).
+      if (host.dataset.xbKind === 'authors') {
+        const owner = hostOwner.get(host)
+        const btn = hostButtons.get(host)
+        if (owner && btn && !postSettled(btn)) {
+          if (placeInPostActions(owner, btn, host)) pendingPosts.delete(host)
+          else pendingPosts.add(host)
+          continue
+        }
+      }
+      decorate(tn)
     }
   }
 

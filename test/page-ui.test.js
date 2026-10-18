@@ -23,16 +23,45 @@ const cell = (sn, { name = sn, bio = '', followClass = '' } = {}) => `
 const mention = (sn) => `<a href="/${sn}"><span>@${sn}</span></a>`
 const post = (sn, text = '') => `
   <article data-sn="${sn}"><div><a href="/${sn}"><span>Name</span></a><div><a href="/${sn}"><span class="h">@${sn}</span></a><span>·</span><span>1h</span></div>
-  <div class="icons"><div class="g"><button>G</button><span></span></div><div><button>…</button></div></div></div>
+  <div class="icons"><div class="g"><button>G</button><span></span></div><div class="m"><button>…</button></div></div></div>
   <p>${text}</p><div><button>reply</button><button>like</button></div></article>`
 
 async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1, storage = {}, config = {} } = {}) {
   const { window, document } = parseHTML(`<html><body>${body}</body></html>`)
   const location = { pathname: path, search }
   window.HTMLElement.prototype.getBoundingClientRect = function () {
-    const isButton = this.tagName === 'BUTTON'
-    const width = isButton ? 90 : narrow && this.classList?.contains('cell') ? 300 : 0
-    return { top: 0, left: 0, width, height: isButton ? 36 : 0 }
+    const isButton = this.tagName === 'BUTTON' || this.getAttribute?.('role') === 'button'
+    let top = 0, left = 0, width = 0, height = 0
+    if (isButton) {
+      height = 36
+      // Header icons sit to the right of the author's @handle; the action bar is a
+      // row below. In the opened-post ("Post") view the actions (Follow, Grok,
+      // more) sit on a row below the name line. The name area holds a verified
+      // badge: a text-sized role="button" that lands right of the @handle once the
+      // display name is long.
+      const row = this.closest?.('.icons, .actions')
+      if (row) {
+        left = 200 + [...row.querySelectorAll('button, [role="button"]')].indexOf(this) * 40
+        width = 36
+        top = row.classList?.contains('actions') ? 45 : 0
+      } else if (this.closest?.('.name')) {
+        left = 170
+        width = 90
+        height = 16
+      } else {
+        const peers = [...(this.parentElement?.querySelectorAll('button, [role="button"]') ?? [])]
+        left = 40 + Math.max(0, peers.indexOf(this)) * 90
+        width = 90
+        top = 60
+      }
+    } else if (this.classList?.contains('h')) {
+      left = 40
+      width = 110
+      height = 16
+    } else if (narrow && this.classList?.contains('cell')) {
+      width = 300
+    }
+    return { top, left, width, height, right: left + width, bottom: top + height }
   }
   const listeners = []
   const sent = []
@@ -175,12 +204,122 @@ test('narrow rows get a compact icon button', async () => {
   assert.ok(page.buttons()[0].classList.contains('xb-compact'))
 })
 
-test('post buttons join the header icon row before the first icon', async () => {
+test('post buttons join the header icon row, just before the more menu', async () => {
   const page = await load(`<main>${post('a')}</main>`, { path: '/home' })
   const btn = page.buttons()[0]
   assert.ok(btn.classList.contains('xb-action'))
+  // A sibling of the icon wrappers, so the row's even gap applies on both sides.
   assert.equal(btn.parentElement.className, 'icons')
-  assert.equal(btn.nextElementSibling.className, 'g')
+  assert.equal(btn.nextElementSibling.className, 'm')
+  assert.equal(btn.nextElementSibling.textContent, '…')
+})
+
+test('a post wrapped in a clickable role="link" still gets its header button', async () => {
+  // X wraps the whole card in role="link"; that must not hide the post's buttons.
+  const page = await load(`<main><div role="link" tabindex="0">${post('a')}</div></main>`, { path: '/home' })
+  const btn = page.buttons()[0]
+  assert.ok(btn.classList.contains('xb-action'))
+  assert.equal(btn.nextElementSibling.textContent, '…')
+})
+
+test('a post whose handle wraps to a second line still gets its header button', async () => {
+  // Long name/affiliation pushes @handle onto its own row; the button must stay
+  // in the top-right icon row and not land next to the handle.
+  const page = await load(`<main><div role="link">${`
+  <article data-sn="a"><div><div><a href="/a"><span>Goldie Ghamari | گلسا قمری</span></a></div>
+  <div><a href="/a"><span class="h">@a</span></a><span>·</span><span>1h</span></div>
+  <div class="icons"><div class="g"><button>G</button></div><div class="m"><button>…</button></div></div></div>
+  <p>text</p><div><button>reply</button><button>like</button></div></article>`}</div></main>`, { path: '/home' })
+  const btn = page.buttons()[0]
+  assert.ok(btn.classList.contains('xb-action'))
+  assert.equal(btn.nextElementSibling.textContent, '…')
+})
+
+test('a verified badge in the name block is not mistaken for a header icon', async () => {
+  // The badge is a role="button" left of the handle; the button must not go there.
+  const page = await load(`<main><div role="link"><article data-sn="a"><div>
+    <div class="name"><a href="/a"><span>Name</span></a><span role="button" aria-label="Verified account">✓</span></div>
+    <div><a href="/a"><span class="h">@a</span></a><span>·</span><span>1h</span></div>
+    <div class="icons"><div class="g"><button>G</button></div><div class="m"><button>…</button></div></div></div>
+    <p>text</p><div><button>reply</button><button>like</button></div></article></div></main>`, { path: '/home' })
+  const btn = page.buttons()[0]
+  assert.ok(btn.classList.contains('xb-action'))
+  assert.equal(btn.parentElement.className, 'icons')
+  assert.equal(btn.nextElementSibling.className, 'm')
+  assert.equal(btn.closest('.name'), null)
+})
+
+test('the verified tick steals no button in the opened-post view', async () => {
+  // In the "Post" view the actions row renders below the name line. With a long
+  // display name the verified tick (a text-sized role="button") is right of the
+  // @handle and is then the top-most small button — it must not be taken for the
+  // "more" menu, or the icon lands in the name block above the Follow button.
+  const page = await load(`<main><article data-sn="a"><div>
+    <div class="name"><a href="/a"><span>Louise 🧑‍🤝‍🧑 🏳️‍🌈</span></a><span role="button" aria-label="Verified account">✓</span></div>
+    <div><a href="/a"><span class="h">@a</span></a></div>
+    <div class="actions"><div><button>Follow</button></div><div><button>G</button></div><div class="m"><button>…</button></div></div></div>
+    <p>text</p><div><button>reply</button><button>like</button></div></article></main>`, { path: '/home' })
+  const btn = page.buttons()[0]
+  assert.ok(btn.classList.contains('xb-action'))
+  assert.equal(btn.parentElement.className, 'actions')
+  assert.equal(btn.nextElementSibling.className, 'm')
+  assert.equal(btn.nextElementSibling.textContent, '…')
+  assert.equal(btn.closest('.name'), null)
+})
+
+test('a button anchored before the header settles moves in front of the more menu', async () => {
+  // The opened post renders the Follow button first; the Grok and "more" icons
+  // arrive a beat later. The button must not stay stranded before Follow.
+  const page = await load(`<main><article data-sn="a"><div>
+    <div><a href="/a"><span class="h">@a</span></a></div>
+    <div class="actions"><div class="f"><button>Follow</button></div></div></div>
+    <p>text</p></article></main>`, { path: '/home' })
+  assert.equal(page.buttons()[0].nextElementSibling.textContent, 'Follow') // only Follow so far
+  const actions = page.document.querySelector('.actions')
+  const grok = page.document.createElement('div')
+  grok.className = 'g'
+  grok.innerHTML = '<button>G</button>'
+  const more = page.document.createElement('div')
+  more.className = 'm'
+  more.innerHTML = '<button aria-haspopup="menu">…</button>'
+  actions.append(grok)
+  actions.append(more)
+  await page.mutate([{ type: 'childList', target: actions, addedNodes: [grok, more] }])
+  const btn = page.buttons()[0]
+  assert.ok(btn.classList.contains('xb-action'))
+  assert.equal(btn.parentElement.className, 'actions')
+  assert.equal(btn.nextElementSibling.className, 'm')
+  assert.equal(btn.nextElementSibling.textContent, '…')
+})
+
+test('a post whose header renders late gets its button once it appears', async () => {
+  // X sometimes renders the post before its header icons. Nothing should be
+  // dropped next to the handle; the button appears when the header does.
+  const page = await load(`<main><div role="link"><article data-sn="a"><div>
+    <a href="/a"><span>Name</span></a>
+    <div><a href="/a"><span class="h">@a</span></a><span>·</span><span>1h</span></div></div>
+    <p>text</p><div><button>reply</button><button>like</button></div></article></div></main>`, { path: '/home' })
+  assert.equal(page.buttons().length, 0) // no header yet
+  const header = page.document.querySelector('article > div')
+  const icons = page.document.createElement('div')
+  icons.className = 'icons'
+  icons.innerHTML = '<div class="g"><button>G</button></div><div class="m"><button>…</button></div>'
+  header.append(icons)
+  await page.mutate([{ type: 'childList', target: header, addedNodes: [icons] }])
+  const btn = page.buttons()[0]
+  assert.ok(btn.classList.contains('xb-action'))
+  assert.equal(btn.nextElementSibling.textContent, '…')
+})
+
+test('a quoted card (a nested article) gets no button of its own', async () => {
+  const page = await load(`<main><article data-sn="outer"><div>
+    <a href="/outer"><span>Outer</span></a>
+    <div><a href="/outer"><span class="h">@outer</span></a><span>·</span><span>1h</span></div>
+    <div class="icons"><div class="m"><button>…</button></div></div></div>
+    <div role="link"><article data-sn="q"><div><a href="/q"><span>Quoted</span></a>
+      <div><a href="/q"><span class="h">@q</span></a><span>·</span><span>1h</span></div></div>
+      <p>quoted text</p></article></div></article></main>`, { path: '/home' })
+  assert.deepEqual(page.buttons().map((b) => b.dataset.sn), ['outer'])
 })
 
 test('already-blocked accounts get no button and are left out of the review', async () => {
