@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "X Blocker",
   "short_name": "X Blocker",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Block whole lists of X (Twitter) accounts from followers, likes, replies, searches or imports. Review first, undo anytime, private.",
   "homepage_url": "https://github.com/bitcooker/x-blocker",
   "browser_specific_settings": {
