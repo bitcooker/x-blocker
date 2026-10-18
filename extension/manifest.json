@@ -67,6 +67,7 @@
         "https://x.com/*"
       ],
       "js": [
+        "ui/tokens.js",
         "content/page-ui.js"
       ],
       "run_at": "document_idle"

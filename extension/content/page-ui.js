@@ -143,7 +143,7 @@
       transition:background-color .2s,border-color .2s,color .2s;white-space:nowrap}
     .xb-pill:hover{background:rgba(244,33,46,.1);border-color:rgb(253,201,206);color:#f4212e}
     :root[data-xb-theme=dark] .xb-pill:hover,:root[data-xb-theme=dim] .xb-pill:hover{border-color:#67070f}
-    .xb-pill:focus-visible{box-shadow:0 0 0 2px #1d9bf0}
+    .xb-pill:focus-visible{box-shadow:0 0 0 2px var(--accent)}
     .xb-pill[hidden],.xb-icon[hidden]{display:none}
     .xb-pill.xb-abs{position:absolute;inset-inline-end:100%;top:50%;transform:translateY(-50%);margin:0 8px 0 0;
       margin-inline-end:8px;margin-inline-start:0;z-index:1}
@@ -156,7 +156,7 @@
       cursor:pointer;transition:background-color .2s,color .2s}
     .xb-icon svg{width:17px;height:17px;fill:currentColor}
     .xb-icon:hover{background:rgba(244,33,46,.1);color:#f4212e}
-    .xb-icon:focus-visible{box-shadow:0 0 0 2px #1d9bf0}
+    .xb-icon:focus-visible{box-shadow:0 0 0 2px var(--accent)}
     .xb-icon.xb-done{color:#f4212e;cursor:default}
     .xb-icon[aria-busy=true]{opacity:.5;cursor:progress}
     .xb-icon.xb-action{margin:0;width:34px;height:34px}
@@ -598,32 +598,23 @@
     host.id = 'xb-root'
     const root = host.attachShadow({ mode: 'closed' })
     const css = document.createElement('style')
+    // Shared tokens and components (ui/tokens.js), themed like X, then the panel's own layout.
+    const { tokens, components } = globalThis.XB_STYLE
     css.textContent = `
       :host{all:initial}
       [hidden]{display:none!important}
       *{box-sizing:border-box;margin:0}
-      .wrap{--bg:#fff;--fg:#0f1419;--muted:#536471;--border:#eff3f4;--hover:rgba(15,20,25,.1);
-        --shadow:0 4px 16px rgba(15,20,25,.12);--backdrop:rgba(0,0,0,.4);
-        font:15px/20px TwitterChirp,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg)}
-      .wrap[data-theme=dim]{--bg:#15202b;--fg:#f7f9f9;--muted:#8b98a5;--border:#38444d;--hover:rgba(247,249,249,.1);
-        --shadow:0 4px 16px rgba(0,0,0,.4);--backdrop:rgba(91,112,131,.4)}
-      .wrap[data-theme=dark]{--bg:#000;--fg:#e7e9ea;--muted:#71767b;--border:#2f3336;--hover:rgba(231,233,234,.1);
-        --shadow:0 4px 16px rgba(0,0,0,.6);--backdrop:rgba(91,112,131,.4)}
-      button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
-        gap:6px;border-radius:9999px;font-weight:700;white-space:nowrap;transition:background-color .2s,opacity .2s}
-      button:focus-visible{box-shadow:0 0 0 2px #1d9bf0}
+      button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+      button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       button[disabled]{opacity:.5;cursor:default}
-      .btn{height:36px;padding:0 16px;font-size:14px}
-      .btn-icon{width:36px;padding:0;flex:none}
-      .btn-icon svg{width:18px;height:18px;fill:currentColor}
-      .btn-sm{height:28px;padding:0 12px;font-size:13px}
-      .btn-outline{border:1px solid var(--border);color:var(--fg)}
-      .btn-outline:hover:not([disabled]){background:var(--hover)}
-      .btn-danger{background:#f4212e;color:#fff}
-      .btn-danger:hover:not([disabled]){background:#dc1e29}
-      .btn-ghost{width:34px;height:34px;color:var(--muted)}
-      .btn-ghost:hover{background:var(--hover);color:var(--fg)}
+      ${tokens('.wrap')}
+      .wrap{font:15px/20px var(--font);color:var(--fg)}
+      ${components}
       svg{width:18px;height:18px;fill:currentColor;flex:none}
+      .round{position:relative;width:13px;height:13px;flex:none;border-radius:50%;border:1px solid currentColor;color:var(--muted)}
+      .round::after{content:"";position:absolute;inset:-6px}
+      .round:hover:not([disabled]){background:var(--hover);color:var(--fg)}
+      .round svg{width:7px;height:7px}
 
       .panel{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;display:flex;
         align-items:center;gap:12px;padding:12px 16px 12px 13px;border-radius:16px;background:var(--bg);
@@ -633,40 +624,31 @@
       .panel .sub{color:var(--muted);font-size:12px;line-height:16px}
       .panel .sub .run[hidden] + .state[hidden] + .count{padding-left:var(--icon-col)}
       .panel .sub .state{display:flex;align-items:center;justify-content:center;width:13px;height:13px;flex:none}
-      .panel .sub .state.ok{color:#00ba7c;font-size:12px;font-weight:700}
+      .panel .sub .state.ok{color:var(--ok);font-size:12px;font-weight:700}
       .panel .count b{color:var(--fg);font-weight:700}
-      .chip{height:20px;padding:0 9px;margin-inline-start:8px;font-size:12px;line-height:18px;font-weight:700;
-        color:var(--fg);border:1px solid var(--border);vertical-align:middle}
-      .chip:hover{background:var(--hover)}
+      .panel .count .btn-xs{margin-inline-start:8px;vertical-align:middle}
       .panel .count{font-variant-numeric:tabular-nums}
       .panel .sub{display:flex;align-items:center;gap:5px}
-      .panel .run{position:relative;width:13px;height:13px;flex:none;border:1px solid currentColor;color:var(--fg)}
-      .panel .run::after{content:"";position:absolute;inset:-6px}
-      .panel .run:hover:not([disabled]){background:var(--hover)}
-      .panel .run svg{width:7px;height:7px}
-      .panel .run[data-state=paused]{color:#ffad1f}
+      .panel .run{color:var(--fg)}
+      .panel .run[data-state=paused]{color:var(--warn)}
       .panel{overflow:hidden}
       .panel .prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--border)}
-      .panel .prog span{display:block;height:100%;width:0;background:#1d9bf0;transition:width .4s ease}
-      .panel .prog[data-state=cooldown] span{background:#ffad1f}
-      .panel .prog[data-state=done] span{background:#00ba7c}
+      .panel .prog span{display:block;height:100%;width:0;background:var(--accent);transition:width .4s ease}
+      .panel .prog[data-state=cooldown] span{background:var(--warn)}
+      .panel .prog[data-state=done] span{background:var(--ok)}
       .panel .prog[data-state=indeterminate] span{width:30%!important;animation:slide 1.4s ease-in-out infinite}
       @keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
-      .panel .sub .ok{color:#00ba7c;font-weight:700}
-      .panel .sub .on{color:#1d9bf0;font-weight:700}
-      .dot{display:inline-block;flex:none;width:8px;height:8px;border-radius:50%;background:#1d9bf0;
-        margin-inline-end:6px;vertical-align:middle;animation:pulse 1.2s ease-in-out infinite}
-      .fab .dot,.panel .sub .state .dot{margin:0}
-      @keyframes pulse{50%{opacity:.25}}
-      .fab.done::after{content:"✓";color:#00ba7c;font-weight:700}
-      .link{display:inline;color:#1d9bf0;font-weight:700;font-size:inherit;line-height:inherit;border-radius:4px}
+      .panel .sub .ok{color:var(--ok);font-weight:700}
+      .panel .sub .on{color:var(--accent);font-weight:700}
+      .fab.done::after{content:"✓";color:var(--ok);font-weight:700}
+      .link{display:inline;color:var(--accent);font-weight:700;font-size:inherit;line-height:inherit;border-radius:4px}
       .link:hover{text-decoration:underline}
-      .panel .sub .warn{color:#ffad1f;font-weight:700}
-      .panel .sub .err{color:#f4212e;font-weight:700}
+      .panel .sub .warn{color:var(--warn);font-weight:700}
+      .panel .sub .err{color:var(--danger);font-weight:700}
       .fab{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;height:40px;
         padding:0 14px 0 12px;gap:8px;background:var(--bg);color:var(--fg);font-size:14px;
         border:1px solid var(--border);box-shadow:var(--shadow);animation:rise .2s ease-out}
-      .fab svg{color:#f4212e}
+      .fab svg{color:var(--danger)}
       .fab:hover{background:var(--bg);border-color:var(--muted)}
       .spin{animation:spin 1s linear infinite}
 
@@ -680,11 +662,8 @@
       .dialog .actions{display:flex;flex-direction:column;gap:12px}
 
       .panel .title{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .panel .eyebrow{color:#f4212e;font-size:11px;line-height:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+      .panel .eyebrow{color:var(--danger);font-size:11px;line-height:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
       .panel .head{display:flex;align-items:center;gap:5px}
-      .panel .head .btn-ghost{position:relative;width:13px;height:13px;border:1px solid currentColor}
-      .panel .head .btn-ghost::after{content:"";position:absolute;inset:-6px}
-      .panel .head .btn-ghost svg{width:7px;height:7px}
 
       .review{width:560px;max-width:calc(100vw - 32px);max-height:min(720px,calc(100vh - 64px));background:var(--bg);
         border-radius:16px;display:flex;flex-direction:column;animation:pop .15s ease-out;overflow:hidden}
@@ -692,7 +671,7 @@
       .review .rh h2{font-size:20px;line-height:24px;font-weight:800}
       .review .rh p{color:var(--muted);font-size:14px;line-height:18px}
       .review .src{display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:4px 10px;border-radius:9999px;
-        background:rgba(29,155,240,.12);color:#1d9bf0;font-weight:700;font-size:13px}
+        background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:13px}
       .review .bar{display:flex;align-items:center;gap:12px;padding:10px 24px;border-bottom:1px solid var(--border);
         font-size:14px;color:var(--muted)}
       .review .bar label{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--fg);font-weight:700}
@@ -706,27 +685,23 @@
       .review .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .review .hd{color:var(--muted)}
       .review a.hd{text-decoration:none;width:max-content;max-width:100%}
-      .review a.hd:hover{color:#1d9bf0;text-decoration:underline}
+      .review a.hd:hover{color:var(--accent);text-decoration:underline}
       .review .tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
       .review .tag{font-size:12px;line-height:18px;padding:0 8px;border-radius:6px;background:var(--hover);color:var(--muted);font-weight:600}
-      .review .tag.warn{background:rgba(0,186,124,.15);color:#00ba7c}
-      .review input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:#1d9bf0;cursor:pointer;flex:none}
-      .review .limit{margin:0;padding:10px 24px;font-size:13px;line-height:18px;color:#ffad1f;
-        background:rgba(255,173,31,.1);border-bottom:1px solid var(--border)}
+      .review .tag.warn{background:var(--ok-soft);color:var(--ok)}
+      .review input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);cursor:pointer;flex:none}
+      .review .limit{margin:0;padding:10px 24px;font-size:13px;line-height:18px;color:var(--warn);
+        background:var(--warn-soft);border-bottom:1px solid var(--border)}
       .review .tabs{display:flex;gap:4px;padding:4px;margin-bottom:8px;border-radius:9999px;background:var(--hover);width:fit-content}
       .review .tab{height:32px;padding:0 14px;font-size:14px;color:var(--muted)}
       .review .tab[aria-selected=true]{background:var(--bg);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.2)}
-      .review .from{font-size:12px;color:#1d9bf0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .review .from{font-size:12px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .review li.loading{justify-content:center;color:var(--muted);cursor:default}
       .review .rf{display:flex;gap:12px;justify-content:flex-end;padding:16px 24px;border-top:1px solid var(--border)}
 
       .toasts{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:2147483647;display:flex;
         flex-direction:column;gap:8px;align-items:center;pointer-events:none}
-      .toast{background:#1d9bf0;color:#fff;padding:12px 16px;border-radius:4px;font-size:15px;max-width:480px;
-        box-shadow:var(--shadow);animation:rise .2s ease-out}
-      .toast.error{background:#f4212e}
       @keyframes rise{from{opacity:0;transform:translate(-50%,8px)}}
-      .toast{animation-name:fade}
       @keyframes fade{from{opacity:0}}
       @keyframes pop{from{opacity:0;transform:scale(.96)}}
       .bump{animation:bump .5s ease-out}
@@ -734,10 +709,9 @@
       @keyframes bump{40%{transform:scale(1.06)}}
       .fab.bump{animation:bumpFab .5s ease-out}
       @keyframes bumpFab{40%{transform:translateX(-50%) scale(1.06)}}
-      @keyframes glow{from{color:#1d9bf0}}
+      @keyframes glow{from{color:var(--accent)}}
       .fab,.panel .btn-danger{font-variant-numeric:tabular-nums}
       @keyframes spin{to{transform:rotate(360deg)}}
-      @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
       @media (max-width:700px){.panel{left:8px;right:8px;transform:none;bottom:72px;border-radius:16px}
         .panel .sub .count{display:none}@keyframes rise{from{opacity:0}}}
     `
@@ -765,18 +739,18 @@
     panel.setAttribute('role', 'region')
     panel.setAttribute('aria-label', 'X Blocker')
     const count = el('span', 'count')
-    const runBtn = el('button', 'run')
+    const runBtn = el('button', 'round run')
     // One icon per line: the run's play/pause, or the list's loading dot / check.
     const stateIcon = el('span', 'state')
     const sub = el('span', 'sub', runBtn, stateIcon, count)
     const title = el('span', 'title')
-    const minBtn = el('button', 'btn-ghost', svg(ICON_MIN))
+    const minBtn = el('button', 'round min', svg(ICON_MIN))
     minBtn.title = 'Minimize'
     minBtn.setAttribute('aria-label', 'Minimize X Blocker panel')
     // Collapse sits next to the brand label, out of the action row, so it
     // takes no width whatever buttons the panel shows.
     const text = el('div', 'text', el('div', 'head', minBtn, el('span', 'eyebrow', 'X Blocker')), title, sub)
-    const loadBtn = el('button', 'chip')
+    const loadBtn = el('button', 'btn btn-xs')
     const blockAllBtn = el('button', 'btn btn-danger')
     const progBar = el('span', '')
     const prog = el('div', 'prog', progBar)
@@ -784,7 +758,7 @@
     panel.append(text, blockAllBtn, prog)
 
     const fabLabel = el('span', '', 'X Blocker')
-    const fabDot = el('span', 'dot')
+    const fabDot = el('span', 'dot dot-accent live')
     const fab = el('button', 'fab', svg(BLOCK_ICON), fabLabel, fabDot)
     fab.title = 'X Blocker'
     fab.setAttribute('aria-label', 'Open X Blocker panel')
@@ -862,7 +836,7 @@
       const num = el('b', '', fmt(loaded))
       stateIcon.className = 'state'
       if (scrolling) {
-        stateIcon.replaceChildren(el('span', 'dot'))
+        stateIcon.replaceChildren(el('span', 'dot dot-accent live'))
         loadBtn.textContent = 'Stop'
         loadBtn.title = 'Stop loading; what is loaded so far stays'
         return ['Loading ', num, ofTotal, loadBtn]
@@ -1080,12 +1054,12 @@
         let loadSeq = 0
 
         const confirm = el('button', 'btn btn-danger')
-        const cancel = el('button', 'btn btn-outline', 'Cancel')
+        const cancel = el('button', 'btn', 'Cancel')
         const all = document.createElement('input')
         all.type = 'checkbox'
         const allLabel = el('label', '', all, el('span', '', 'Select all'))
         const summary = el('span', '')
-        const unqueueBtn = el('button', 'btn btn-outline btn-sm unqueue')
+        const unqueueBtn = el('button', 'btn btn-sm unqueue')
         const limitNote = el('p', 'limit')
         const list = el('ul', '')
         list.setAttribute('aria-label', 'Accounts to block')
@@ -1279,7 +1253,7 @@
         if (!host.isConnected) document.body.append(host)
         const previous = document.activeElement
         const ok = el('button', 'btn btn-danger', confirmLabel)
-        const cancel = el('button', 'btn btn-outline', 'Cancel')
+        const cancel = el('button', 'btn', 'Cancel')
         const heading = el('h2', '', title)
         heading.id = 'xb-dialog-title'
         const dialog = el('div', 'dialog', heading, el('p', '', body), el('div', 'actions', ok, cancel))
@@ -1309,7 +1283,7 @@
     function toast(message, error = false) {
       wrap.dataset.theme = document.documentElement.dataset.xbTheme ?? 'light'
       if (!host.isConnected) document.body.append(host)
-      const t = el('div', error ? 'toast error' : 'toast', message)
+      const t = el('div', error ? 'toast toast-danger' : 'toast', message)
       toasts.append(t)
       setTimeout(() => t.remove(), error ? 6000 : 3500)
     }

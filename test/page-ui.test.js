@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises'
 import vm from 'node:vm'
 import { parseHTML } from 'linkedom'
 
+const TOKENS = await readFile(new URL('../extension/ui/tokens.js', import.meta.url), 'utf8')
 const SOURCE = (await readFile(new URL('../extension/content/page-ui.js', import.meta.url), 'utf8'))
   // Test hooks: expose the page's list and open the shadow root for inspection.
   .replace('const pageHandles = new Map()', 'const pageHandles = (globalThis.__handles = new Map())')
@@ -77,6 +78,7 @@ async function load(body, { path = '/target/followers', search = '', respond = (
     },
   }
   vm.createContext(ctx)
+  vm.runInContext(TOKENS, ctx)
   for (let i = 0; i < runs; i++) {
     vm.runInContext(SOURCE, ctx)
     await sleep(50)
@@ -199,7 +201,7 @@ test('the panel stays when every loaded account is already blocked', async () =>
   assert.ok(page.shadow().querySelector('.panel'))
   assert.equal(page.shadow().querySelector('.sub').textContent, 'All 2 loaded accounts are already blockedLoad all')
   assert.equal(page.shadow().querySelector('.panel .btn-danger').hidden, true)
-  await page.click('.sub .chip')
+  await page.click('.sub .btn-xs')
   page.scroll().onDone(true)
   await sleep(200)
   assert.equal(page.shadow().querySelector('.sub').textContent, '✓All 2 accounts in this list are already blocked')
@@ -280,7 +282,7 @@ test('the panel remembers the minimized state, across pages and tabs', async () 
   assert.equal(panel(), null)
   // Minimizing is saved too.
   await page.click('.fab')
-  await page.click('.btn-ghost')
+  await page.click('.min')
   assert.equal(page.store.panelMinimized, true)
   assert.equal(panel(), null)
 
@@ -403,9 +405,9 @@ test('the panel says how much of the list is loaded and can load the rest', asyn
   await sleep(300)
   const sub = () => page.shadow().querySelector('.sub').textContent
   assert.equal(sub(), '2 loaded of ~17.4KLoad all')
-  assert.equal(page.shadow().querySelector('.sub .chip').textContent, 'Load all')
+  assert.equal(page.shadow().querySelector('.sub .btn-xs').textContent, 'Load all')
 
-  await page.click('.sub .chip')
+  await page.click('.sub .btn-xs')
   assert.equal(page.scroll().on, true)
   assert.equal(sub(), 'Loading 2 of ~17.4KStop')
   assert.equal(page.shadow().querySelector('.run').hidden, true, 'one icon per line')

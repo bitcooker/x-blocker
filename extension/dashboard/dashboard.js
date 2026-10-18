@@ -125,7 +125,7 @@ function renderQueue() {
       h('td', { class: 'when', title: new Date(item.addedAt).toLocaleString() }, fmtAgo(item.addedAt)),
       h('td', {}, item.tries ? h('span', { class: 'tag' }, `${item.tries} failed`) : ''),
       h('td', { class: 'num' }, h('button', {
-        class: 'btn btn-sm btn-ghost', title: 'Remove from queue', 'aria-label': 'Remove from queue',
+        class: 'btn btn-sm btn-quiet', title: 'Remove from queue', 'aria-label': 'Remove from queue',
         onclick: () => action(() => send('queue:remove', { keys: [itemKey(item)] })),
       }, icon('close'))))
   })

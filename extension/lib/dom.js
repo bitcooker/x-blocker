@@ -101,7 +101,7 @@ export function toast(message, { error = false, timeout } = {}) {
     box = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' })
     document.body.append(box)
   }
-  const t = h('div', { class: error ? 'toast error' : 'toast' }, String(message?.message ?? message))
+  const t = h('div', { class: error ? 'toast toast-danger' : 'toast' }, String(message?.message ?? message))
   box.append(t)
   setTimeout(() => t.remove(), timeout ?? (error ? 6000 : 3500))
 }
