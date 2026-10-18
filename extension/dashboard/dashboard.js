@@ -80,6 +80,20 @@ async function action(fn) {
   }
 }
 
+// How many rows each long list shows; "Show more" raises it a page at a time.
+const PAGE = { batches: BATCH_LIMIT, queue: RENDER_LIMIT, blocked: RENDER_LIMIT }
+const shown = { ...PAGE }
+
+function moreFoot(el, key, total, note = '') {
+  if (total <= shown[key]) return el.replaceChildren()
+  const next = Math.min(PAGE[key], total - shown[key])
+  el.replaceChildren(
+    h('span', {}, `Showing ${nf.format(shown[key])} of ${nf.format(total)}.${note ? ` ${note}` : ''}`),
+    h('button', {
+      class: 'btn btn-sm', onclick: () => { shown[key] += PAGE[key]; renderers[key]() },
+    }, `Show ${nf.format(next)} more`))
+}
+
 const meter = (el, value, max) => { el.style.width = max ? `${Math.min(100, (value / max) * 100)}%` : '0' }
 
 // ---- status (sidebar + Home) --------------------------------------------------
@@ -154,7 +168,7 @@ function batchCounts(b) {
 
 function renderBatches() {
   const list = data.batches ?? []
-  const rows = list.slice(0, BATCH_LIMIT).map((b) => {
+  const rows = list.slice(0, shown.batches).map((b) => {
     const undo = b.action === 'unblock'
     const finished = !b.waiting
     const tone = b.waiting ? '' : b.failed && !b.done ? 'meter-danger' : 'meter-ok'
@@ -199,7 +213,7 @@ function renderBatches() {
       'On x.com, open someone\'s followers, the likes or replies of a post, or a search, then press Review in the X Blocker panel at the bottom.')))
   }
   $('batches').replaceChildren(...rows)
-  $('batches-more').textContent = list.length > BATCH_LIMIT ? `Showing the latest ${BATCH_LIMIT} of ${nf.format(list.length)}` : ''
+  moreFoot($('batches-more'), 'batches', list.length)
 }
 
 async function cancelBatch(b) {
@@ -231,7 +245,7 @@ function renderWaiting() {
   const queue = data.queue ?? []
   const names = Object.fromEntries((data.batches ?? []).map((b) => [b.id, b.source]))
   $('q-actions').hidden = !queue.length
-  const rows = queue.slice(0, RENDER_LIMIT).map((item, i) => h('tr', {},
+  const rows = queue.slice(0, shown.queue).map((item, i) => h('tr', {},
     h('td', { class: 'when' }, i + 1),
     h('td', {}, accountCell(item)),
     h('td', {}, h('div', { class: 'tags' },
@@ -247,7 +261,7 @@ function renderWaiting() {
       'Queue accounts from a review on x.com, or import a list, and they show up here.'))
   }
   $('q-body').replaceChildren(...rows)
-  $('q-more').textContent = queue.length > RENDER_LIMIT ? `Showing the next ${RENDER_LIMIT} of ${nf.format(queue.length)}` : ''
+  moreFoot($('q-more'), 'queue', queue.length)
 }
 
 // Home is the overview: the run card is drawn by renderStatus, and these are the
@@ -298,7 +312,7 @@ function renderBlocked() {
   const queued = queueKeys(data.queue)
   filteredBlocked = blockedList()
   for (const id of selected) if (!data.blocked[id] || isQueued({ id }, queued)) selected.delete(id)
-  const rows = filteredBlocked.slice(0, RENDER_LIMIT).map((b) => {
+  const rows = filteredBlocked.slice(0, shown.blocked).map((b) => {
     const pending = isQueued(b, queued)
     const box = h('input', {
       type: 'checkbox', checked: selected.has(b.id), disabled: pending,
@@ -331,8 +345,7 @@ function renderBlocked() {
       : emptyRow(4, 'block', 'No blocks yet', 'Accounts you block will be listed here.'))
   }
   $('b-body').replaceChildren(...rows)
-  $('b-more').textContent = filteredBlocked.length > RENDER_LIMIT
-    ? `Showing ${RENDER_LIMIT} of ${nf.format(filteredBlocked.length)}. "Select all" includes every match.` : ''
+  moreFoot($('b-more'), 'blocked', filteredBlocked.length, '"Select all" includes every match.')
   updateSelection()
 }
 
@@ -513,8 +526,10 @@ $('i-add').addEventListener('click', () => action(async () => {
   go('home')
 }))
 
-$('b-filter').addEventListener('input', renderBlocked)
-$('b-batch').addEventListener('change', renderBlocked)
+// A new search or batch starts again from the first page.
+const refilter = () => { shown.blocked = PAGE.blocked; renderBlocked() }
+$('b-filter').addEventListener('input', refilter)
+$('b-batch').addEventListener('change', refilter)
 $('b-select-all').addEventListener('change', (e) => {
   if (e.target.checked) for (const b of selectable()) selected.add(b.id)
   else selected.clear()

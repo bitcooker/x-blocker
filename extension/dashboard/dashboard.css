@@ -111,7 +111,7 @@ td.when { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .account .handle:hover { color: var(--accent); }
 td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .tag.source { max-width: 280px; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
-.foot { font-size: 13px; text-align: center; }
+.foot { font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .foot:empty { display: none; }
 
 .empty td { text-align: center; padding: 56px 16px; }
