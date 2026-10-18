@@ -76,6 +76,10 @@
       }
     }
     try {
+      if (target.action === 'unblock') {
+        await callMain('unblock', { userId: target.id })
+        return { blockRequested: true, res: await send({ type: 'runner:result', item: target, outcome: 'unblocked' }) }
+      }
       await callMain('block', { userId: target.id })
       return { blockRequested: true, res: await send({ type: 'runner:result', item: target, outcome: 'blocked' }) }
     } catch (e) {
@@ -158,6 +162,7 @@
     if (scrolling) return
     scrolling = true
     let idle = 0
+    let reachedEnd = false
     try {
       while (scrolling && idle < 6) {
         const el = scrollTarget()
@@ -165,12 +170,14 @@
         // a suspected end one patient retry before stopping.
         let step = await scrollStep(el)
         if (step === 'end') step = await scrollStep(el, 4000)
-        if (step === 'end') break
+        if (step === 'end') { reachedEnd = true; break }
         idle = step === 'grew' ? 0 : idle + 1
       }
+      // Several screens with nothing new also means X has nothing more to show.
+      if (idle >= 6) reachedEnd = true
     } finally {
       scrolling = false
-      onDone?.()
+      onDone?.(reachedEnd)
     }
   }
 

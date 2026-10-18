@@ -7,19 +7,18 @@ import { browser } from '../lib/compat.js'
 
 const $ = (id) => document.getElementById(id)
 const RENDER_LIMIT = 500
-const selected = new Set()
+const selected = new Set() // blocked account IDs picked for unblocking
 let data = null
 // Which stored collections each tab needs; only those are fetched and re-rendered.
 const NEEDS = {
-  collected: ['collected', 'blocked', 'queue'],
-  queue: ['queue', 'collected'],
+  queue: ['queue'],
   import: [],
-  blocked: ['blocked', 'collected'],
+  blocked: ['blocked', 'queue'],
   log: ['log'],
   settings: [],
 }
-let currentTab = 'collected'
-let filteredCollected = []
+let currentTab = 'queue'
+let filteredBlocked = []
 
 const nf = new Intl.NumberFormat()
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
@@ -39,16 +38,6 @@ function fmtAgo(t) {
 function profileUrl({ screenName, id }) {
   if (screenName) return `https://x.com/${encodeURIComponent(screenName)}`
   return /^\d{1,20}$/.test(String(id)) ? `https://x.com/i/user/${id}` : null
-}
-
-// Merges account records, ignoring empty fields, so a record stored without a
-// handle never hides one known from elsewhere.
-function merge(...records) {
-  const out = {}
-  for (const r of records) {
-    for (const [k, v] of Object.entries(r ?? {})) if (v !== undefined && v !== null && v !== '') out[k] = v
-  }
-  return out
 }
 
 function accountCell(account) {
@@ -113,118 +102,26 @@ function renderChrome() {
   $('q-start').title = $('start').title
   $('q-start').querySelector('span').textContent = $('start').querySelector('span').textContent
 
-  $('s-collected').textContent = nf.format(counts.collected)
   $('s-queue').textContent = nf.format(counts.queue)
   $('s-blocked').textContent = nf.format(counts.blocked)
   $('s-24h').textContent = nf.format(counts.last24h)
-  $('n-collected').textContent = counts.collected ? nf.format(counts.collected) : ''
   $('n-queue').textContent = counts.queue ? nf.format(counts.queue) : ''
   $('n-blocked').textContent = counts.blocked ? nf.format(counts.blocked) : ''
-}
-
-// ---- collected ----------------------------------------------------------------
-
-const pressed = (id) => $(id).getAttribute('aria-pressed') === 'true'
-const isBlocked = (u) => Boolean(u.blocking || data.blocked[u.id])
-
-// Keeps the "From" filter in sync with the sources present in Collected.
-function syncSourceOptions() {
-  const select = $('c-source')
-  const sources = [...new Set(Object.values(data.collected).flatMap((u) => u.sources ?? []))].sort()
-  // Filtering only helps when there is more than one source to choose from.
-  select.hidden = sources.length < 2
-  const current = [...select.options].slice(1).map((o) => o.value)
-  if (sources.join('\n') === current.join('\n')) return
-  const value = select.value
-  select.replaceChildren(h('option', { value: '' }, 'All sources'), ...sources.map((src) => h('option', { value: src }, src)))
-  select.value = sources.includes(value) ? value : ''
-  if (select.hidden && select.value) select.value = ''
-}
-
-function renderCollected() {
-  const q = $('c-filter').value.trim().toLowerCase()
-  const hideBlocked = pressed('c-hide-blocked')
-  const hideFriends = pressed('c-hide-following')
-  syncSourceOptions()
-  const source = $('c-source').value
-  // Queued accounts live in the queue now, not in Collected (see pendingCollected).
-  const queued = queueKeys(data.queue)
-  filteredCollected = Object.values(data.collected)
-    .filter((u) => !isQueued(u, queued))
-    .filter((u) => !(hideBlocked && isBlocked(u)))
-    .filter((u) => !(hideFriends && (u.following || u.followedBy)))
-    .filter((u) => !source || (u.sources ?? []).includes(source))
-    .filter((u) => !q || `${u.name}\n${u.screenName}\n${u.description}`.toLowerCase().includes(q))
-    .sort((a, b) => b.seenAt - a.seenAt)
-  for (const id of selected) if (!data.collected[id]) selected.delete(id)
-
-  const rows = filteredCollected.slice(0, RENDER_LIMIT).map((u) => {
-    const blocked = isBlocked(u)
-    const box = h('input', {
-      type: 'checkbox', checked: selected.has(u.id), disabled: blocked, 'aria-label': `Select @${u.screenName}`,
-    })
-    const tr = h('tr', { class: selected.has(u.id) ? 'selected' : '' },
-      h('td', {}, box),
-      h('td', {}, accountCell(u)),
-      h('td', { class: 'num' }, fmtNum(u.followers)),
-      h('td', {}, h('div', { class: 'tags' },
-        blocked ? h('span', { class: 'tag tag-danger' }, 'Blocked') : null,
-        u.following ? h('span', { class: 'tag tag-ok' }, 'Following') : null,
-        u.followedBy ? h('span', { class: 'tag tag-ok' }, 'Follows you') : null,
-        u.verified ? h('span', { class: 'tag tag-accent' }, 'Verified') : null)),
-      h('td', {}, h('div', { class: 'tags' }, (u.sources ?? []).slice(-2).map((src) => sourceTag(src)))),
-      h('td', { class: 'when', title: new Date(u.collectedAt ?? u.seenAt).toLocaleString() }, fmtAgo(u.collectedAt ?? u.seenAt)))
-    box.addEventListener('change', () => {
-      box.checked ? selected.add(u.id) : selected.delete(u.id)
-      tr.classList.toggle('selected', box.checked)
-      updateSelection()
-    })
-    if (!blocked) {
-      tr.addEventListener('click', (e) => {
-        if (e.target.closest('a, input')) return
-        box.click()
-      })
-    }
-    return tr
-  })
-  if (!rows.length) {
-    rows.push(Object.keys(data.collected).length
-      ? emptyRow(6, 'search', 'No matches', 'Try a different search or turn off the filters.')
-      : emptyRow(6, 'people', 'Nothing collected yet',
-        'On x.com, open a followers, likes, reposts, replies or search page, open the X Blocker panel at the bottom and press Collect.'))
-  }
-  $('c-body').replaceChildren(...rows)
-  $('c-more').textContent = filteredCollected.length > RENDER_LIMIT
-    ? `Showing the latest ${RENDER_LIMIT} of ${nf.format(filteredCollected.length)}. "Select all" includes every match.`
-    : ''
-  updateSelection()
-}
-
-function selectable() {
-  return filteredCollected.filter((u) => !isBlocked(u))
-}
-
-function updateSelection() {
-  const n = selected.size
-  const all = selectable()
-  const box = $('c-select-all')
-  box.checked = n > 0 && all.every((u) => selected.has(u.id))
-  box.indeterminate = n > 0 && !box.checked
-  box.disabled = all.length === 0
-  $('c-selected').textContent = n ? `${nf.format(n)} selected` : `Select all ${all.length ? nf.format(all.length) : ''}`.trim()
-  $('c-queue-selected').disabled = $('c-remove').disabled = n === 0
-  $('c-selection').classList.toggle('active', n > 0)
+  const legacy = counts.legacyCollected
+  $('legacy').hidden = !legacy
+  $('legacy-title').textContent = `${nf.format(legacy)} account${legacy === 1 ? '' : 's'} from your old Collected list`
 }
 
 // ---- queue --------------------------------------------------------------------
 
 function renderQueue() {
   const rows = data.queue.slice(0, RENDER_LIMIT).map((item, i) => {
-    const u = (item.id && data.collected[item.id]) || {}
     return h('tr', {},
       h('td', { class: 'when' }, i + 1),
-      h('td', {}, accountCell(merge(u, item))),
-      h('td', {}, sourceTag(item.source)),
+      h('td', {}, accountCell(item)),
+      h('td', {}, h('div', { class: 'tags' },
+        item.action === 'unblock' ? h('span', { class: 'tag tag-ok' }, 'Unblock') : null,
+        sourceTag(item.source))),
       h('td', { class: 'when', title: new Date(item.addedAt).toLocaleString() }, fmtAgo(item.addedAt)),
       h('td', {}, item.tries ? h('span', { class: 'tag' }, `${item.tries} failed`) : ''),
       h('td', { class: 'num' }, h('button', {
@@ -234,7 +131,7 @@ function renderQueue() {
   })
   if (!rows.length) {
     rows.push(emptyRow(6, 'queue', 'The queue is empty',
-      'Queue accounts from the Collected tab, use Import, or click "Block all" on an x.com page.'))
+      'On an x.com list page, open the X Blocker panel and press Review, or use Import.'))
   }
   $('q-body').replaceChildren(...rows)
   $('q-more').textContent = data.queue.length > RENDER_LIMIT
@@ -243,22 +140,91 @@ function renderQueue() {
 
 // ---- blocked & log ----------------------------------------------------------
 
+// Where a block came from, as shown and filtered on: the list it was reviewed
+// in, "Quick block", an import, or X reporting it as already blocked.
+function blockSource(b) {
+  if (b.source === 'seen') return 'Already blocked on X'
+  return b.reason || 'Manual / import'
+}
+
+function syncBlockedSources() {
+  const select = $('b-source')
+  const sources = [...new Set(Object.values(data.blocked).map(blockSource))].sort()
+  select.hidden = sources.length < 2
+  const current = [...select.options].slice(1).map((o) => o.value)
+  if (sources.join('\n') === current.join('\n')) return
+  const value = select.value
+  select.replaceChildren(h('option', { value: '' }, 'All sources'), ...sources.map((src) => h('option', { value: src }, src)))
+  select.value = sources.includes(value) ? value : ''
+}
+
 function blockedList() {
   const q = $('b-filter').value.trim().toLowerCase()
+  const source = $('b-source').value
   return Object.values(data.blocked)
+    .filter((b) => !source || blockSource(b) === source)
     .filter((b) => !q || `${b.screenName ?? ''} ${b.name ?? ''} ${b.id}`.toLowerCase().includes(q))
     .sort((a, b) => b.at - a.at)
 }
 
 function renderBlocked() {
-  const list = blockedList()
-  const rows = list.slice(0, RENDER_LIMIT).map((b) => h('tr', {},
-    h('td', {}, accountCell(merge(data.collected[b.id], b))),
-    h('td', {}, b.source === 'seen' ? h('span', { class: 'tag' }, 'Already blocked on X') : sourceTag(b.reason)),
-    h('td', { class: 'when', title: new Date(b.at).toLocaleString() }, fmtAgo(b.at))))
-  if (!rows.length) rows.push(emptyRow(3, 'block', 'No blocks yet', 'Accounts you block will be listed here.'))
+  syncBlockedSources()
+  const queued = queueKeys(data.queue)
+  filteredBlocked = blockedList()
+  for (const id of selected) if (!data.blocked[id] || isQueued({ id }, queued)) selected.delete(id)
+  const rows = filteredBlocked.slice(0, RENDER_LIMIT).map((b) => {
+    const pending = isQueued(b, queued)
+    const box = h('input', {
+      type: 'checkbox', checked: selected.has(b.id), disabled: pending,
+      'aria-label': `Select ${b.screenName ? `@${b.screenName}` : b.id}`,
+    })
+    const tr = h('tr', { class: selected.has(b.id) ? 'selected' : '' },
+      h('td', {}, box),
+      h('td', {}, accountCell(b)),
+      h('td', {}, h('div', { class: 'tags' },
+        pending ? h('span', { class: 'tag tag-ok' }, 'Unblocking') : null,
+        b.source === 'seen' ? h('span', { class: 'tag' }, blockSource(b)) : sourceTag(b.reason))),
+      h('td', { class: 'when', title: new Date(b.at).toLocaleString() }, fmtAgo(b.at)))
+    box.addEventListener('change', () => {
+      box.checked ? selected.add(b.id) : selected.delete(b.id)
+      tr.classList.toggle('selected', box.checked)
+      updateSelection()
+    })
+    if (!pending) {
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('a, input')) return
+        box.click()
+      })
+    }
+    return tr
+  })
+  if (!rows.length) {
+    rows.push(Object.keys(data.blocked).length
+      ? emptyRow(4, 'search', 'No matches', 'Try a different search or source.')
+      : emptyRow(4, 'block', 'No blocks yet', 'Accounts you block will be listed here.'))
+  }
   $('b-body').replaceChildren(...rows)
-  $('b-more').textContent = list.length > RENDER_LIMIT ? `Showing ${RENDER_LIMIT} of ${nf.format(list.length)}` : ''
+  $('b-more').textContent = filteredBlocked.length > RENDER_LIMIT
+    ? `Showing ${RENDER_LIMIT} of ${nf.format(filteredBlocked.length)}. "Select all" includes every match.` : ''
+  updateSelection()
+}
+
+function selectable() {
+  const queued = queueKeys(data.queue)
+  return filteredBlocked.filter((b) => !isQueued(b, queued))
+}
+
+function updateSelection() {
+  const n = selected.size
+  const all = selectable()
+  const box = $('b-select-all')
+  box.checked = n > 0 && all.every((b) => selected.has(b.id))
+  box.indeterminate = n > 0 && !box.checked
+  box.disabled = all.length === 0
+  $('b-selected').textContent = n ? `${nf.format(n)} selected` : `Select all ${all.length ? nf.format(all.length) : ''}`.trim()
+  $('b-unblock').disabled = n === 0
+  $('b-unblock').textContent = n ? `Unblock ${nf.format(n)}` : 'Unblock'
+  $('b-selection').classList.toggle('active', n > 0)
 }
 
 function renderLog() {
@@ -296,8 +262,6 @@ function renderSettings() {
 function readSettings() {
   const f = $('settings').elements
   return {
-    collectAlways: f.collectAlways.checked,
-    autoScroll: f.autoScroll.checked,
     inPageButtons: f.inPageButtons.checked,
     // Delays are edited in seconds and stored in milliseconds.
     delayMs: Math.max(2000, Math.round((Number(f.delaySec.value) || 0) * 1000)),
@@ -333,7 +297,7 @@ $('settings').addEventListener('submit', (e) => e.preventDefault())
 // ---- wiring -------------------------------------------------------------------
 
 const renderers = {
-  collected: renderCollected, queue: renderQueue, import: () => {}, blocked: renderBlocked,
+  queue: renderQueue, import: () => {}, blocked: renderBlocked,
   log: renderLog, settings: renderSettings,
 }
 
@@ -341,7 +305,7 @@ async function refresh(changed) {
   const needs = NEEDS[currentTab]
   const keys = changed ? needs.filter((k) => changed.includes(k)) : needs
   const res = await send('data:get', { keys })
-  data = { collected: {}, queue: [], blocked: {}, log: [], ...data, ...res }
+  data = { queue: [], blocked: {}, log: [], ...data, ...res }
   renderChrome()
   // Skip re-rendering big tables when nothing they show has changed.
   if (!changed || keys.length || currentTab === 'settings') renderers[currentTab]()
@@ -362,44 +326,23 @@ function switchTab(name) {
 hydrateIcons()
 $('version').textContent = `v${browser.runtime.getManifest().version}`
 for (const b of document.querySelectorAll('#tabs .nav-item')) b.addEventListener('click', () => switchTab(b.dataset.tab))
-document.querySelector('.brand').addEventListener('click', (e) => { e.preventDefault(); switchTab('collected') })
+document.querySelector('.brand').addEventListener('click', (e) => { e.preventDefault(); switchTab('queue') })
 
 $('start').addEventListener('click', () => action(() => send('runner:start')))
 $('pause').addEventListener('click', () => action(() => send('runner:pause')))
 $('q-start').addEventListener('click', () => $('start').click())
 $('q-pause').addEventListener('click', () => $('pause').click())
 
-$('c-filter').addEventListener('input', renderCollected)
-$('c-source').addEventListener('change', renderCollected)
-for (const id of ['c-hide-blocked', 'c-hide-following']) {
-  $(id).addEventListener('click', () => {
-    $(id).setAttribute('aria-pressed', String(!pressed(id)))
-    renderCollected()
-  })
-}
-$('c-select-all').addEventListener('change', (e) => {
-  if (e.target.checked) for (const u of selectable()) selected.add(u.id)
-  else selected.clear()
-  renderCollected()
-})
-$('c-queue-selected').addEventListener('click', () => action(async () => {
-  const r = await send('queue:addCollected', { ids: [...selected] })
-  selected.clear()
+$('legacy-queue').addEventListener('click', () => action(async () => {
+  const r = await send('legacy:queue')
   toast(`${nf.format(r.added)} added to the queue${r.skipped ? ` · ${nf.format(r.skipped)} already queued or blocked` : ''}`)
 }))
-$('c-remove').addEventListener('click', () => action(async () => {
-  await send('collected:remove', { ids: [...selected] })
-  selected.clear()
-}))
-$('c-export').addEventListener('click', () =>
-  download('x-blocker-collected.csv', toCsv(filteredCollected,
-    ['id', 'screenName', 'name', 'followers', 'verified', 'following', 'followedBy', 'description', 'sources'])))
-$('c-clear').addEventListener('click', async () => {
+$('legacy-discard').addEventListener('click', async () => {
   if (await confirmDialog({
-    title: 'Clear collected accounts?',
-    body: 'This only empties the list in X Blocker. Nobody is blocked or unblocked.',
-    confirmLabel: 'Clear list',
-  })) action(() => send('collected:clear'))
+    title: 'Discard the old Collected list?',
+    body: 'These accounts are forgotten. Nobody is blocked or unblocked.',
+    confirmLabel: 'Discard',
+  })) action(() => send('legacy:discard'))
 })
 
 $('q-clear').addEventListener('click', async () => {
@@ -435,6 +378,30 @@ $('i-add').addEventListener('click', () => action(async () => {
 }))
 
 $('b-filter').addEventListener('input', renderBlocked)
+$('b-source').addEventListener('change', renderBlocked)
+$('b-select-all').addEventListener('change', (e) => {
+  if (e.target.checked) for (const b of selectable()) selected.add(b.id)
+  else selected.clear()
+  renderBlocked()
+})
+$('b-unblock').addEventListener('click', async () => {
+  const items = [...selected].map((id) => data.blocked[id]).filter(Boolean)
+    .map((b) => ({ id: b.id, screenName: b.screenName, source: blockSource(b) }))
+  if (!items.length) return
+  const n = items.length
+  if (!await confirmDialog({
+    title: `Unblock ${nf.format(n)} account${n === 1 ? '' : 's'}?`,
+    body: 'They are unblocked one by one in an x.com tab, at the same pace and limits as blocking. ' +
+      'You can pause or remove them from the queue until then.',
+    confirmLabel: 'Unblock',
+  })) return
+  action(async () => {
+    const r = await send('blocked:unblock', { items })
+    if (r?.error) throw new Error(r.error)
+    selected.clear()
+    toast(`${nf.format(r.added)} queued for unblocking${r.skipped ? ` · ${nf.format(r.skipped)} skipped` : ''}`)
+  })
+})
 $('b-export').addEventListener('click', () =>
   download('x-blocker-blocked.csv', toCsv(blockedList(), ['id', 'screenName', 'name', 'at', 'reason'])))
 $('b-clear').addEventListener('click', async () => {
@@ -448,7 +415,7 @@ $('l-clear').addEventListener('click', () => action(() => send('log:clear')))
 $('reset-settings').addEventListener('click', async () => {
   if (await confirmDialog({
     title: 'Reset all settings?',
-    body: 'Every setting goes back to its default. Your never-block list, collected accounts, queue and history are kept.',
+    body: 'Every setting goes back to its default. Your never-block list, queue and history are kept.',
     confirmLabel: 'Reset settings',
   })) {
     clearTimeout(saveTimer)
@@ -460,12 +427,12 @@ $('reset-settings').addEventListener('click', async () => {
 $('wipe').addEventListener('click', async () => {
   if (await confirmDialog({
     title: 'Delete all X Blocker data?',
-    body: 'Collected accounts, the queue, block history and activity are erased from this browser. ' +
+    body: 'The queue, block history and activity are erased from this browser. ' +
       'Settings are kept. Nobody is unblocked on X.',
     confirmLabel: 'Delete everything',
   })) action(() => send('data:wipe'))
 })
 
 onStateChange((changed) => refresh(changed).catch(() => {}), 400)
-switchTab(location.hash.slice(1) in renderers ? location.hash.slice(1) : 'collected')
+switchTab(location.hash.slice(1) in renderers ? location.hash.slice(1) : 'queue')
 refresh().catch((e) => toast(e, { error: true }))

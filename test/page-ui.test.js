@@ -72,7 +72,8 @@ async function load(body, { path = '/target/followers', search = '', respond = (
       browser,
       send: (m) => browser.runtime.sendMessage(m),
       callMain: async (cmd) => (cmd === 'status' ? { viewerId: '1' } : {}),
-      setScrolling() {},
+      scroll: null,
+      setScrolling(on, onDone) { ctx.__xBlockerBridge.scroll = { on, onDone } },
     },
   }
   vm.createContext(ctx)
@@ -93,6 +94,7 @@ async function load(body, { path = '/target/followers', search = '', respond = (
     store,
     storageChanged: (changes, area = 'local') => changedListeners.forEach((f) => f(changes, area)),
     location,
+    scroll: () => ctx.__xBlockerBridge.scroll,
     click: async (selector) => { document.getElementById('xb-root').shadowRoot.querySelector(selector).click(); await sleep(250) },
     mutate: async (records) => { observerCb(records); await sleep(50) },
   }
@@ -218,41 +220,29 @@ test('panel starts minimized on list pages', async () => {
   assert.ok(page.shadow().querySelector('.panel'))
 })
 
-test('nothing is collected until Collect is switched on, then only this list', async () => {
+test('the panel counts this list and saves nothing until Review', async () => {
   const page = await load(`<main>${cell('target')}${cell('alice', { bio: `hi ${mention('friend')} there and more` })}${cell('bob')}
-    <aside>${cell('sidebar_acct')}</aside></main>`, {
-    respond: (m) => (m.type === 'page:collect' ? { collected: m.screenNames, missing: []} : {}),
-  })
-  const collects = () => page.sent.filter((m) => m.type === 'page:collect')
-  await sleep(900)
-  assert.equal(collects().length, 0)
-
+    <aside>${cell('sidebar_acct')}</aside></main>`)
   await page.click('.fab')
-  await page.click('.btn-collect')
   await sleep(900)
-  assert.equal(collects().length, 1)
-  assert.deepEqual([...collects()[0].screenNames], ['alice', 'bob'])
-  assert.equal(collects()[0].source, 'Followers of @target')
-  assert.match(page.shadow().querySelector('.sub').textContent, /Collecting · 2 collected/)
+  assert.equal(page.shadow().querySelector('.sub').textContent, '2 loaded so farLoad all')
+  assert.equal(page.shadow().querySelector('.btn-collect'), null)
+  assert.deepEqual(page.sent.filter((m) => m.type !== 'page:lookup' && m.type !== 'page:progress' &&
+    m.type !== 'page:config' && m.type !== 'page:viewer').map((m) => m.type), [])
 })
 
-test('leaving the page stops collecting but keeps the panel open', async () => {
-  const page = await load(`<main>${cell('alice')}</main>`, {
-    respond: (m) => (m.type === 'page:collect' ? { collected: m.screenNames, missing: []} : {}),
-  })
+test('leaving the page keeps the panel open', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`)
   await page.click('.fab')
-  await page.click('.btn-collect')
-  await sleep(900)
   page.location.pathname = '/friend/following'
   const row = page.document.createElement('div')
   row.innerHTML = cell('friend_of_friend')
   page.document.querySelector('main').append(row)
   await page.mutate([{ type: 'childList', target: row, addedNodes: [row] }])
-  await sleep(1200)
-  const collected = page.sent.filter((m) => m.type === 'page:collect').flatMap((m) => [...m.screenNames])
-  assert.deepEqual(collected, ['alice'])
+  await sleep(400)
   assert.ok(page.shadow().querySelector('.panel'))
   assert.equal(page.shadow().querySelector('.fab'), null)
+  assert.equal(page.shadow().querySelector('.title').textContent, 'Accounts @friend follows')
 })
 
 test('the panel remembers the minimized state, across pages and tabs', async () => {
@@ -284,121 +274,75 @@ test('the panel remembers the minimized state, across pages and tabs', async () 
   assert.equal(reopened.shadow().querySelector('.fab'), null)
 })
 
-const COLLECTED = [
-  { id: '11', screenName: 'spam_a', name: 'Spam A', sources: ['Followers of @x'] },
-  { id: '12', screenName: 'friend_b', name: 'Friend B', following: true, sources: ['Replies to @y\'s post'] },
-]
-const respondCollected = (m) => {
-  if (m.type === 'page:collectedList') return COLLECTED
+const respondReview = (m) => {
   if (m.type === 'page:massBlock') return { added: m.items.length, skipped: 0 }
   if (m.type === 'page:quota') return { used: 0, cap: 450, allowed: true }
   return {}
 }
 
-test('unticked accounts can be removed from the Collected list', async () => {
-  const page = await load(`<main>${cell('a1')}${cell('a2')}</main>`, {
-    respond: (m) => {
-      if (m.type === 'page:uncollect') return { removed: m.items.map((i) => i.screenName) }
-      if (m.type === 'page:lookup') return { a1: { collected: true }, a2: { collected: true } }
-      return respondCollected(m)
-    },
-  })
-  await page.click('.fab')
-  page.message({ type: 'page:progress', runner: null, queueLen: 0, collectedCount: 2 })
-  await sleep(200)
-  await page.click('.btn-danger')
-  const dialog = page.shadow().querySelector('.review')
-  const remove = dialog.querySelector('.bar .uncollect')
-  assert.equal(remove.textContent, 'Remove 2 from Collected')
-  assert.equal(dialog.querySelector('.bar .unqueue').hidden, true)
-
-  // Like the dashboard: the button acts on the ticked rows.
-  const boxes = [...dialog.querySelectorAll('li input')]
-  boxes[0].checked = false
-  boxes[0].dispatchEvent(new page.document.defaultView.Event('change'))
-  await sleep(20)
-  assert.equal(remove.textContent, 'Remove 1 from Collected')
-
-  remove.click()
-  await sleep(250)
-  const sent = page.sent.find((m) => m.type === 'page:uncollect')
-  assert.deepEqual(JSON.parse(JSON.stringify(sent.items)), [{ screenName: 'a2' }])
-  assert.equal(page.sent.filter((m) => m.type === 'page:massBlock').length, 0)
-  // Still on the page, so still in "This list".
-  assert.equal(dialog.querySelectorAll('li input').length, 2)
-  assert.equal(remove.textContent, 'Remove 0 from Collected')
-  assert.equal(remove.disabled, true)
-  assert.equal(dialog.querySelectorAll('.tab')[1].textContent, 'Total collected · 1')
-})
-
-test('remove buttons only count accounts that are collected or queued', async () => {
+test('review queues the ticked accounts; friends and queued accounts start unticked', async () => {
   const page = await load(`<main>${cell('a1')}${cell('a2')}${cell('a3')}</main>`, {
     respond: (m) => {
-      if (m.type === 'page:lookup') return { a1: { collected: true }, a2: { queued: true } }
+      if (m.type === 'page:lookup') return { a1: { id: '1' }, a2: { id: '2', queued: true }, a3: { id: '3', following: true } }
       if (m.type === 'page:unqueue') return { removed: m.items.map((i) => i.screenName) }
-      return respondCollected(m)
+      return respondReview(m)
     },
   })
   await page.click('.fab')
   await page.click('.btn-danger')
   const dialog = page.shadow().querySelector('.review')
-  const uncollect = dialog.querySelector('.bar .uncollect')
+  const boxes = () => [...dialog.querySelectorAll('li input')].map((b) => b.checked)
+  const block = dialog.querySelector('.rf .btn-danger')
   const unqueue = dialog.querySelector('.bar .unqueue')
-  assert.equal(uncollect.textContent, 'Remove 1 from Collected')
-  assert.equal(unqueue.textContent, 'Remove 1 from queue')
+  assert.deepEqual(boxes(), [true, false, false])
+  assert.equal(block.textContent, 'Block 1')
   assert.equal(unqueue.hidden, false)
+  assert.equal(unqueue.disabled, true)
 
+  // Ticking a queued account only enables "Remove from queue"; it isn't blocked twice.
+  const queuedBox = dialog.querySelectorAll('li input')[1]
+  queuedBox.checked = true
+  queuedBox.dispatchEvent(new page.document.defaultView.Event('change'))
+  await sleep(20)
+  assert.equal(block.textContent, 'Block 1')
+  assert.equal(unqueue.textContent, 'Remove 1 from queue')
   unqueue.click()
   await sleep(250)
   const sent = page.sent.find((m) => m.type === 'page:unqueue')
-  assert.deepEqual(JSON.parse(JSON.stringify(sent.items)), [{ screenName: 'a2' }])
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.items)), [{ id: '2', screenName: 'a2' }])
   assert.equal(unqueue.hidden, true)
+  assert.deepEqual(boxes(), [true, false, false], 'taken out of the queue means not blocked')
+
+  block.click()
+  await sleep(50)
+  const queued = page.sent.find((m) => m.type === 'page:massBlock')
+  assert.deepEqual(JSON.parse(JSON.stringify(queued.items)), [{ screenName: 'a1', id: '1', source: 'Followers of @target' }])
 })
 
-test('collected total is shown and reviewable from a page that is not a list', async () => {
-  const page = await load(`<main>${post('someone')}</main>`, { path: '/home', respond: respondCollected })
-  assert.equal(page.shadow()?.querySelector('.fab'), undefined) // nothing collected yet: no pill
-  page.message({ type: 'page:progress', runner: null, queueLen: 0, collectedCount: 2 })
+test('on other pages the panel only shows while the queue runs', async () => {
+  const page = await load(`<main>${post('someone')}</main>`, { path: '/home', respond: respondReview })
+  assert.equal(page.shadow()?.querySelector('.fab'), undefined)
+  page.message({ type: 'page:progress', runner: { state: 'running', done: 4, failed: 0, skipped: 1, lastBeat: Date.now() }, queueLen: 9 })
   await sleep(250)
-  assert.match(page.shadow().querySelector('.fab').textContent, /X Blocker · 2 collected/)
+  assert.equal(page.shadow().querySelector('.fab').textContent, 'Blocking 5/14')
   await page.click('.fab')
-  assert.equal(page.shadow().querySelector('.sub').textContent, '2 accounts collected, ready to review')
-
-  assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'Review')
-  await page.click('.btn-danger')
-  const dialog = page.shadow().querySelector('.review')
-  assert.ok(dialog.querySelector('.tabs').hidden) // single tab
-  const names = [...dialog.querySelectorAll('li .hd')].map((e) => e.textContent)
-  assert.deepEqual(names, ['@spam_a', '@friend_b'])
-  assert.equal(dialog.querySelector('li .from').textContent, 'Followers of @x')
-  // The friend starts unticked, so only spam_a is blocked.
-  await page.click('.review .btn-danger')
-  const block = page.sent.find((m) => m.type === 'page:massBlock')
-  assert.deepEqual(JSON.parse(JSON.stringify(block.items)), [{ screenName: 'spam_a', id: '11', source: 'Followers of @x' }])
+  assert.equal(page.shadow().querySelector('.title').textContent, 'Block queue')
+  assert.equal(page.shadow().querySelector('.panel .btn-danger').hidden, true)
 })
 
-test('on a list page the review offers this list and the Collected list', async () => {
-  const page = await load(`<main>${cell('alice')}${cell('bob')}</main>`, { respond: respondCollected })
-  page.message({ type: 'page:progress', runner: null, queueLen: 0, collectedCount: 2 })
-  await sleep(250)
+test('a run of unblocks reports unblocking, not blocking', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`)
   await page.click('.fab')
-  assert.equal(page.shadow().querySelector('.sub').textContent, '2 accounts in this list · 2 in Collected')
-  await page.click('.btn-danger') 
-  const dialog = page.shadow().querySelector('.review')
-  const tabs = [...dialog.querySelectorAll('.tab')]
-  assert.deepEqual(tabs.map((t) => t.textContent), ['This list · 2', 'Total collected · 2'])
-  assert.deepEqual([...dialog.querySelectorAll('li .hd')].map((e) => e.textContent), ['@alice', '@bob'])
-
-  tabs[1].click()
-  await sleep(150)
-  assert.deepEqual([...dialog.querySelectorAll('li .hd')].map((e) => e.textContent), ['@spam_a', '@friend_b'])
-  await page.click('.review .btn-danger')
-  const block = page.sent.find((m) => m.type === 'page:massBlock')
-  assert.deepEqual(block.items.map((i) => i.screenName), ['spam_a']) // only the active tab
+  page.message({ type: 'page:progress', runner: { state: 'running', done: 0, unblocked: 2, failed: 0, skipped: 0, lastBeat: Date.now() }, queueLen: 3 })
+  await sleep(200)
+  assert.equal(page.shadow().querySelector('.sub').textContent, 'Unblocking · 2 of 5')
+  page.message({ type: 'page:progress', runner: { state: 'idle', done: 0, unblocked: 5, failed: 0, skipped: 0, lastBeat: Date.now() }, queueLen: 0 })
+  await sleep(200)
+  assert.equal(page.shadow().querySelector('.sub').textContent, 'Done · 5 unblocked')
 })
 
 test('the review dialog links each handle to its profile without changing the tick', async () => {
-  const page = await load(`<main>${cell('a1')}</main>`, { respond: respondCollected })
+  const page = await load(`<main>${cell('a1')}</main>`, { respond: respondReview })
   await page.click('.fab')
   await page.click('.btn-danger')
   const dialog = page.shadow().querySelector('.review')
@@ -413,7 +357,7 @@ test('the review dialog links each handle to its profile without changing the ti
 })
 
 test('select all works after unticking everyone', async () => {
-  const page = await load(`<main>${cell('a1')}${cell('a2')}${cell('a3')}</main>`, { respond: respondCollected })
+  const page = await load(`<main>${cell('a1')}${cell('a2')}${cell('a3')}</main>`, { respond: respondReview })
   await page.click('.fab')
   await page.click('.btn-danger')
   const dialog = page.shadow().querySelector('.review')
@@ -432,39 +376,53 @@ test('select all works after unticking everyone', async () => {
   assert.deepEqual(ticked(), [true, true, true])
 })
 
-test('accounts removed in Review stay out while collecting, and come back on a fresh Collect', async () => {
-  const page = await load(`<main>${cell('a1')}${cell('a2')}</main>`, {
+test('the panel says how much of the list is loaded and can load the rest', async () => {
+  const page = await load(`<main>${cell('alice')}${cell('bob')}</main>`, {
     respond: (m) => {
-      if (m.type === 'page:collect') return { collected: m.screenNames, missing: [] }
-      if (m.type === 'page:lookup') return { a1: { collected: true }, a2: { collected: true } }
-      if (m.type === 'page:uncollect') return { removed: m.items.map((i) => i.screenName) }
-      return respondCollected(m)
+      if (m.type === 'page:lookup' && m.screenNames.includes('target')) return { target: { followers: 17376 } }
+      return respondReview(m)
     },
   })
   await page.click('.fab')
-  await page.click('.btn-collect')
-  await sleep(900)
-  const collectBtn = page.shadow().querySelector('.btn-collect')
-  assert.equal(collectBtn.textContent, 'Collecting · 2')
+  await sleep(300)
+  const sub = () => page.shadow().querySelector('.sub').textContent
+  assert.equal(sub(), '2 loaded of ~17.4KLoad all')
+  assert.equal(page.shadow().querySelector('.sub .chip').textContent, 'Load all')
 
-  await page.click('.btn-danger')
-  const dialog = page.shadow().querySelector('.review')
-  dialog.querySelector('.bar .uncollect').click()
+  await page.click('.sub .chip')
+  assert.equal(page.scroll().on, true)
+  assert.equal(sub(), 'Loading 2 of ~17.4KStop')
+  assert.equal(page.shadow().querySelector('.run').hidden, true, 'one icon per line')
+  assert.equal(page.shadow().querySelector('.sub .dot').hidden, false)
+
+  // The review says it is only part of the list, and offers to load the rest.
+  page.scroll().onDone(false)
+  await page.click('.panel .btn-danger')
+  const note = page.shadow().querySelector('.review .rh p').textContent
+  assert.match(note, /You're reviewing the 2 loaded of ~17\.4K\. Load all$/)
+  page.shadow().querySelector('.review .rh .link').click()
+  await sleep(50)
+  assert.equal(page.shadow().querySelector('.review'), null)
+  assert.equal(page.scroll().on, true)
+
+  // Scrolling reached the end of the list.
+  page.scroll().onDone(true)
+  await sleep(200)
+  assert.equal(sub(), '✓All 2 loaded')
+  assert.match(page.shadow().querySelector('.toasts').textContent, /All 2 accounts in this list loaded/)
+})
+
+test('accounts loaded by scrolling show up in the counts, even when minimized', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, { respond: respondReview })
+  const fab = () => page.shadow().querySelector('.fab')
+  assert.equal(fab().textContent, 'X Blocker · 1 loaded')
+  const row = page.document.createElement('div')
+  row.innerHTML = cell('bob') + cell('carol')
+  page.document.querySelector('main').append(row)
+  await page.mutate([{ type: 'childList', target: row, addedNodes: [row] }])
   await sleep(250)
-  assert.equal(collectBtn.textContent, 'Collecting · 0')
-
-  // Still collecting: later scans skip them.
-  dialog.querySelector('.rf .btn-outline').click()
-  page.message({ type: 'page:progress', runner: null, queueLen: 0, collectedCount: 0 })
-  await sleep(900)
-  const collects = () => page.sent.filter((m) => m.type === 'page:collect')
-  assert.equal(collects().length, 1)
-  assert.equal(collectBtn.textContent, 'Collecting · 0')
-
-  // Switching Collect off and on is a fresh start: they are collected again.
-  await page.click('.btn-collect')
-  await page.click('.btn-collect')
-  await sleep(900)
-  assert.deepEqual([...collects().at(-1).screenNames].sort(), ['a1', 'a2'])
-  assert.equal(collectBtn.textContent, 'Collecting · 2')
+  assert.equal(fab().textContent, 'X Blocker · 3 loaded')
+  assert.ok(fab().classList.contains('bump'))
+  await page.click('.fab')
+  assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'Review 3')
 })

@@ -149,14 +149,14 @@
 
   // X limits each endpoint separately, so a 429 says which limit was hit:
   // 'lookup' (resolving @names) or 'block' (the block mutation itself).
-  async function api(method, path, { variables, body, scope } = {}) {
+  async function api(method, path, { variables, body, form, scope } = {}) {
     const url = new URL(path, API_ORIGIN)
     if (variables && method === 'GET') url.searchParams.set('variables', JSON.stringify(variables))
     const csrf = cookie('ct0')
     if (!csrf) throw new ApiError('auth', 'Not logged in to x.com (missing ct0 cookie)')
     const headers = new Headers({
       authorization: 'Bearer ' + (await bearer()),
-      'content-type': 'application/json',
+      'content-type': form ? 'application/x-www-form-urlencoded' : 'application/json',
       'x-csrf-token': csrf,
       'x-twitter-active-user': 'yes',
       'x-twitter-auth-type': 'OAuth2Session',
@@ -171,7 +171,7 @@
     const res = await nativeFetch(url.href, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: form ? new URLSearchParams(form).toString() : body === undefined ? undefined : JSON.stringify(body),
       credentials: 'include',
       mode: 'cors',
     })
@@ -224,6 +224,15 @@
       const msg = json?.errors?.map((e) => e.message).join('; ') || typename || 'Unknown block response'
       if (codes.includes(88)) throw new ApiError('rate_limit', msg, { scope: 'block' })
       if (codes.some((c) => [32, 64, 215, 326].includes(c))) throw new ApiError('forbidden', msg)
+      throw new ApiError(/not.?found|suspend/i.test(msg) ? 'not_found' : 'failed', msg)
+    },
+
+    // x-web unblocks through the REST endpoint (the same one its Unblock button uses).
+    async unblock({ userId }) {
+      if (!/^\d+$/.test(String(userId))) throw new ApiError('invalid', 'Invalid user id')
+      const json = await api('POST', '/1.1/blocks/destroy.json', { form: { user_id: String(userId) }, scope: 'block' })
+      if (String(json?.id_str ?? json?.id ?? '') === String(userId)) return { ok: true }
+      const msg = json?.errors?.map((e) => e.message).join('; ') || 'Unknown unblock response'
       throw new ApiError(/not.?found|suspend/i.test(msg) ? 'not_found' : 'failed', msg)
     },
   }

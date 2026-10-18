@@ -2,13 +2,13 @@
 // Background (Firefox event page / Chrome service worker): single source of
 // truth for extension state.
 // - Accounts seen in X's responses go into a session-only "seen" cache used for
-//   safety checks and lookups. They are added to the Collected list only when
-//   the user collects a list (or enables "always collect").
+//   safety checks and lookups. Nothing is saved until the user queues accounts.
 // - Captures users from X GraphQL responses: on Firefox passively via
 //   webRequest.filterResponseData; on Chrome, which has no response-body API,
 //   from bodies forwarded by content/capture-hook.js.
-// - Owns the block queue; an x.com tab (content/bridge.js) executes it and
-//   asks for one item at a time, so progress survives reloads and restarts.
+// - Owns the queue of blocks and unblocks; an x.com tab (content/bridge.js)
+//   executes it and asks for one item at a time, so progress survives reloads
+//   and restarts.
 import { browser, onMessage } from './lib/compat.js'
 import { extractUsers } from './lib/extract-users.js'
 import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
@@ -17,8 +17,6 @@ import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 // logged out after several hundred blocks in a burst, so the defaults spread
 // blocks out (avg ~6 s, at most 150 an hour) rather than only capping the day.
 const DEFAULT_SETTINGS = {
-  collectAlways: false,
-  autoScroll: false,
   inPageButtons: true,
   delayMs: 4000,
   jitterMs: 4000,
@@ -39,12 +37,15 @@ const DEFAULT_RUNNER = {
   message: '',
   limit: '', // what the cooldown waits for: block | lookup | daily
   done: 0,
+  unblocked: 0,
   failed: 0,
   skipped: 0,
   strikes: 0, // consecutive rate limits, for exponential cooldown
 }
 const DEFAULTS = {
   settings: DEFAULT_SETTINGS,
+  // Legacy: the old Collected list. No longer filled; the dashboard offers to
+  // queue or discard what is left, once.
   collected: {},
   queue: [],
   blocked: {},
@@ -52,7 +53,6 @@ const DEFAULTS = {
   log: [],
   runner: DEFAULT_RUNNER,
 }
-const MAX_COLLECTED = 50_000
 const COLLECTED_TTL = 30 * 24 * 60 * 60 * 1000 // data minimisation: forget profiles after 30 days
 const MAX_COOLDOWN_MIN = 240
 // Consecutive 429s for which X's own reset time is trusted before backing off.
@@ -97,7 +97,7 @@ const BIG_KEYS = new Set(['collected', 'blocked', 'log', 'blockTimes'])
 let cache = null
 let lock = Promise.resolve()
 
-const SETTINGS_VERSION = 4
+const SETTINGS_VERSION = 5
 const MIN = { delayMs: 2000, jitterMs: 0, cooldownMin: 1, hourlyCap: 0, dailyCap: 0 }
 
 // v1 shipped with 3 s delay and no daily limit, which can get accounts
@@ -113,6 +113,10 @@ function migrateSettings(st) {
   // v4: an hourly limit spreads blocks out, so the daily one can be looser.
   // Only an untouched old default moves; a value the user chose is kept.
   if ((st.version ?? 1) < 4 && st.dailyCap === 450) st.dailyCap = DEFAULT_SETTINGS.dailyCap
+  // v5: accounts are reviewed and queued straight from the page; no collecting.
+  // Loading a whole list is a panel action now, not an opt-in button.
+  delete st.collectAlways
+  delete st.autoScroll
   st.version = SETTINGS_VERSION
   return st
 }
@@ -178,7 +182,7 @@ function notify(keys) {
   }, 250)
 }
 
-// Collected accounts that are still blockable (not blocked, not queued).
+// Accounts left in the legacy Collected list that are still blockable.
 function pendingCollected(s) {
   const queued = queueKeys(s.queue)
   return Object.values(s.collected)
@@ -187,10 +191,7 @@ function pendingCollected(s) {
 
 function progressPayload() {
   const { token, ...runner } = cache.runner
-  return {
-    type: 'page:progress', runner, queueLen: cache.queue.length, last24h: last24h(cache),
-    collectedCount: pendingCollected(cache).length,
-  }
+  return { type: 'page:progress', runner, queueLen: cache.queue.length, last24h: last24h(cache) }
 }
 
 async function broadcastProgress() {
@@ -288,17 +289,8 @@ function flushCollected() {
   collectBuffer.clear()
   return exclusive(async (s) => {
     const now = Date.now()
-    const always = s.settings.collectAlways
     for (const u of users) {
       rememberSeen(u, now)
-      // Already-collected accounts stay up to date; new ones only in "always" mode.
-      if (always || s.collected[u.id]) {
-        const merged = { ...s.collected[u.id] }
-        for (const [k, v] of Object.entries(u)) if (v !== undefined && v !== '') merged[k] = v
-        merged.seenAt = now
-        if (always && !merged.sources?.length) merged.sources = ['Collected automatically']
-        s.collected[u.id] = merged
-      }
       const record = s.blocked[u.id]
       if (u.blocking && !record) {
         s.blocked[u.id] = { id: u.id, screenName: u.screenName, name: u.name, at: now, source: 'seen' }
@@ -315,11 +307,6 @@ function flushCollected() {
       if (now - (u.seenAt ?? 0) > COLLECTED_TTL) delete s.collected[id]
     }
     snIndex = null
-    const ids = Object.keys(s.collected)
-    if (ids.length > MAX_COLLECTED) {
-      ids.sort((a, b) => s.collected[a].seenAt - s.collected[b].seenAt)
-      for (const id of ids.slice(0, ids.length - MAX_COLLECTED)) delete s.collected[id]
-    }
     saveSeen()
     await save('collected', 'blocked')
   })
@@ -370,6 +357,10 @@ function findCollected(s, item) {
 function skipReason(s, item) {
   const u = findCollected(s, item)
   const id = item.id ?? u?.id
+  if (item.action === 'unblock') {
+    // Only undo what is (still) recorded as blocked.
+    return id && s.blocked[id] ? null : 'not blocked'
+  }
   const sn = (item.screenName ?? u?.screenName ?? '').toLowerCase()
   if (id && s.blocked[id]) return 'already blocked'
   if (u?.blocking) return 'already blocked'
@@ -380,7 +371,9 @@ function skipReason(s, item) {
   return null
 }
 
-function addToQueue(s, items) {
+// Adds blocks (default) or unblocks to the queue. An account is in the queue
+// at most once; unblocks need a known ID and an account recorded as blocked.
+function addToQueue(s, items, action = 'block') {
   const existing = new Set(s.queue.map(itemKey))
   for (const q of s.queue) if (q.id && q.screenName) existing.add(itemKey({ screenName: q.screenName }))
   let added = 0
@@ -394,7 +387,10 @@ function addToQueue(s, items) {
     if (!item.id && !item.screenName) continue
     const known = findCollected(s, item)
     if (known) Object.assign(item, { id: known.id, screenName: known.screenName })
-    if (existing.has(itemKey(item)) || (item.id && s.blocked[item.id])) { skipped++; continue }
+    if (action === 'unblock') {
+      if (!item.id || !s.blocked[item.id] || existing.has(itemKey(item))) { skipped++; continue }
+      item.action = 'unblock'
+    } else if (existing.has(itemKey(item)) || (item.id && s.blocked[item.id])) { skipped++; continue }
     existing.add(itemKey(item))
     if (item.screenName) existing.add(itemKey({ screenName: item.screenName }))
     s.queue.push({ ...item, addedAt: Date.now(), tries: 0 })
@@ -412,9 +408,9 @@ function removeFromQueue(s, item) {
   })
 }
 
-function markBlocking(s, id) {
-  if (s.collected[id]) s.collected[id].blocking = true
-  if (seen.has(id)) seen.get(id).blocking = true
+function markBlocking(s, id, value = true) {
+  if (s.collected[id]) s.collected[id].blocking = value
+  if (seen.has(id)) seen.get(id).blocking = value
 }
 
 // Drops empty fields so stored records never carry `screenName: undefined`.
@@ -460,7 +456,7 @@ async function startRunner(preferredTabId) {
     const resume = s.runner.state === 'paused'
     Object.assign(s.runner, {
       state: 'running', tabId: tab.id, token, lastBeat: Date.now(), cooldownUntil: 0, message: '', limit: '',
-      ...(resume ? {} : { done: 0, failed: 0, skipped: 0, strikes: 0 }),
+      ...(resume ? {} : { done: 0, unblocked: 0, failed: 0, skipped: 0, strikes: 0 }),
     })
     log(s, 'info', `Started on tab ${tab.id} with ${s.queue.length} queued`)
     updateBadge(s)
@@ -511,7 +507,8 @@ function nextItem(s, token) {
     log(s, 'info', `Skipped ${label(item)}: ${reason}`)
   }
   r.state = 'idle'
-  r.message = `Finished: ${r.done} blocked, ${r.failed} failed, ${r.skipped} skipped`
+  const undone = r.unblocked ? `${r.unblocked} unblocked, ` : ''
+  r.message = `Finished: ${r.done} blocked, ${undone}${r.failed} failed, ${r.skipped} skipped`
   log(s, 'info', r.message)
   return { stop: true }
 }
@@ -531,6 +528,17 @@ function applyResult(s, msg) {
     s.blockTimes.push(now)
     r.done++
     log(s, 'ok', `Blocked ${label(item)}${item.source ? ` · ${item.source}` : ''}`)
+    return { stop: false }
+  }
+  if (outcome === 'unblocked') {
+    r.strikes = 0
+    removeFromQueue(s, item)
+    delete s.blocked[item.id]
+    markBlocking(s, item.id, false)
+    // Unblocks are requests to X too, so they count toward the same limits.
+    s.blockTimes.push(now)
+    r.unblocked = (r.unblocked ?? 0) + 1
+    log(s, 'ok', `Unblocked ${label(item)}`)
     return { stop: false }
   }
   if (outcome === 'skipped') {
@@ -589,7 +597,7 @@ function summary(s) {
     settings: s.settings,
     runner,
     counts: {
-      collected: pendingCollected(s).length,
+      legacyCollected: pendingCollected(s).length,
       queue: s.queue.length,
       blocked: Object.keys(s.blocked).length,
       last24h: last24h(s),
@@ -603,9 +611,11 @@ const contentHandlers = {
   'runner:result': (s, msg) =>
     mutate(s, ['queue', 'runner', 'log', 'blocked', 'blockTimes', 'collected'], () => {
       const res = applyResult(s, msg)
-      if (msg.outcome === 'blocked' && msg.item.screenName) {
-        browser.tabs.sendMessage(s.runner.tabId, { type: 'page:blockedNotice', screenName: msg.item.screenName })
-          .catch(() => {})
+      if ((msg.outcome === 'blocked' || msg.outcome === 'unblocked') && msg.item.screenName) {
+        browser.tabs.sendMessage(s.runner.tabId, {
+          type: msg.outcome === 'blocked' ? 'page:blockedNotice' : 'page:unblockedNotice',
+          screenName: msg.item.screenName,
+        }).catch(() => {})
       }
       return res
     }),
@@ -645,21 +655,22 @@ const uiHandlers = {
     return summary(s)
   }),
   'queue:add': (s, msg) => mutate(s, ['queue'], () => addToQueue(s, msg.items ?? [])),
-  'queue:addCollected': (s, msg) => mutate(s, ['queue'], () =>
-    addToQueue(s, (msg.ids ?? []).map((id) => s.collected[id]).filter(Boolean)
-      .map((u) => ({ id: u.id, screenName: u.screenName, source: msg.source ?? 'Selected in dashboard' })))),
   'queue:remove': (s, msg) => mutate(s, ['queue'], () => {
     const keys = new Set(msg.keys ?? [])
     s.queue = s.queue.filter((q) => !keys.has(itemKey(q)))
     return {}
   }),
   'queue:clear': (s) => mutate(s, ['queue'], () => { s.queue = []; return {} }),
-  'collected:remove': (s, msg) => mutate(s, ['collected'], () => {
+  // One-time choice for what is left in the old Collected list.
+  'legacy:queue': (s) => mutate(s, ['queue', 'collected'], () => {
+    const res = addToQueue(s, pendingCollected(s).map((u) => ({
+      id: u.id, screenName: u.screenName, source: u.sources?.at(-1) ?? 'Collected list',
+    })))
+    s.collected = {}
     snIndex = null
-    for (const id of msg.ids ?? []) delete s.collected[id]
-    return {}
+    return res
   }),
-  'collected:clear': (s) => mutate(s, ['collected'], () => { s.collected = {}; snIndex = null; return {} }),
+  'legacy:discard': (s) => mutate(s, ['collected'], () => { s.collected = {}; snIndex = null; return {} }),
   'blocked:clear': (s) => mutate(s, ['blocked'], () => { s.blocked = {}; return {} }),
   'log:clear': (s) => mutate(s, ['log'], () => { s.log = []; return {} }),
   // Privacy: wipe everything the extension stored (settings are kept).
@@ -696,8 +707,6 @@ async function mutate(s, keys, fn) {
 const pageHandlers = {
   'page:config': (s) => ({
     inPageButtons: s.settings.inPageButtons,
-    collectAlways: s.settings.collectAlways,
-    autoScroll: s.settings.autoScroll,
     blockedScreenNames: Object.values(s.blocked).map((b) => b.screenName?.toLowerCase()).filter(Boolean),
   }),
   'page:lookup': (s, msg) => {
@@ -712,59 +721,16 @@ const pageHandlers = {
       }
       out[u.screenName.toLowerCase()] = {
         id: u.id, name: u.name, avatar: u.avatar, verified: u.verified,
+        followers: u.followers, followingCount: u.followingCount,
         following: u.following, followedBy: u.followedBy,
         blocking: typeof u.blocking === 'boolean' ? u.blocking : Boolean(s.blocked[u.id]),
-        collected: Boolean(s.collected[u.id]),
         queued: isQueued(u, queued),
       }
     }
     return out
   },
   'page:viewer': (s, msg) => ({ screenName: knownUser(s, String(msg.id))?.screenName ?? null }),
-  // Saves the accounts of the list the user is collecting from. Handles whose
-  // ID isn't known yet are returned as missing; the page retries them.
-  'page:collect': (s, msg) => mutate(s, ['collected'], () => {
-    const source = String(msg.source ?? '').slice(0, 120) || 'Collected on x.com'
-    const now = Date.now()
-    const collected = []
-    const missing = []
-    for (const sn of (Array.isArray(msg.screenNames) ? msg.screenNames : []).slice(0, 2000)) {
-      if (!/^[A-Za-z0-9_]{1,15}$/.test(String(sn))) continue
-      const u = bySn(s, sn)
-      if (!u) { missing.push(sn); continue }
-      const prev = s.collected[u.id]
-      s.collected[u.id] = {
-        ...prev, ...u,
-        sources: [...new Set([...(prev?.sources ?? []), source])].slice(-10),
-        collectedAt: prev?.collectedAt ?? now,
-        seenAt: now,
-      }
-      collected.push(sn)
-    }
-    snIndex = null
-    return { collected, missing }
-  }),
   'page:progress': () => progressPayload(),
-  // Un-collect: drop accounts the user decided against from the Collected list,
-  // so they stop coming back in every later review. Returns the handles removed.
-  'page:uncollect': (s, msg) => mutate(s, ['collected'], () => {
-    const ids = new Set()
-    const names = new Set()
-    for (const it of Array.isArray(msg.items) ? msg.items.slice(0, 5000) : []) {
-      const id = String(it?.id ?? '')
-      const sn = String(it?.screenName ?? '')
-      if (/^\d{1,20}$/.test(id)) ids.add(id)
-      if (/^[A-Za-z0-9_]{1,15}$/.test(sn)) names.add(sn.toLowerCase())
-    }
-    const removed = []
-    for (const [id, u] of Object.entries(s.collected)) {
-      if (!ids.has(id) && !(u.screenName && names.has(u.screenName.toLowerCase()))) continue
-      delete s.collected[id]
-      removed.push(u.screenName)
-    }
-    if (removed.length) snIndex = null
-    return { removed }
-  }),
   // Takes accounts back out of the block queue (by ID or handle).
   'page:unqueue': (s, msg) => mutate(s, ['queue'], () => {
     const keys = new Set()
@@ -782,13 +748,6 @@ const pageHandlers = {
     })
     return { removed }
   }),
-  'page:collectedList': (s) => pendingCollected(s)
-    .sort((a, b) => (b.collectedAt ?? b.seenAt ?? 0) - (a.collectedAt ?? a.seenAt ?? 0))
-    .slice(0, 5000)
-    .map((u) => ({
-      id: u.id, screenName: u.screenName, name: u.name, avatar: u.avatar, verified: u.verified,
-      following: u.following, followedBy: u.followedBy, sources: u.sources ?? [],
-    })),
   // Quick blocks count toward the same safety limits as the queue.
   'page:quota': (s) => {
     const used = last24h(s)
@@ -821,12 +780,12 @@ onMessage((msg, sender) => {
       }
       return undefined
     }
-    if (msg.type === 'page:massBlock') return massBlock(sender.tab.id, msg.items)
+    if (msg.type === 'page:massBlock') return massQueue(sender.tab.id, msg.items)
     if (msg.type === 'page:pause') return exclusive((s) => uiHandlers['runner:pause'](s))
     if (msg.type === 'page:resume') {
       return startRunner(sender.tab.id).then(() => ({ ok: true }), (e) => ({ error: String(e.message ?? e) }))
     }
-    if ((msg.type === 'page:lookup' || msg.type === 'page:collect') && collectBuffer.size) {
+    if ((msg.type === 'page:lookup') && collectBuffer.size) {
       // Include users captured from responses that haven't been flushed yet.
       return flushCollected().then(() => exclusive((s) => pageHandlers[msg.type](s, msg)))
     }
@@ -839,18 +798,21 @@ onMessage((msg, sender) => {
     })
   }
   if (msg.type === 'runner:start') return startRunner(msg.tabId).then(() => exclusive(summary))
+  if (msg.type === 'blocked:unblock') return massQueue(null, msg.items, 'unblock')
   if (msg.type === 'collect:flush') return flushCollected().then(() => exclusive(summary))
   const h = uiHandlers[msg.type]
   return h ? exclusive((s) => h(s, msg)) : undefined
 })
 
-async function massBlock(tabId, items) {
+// Queues accounts and makes sure the runner is going. Unblocks requested from
+// the dashboard have no tab of their own: the runner picks (or opens) an x.com tab.
+async function massQueue(tabId, items, action = 'block') {
   try {
     const { added, skipped, active } = await exclusive((s) => mutate(s, ['queue'], () => ({
-      ...addToQueue(s, items ?? []),
+      ...addToQueue(s, items ?? [], action),
       active: (s.runner.state === 'running' || s.runner.state === 'cooldown') && runnerAlive(s.runner),
     })))
-    if (!active) await startRunner(tabId)
+    if (!active && (added || tabId != null)) await startRunner(tabId ?? undefined)
     return { added, skipped }
   } catch (e) {
     return { error: String(e.message ?? e) }

@@ -21,7 +21,7 @@ function createPage(apiHandler) {
   }
   const ctx = {
     console: { warn() {}, log() {}, error() {} },
-    URL, Headers, Object, JSON, Promise, RegExp, Error, String, Number, Boolean,
+    URL, URLSearchParams, Headers, Object, JSON, Promise, RegExp, Error, String, Number, Boolean,
     location: { origin: 'https://x.com' },
     sessionStorage: { getItem: () => null, setItem() {} },
     performance: { getEntriesByType: () => [{ name: STARTUP }] },
@@ -97,4 +97,19 @@ test('rate limits say whether lookups or blocks were limited', async () => {
   const page = createPage(() => ({ status: 429, body: {} }))
   assert.equal((await page.call('resolve', { screenName: 'bob' })).error.scope, 'lookup')
   assert.equal((await page.call('block', { userId: '1' })).error.scope, 'block')
+})
+
+test('unblock posts the account ID to the REST unblock endpoint', async () => {
+  const page = createPage(() => ({ body: { id_str: '123', screen_name: 'oops' } }))
+  const res = await page.call('unblock', { userId: '123' })
+  assert.equal(res.ok, true, JSON.stringify(res.error))
+  const [req] = page.requests
+  assert.equal(req.url, 'https://api.x.com/1.1/blocks/destroy.json')
+  assert.equal(req.init.method, 'POST')
+  assert.equal(req.init.headers.get('content-type'), 'application/x-www-form-urlencoded')
+  assert.equal(req.init.body, 'user_id=123')
+
+  const limited = createPage(() => ({ status: 429, body: {} }))
+  const err = await limited.call('unblock', { userId: '1' })
+  assert.deepEqual([err.error.code, err.error.scope], ['rate_limit', 'block'])
 })

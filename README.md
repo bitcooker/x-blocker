@@ -13,14 +13,17 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   that list's accounts, untick anyone you want to keep, and block the rest.
 - **Block buttons everywhere.** Every account gets its own **Block** button next
   to X's Follow button, and every post gets one next to the author.
-- **Collect for later.** Press **Collect** to save a list's accounts, gather
-  several lists, then review and block them all at once. **Scroll list** loads
-  long lists for you.
+- **Long lists, a batch at a time.** The panel shows how many accounts are
+  loaded (and the list's size for followers and following). **Load all**
+  scrolls the list to its end for you. Or review what is loaded, block, scroll,
+  and review again: accounts already queued or blocked are left out.
+- **Undo a group.** Blocked a list by mistake? In the dashboard's Blocked tab,
+  filter by where they came from, select them and press **Unblock**.
 - **Import.** Paste or upload @handles, profile links, user IDs or a CSV.
 - **Runs in the background.** Accounts are blocked one by one. Pause and resume
   anytime, even after closing the browser.
-- **Dashboard.** Browse, filter and export your collected, queued and blocked
-  accounts, and see a log of everything that happened.
+- **Dashboard.** Browse, filter and export your queued and blocked accounts,
+  and see a log of everything that happened.
 
 ## Safety
 
@@ -39,11 +42,10 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
 - Everything stays on your own device, in your browser's own storage. There is
   no analytics, no server, no account and no tracking.
 - Private pages (messages, notifications, settings) are never read.
-- Pressing **Collect** only saves those accounts in the extension's own storage
-  on your device. Nothing is uploaded, sent or shared anywhere. It happens only
-  when you press it, and friends or people you merely read about are never saved.
-- Collected profiles are forgotten after 30 days, and **Delete all data** in
-  Settings wipes them in one click.
+- Only the accounts you queue and the ones you block are saved, in the
+  extension's own storage on your device. Nothing is uploaded, sent or shared
+  anywhere, and people you merely read about are never saved.
+- **Delete all data** in Settings wipes everything in one click.
 
 ## Install
 
@@ -71,9 +73,9 @@ reload icon on the extension's card. Your settings and data are kept.
 2. Open the X Blocker panel at the bottom of the page and press **Review**.
 3. Untick anyone you want to keep and press **Block**.
 
-For bigger jobs, press **Collect** on several lists, then open the
-**Dashboard** from the extension's toolbar button to review, queue and block
-them. You can keep browsing while it works. Just keep one x.com tab open.
+Accounts are blocked in the background while you keep browsing; just keep one
+x.com tab open. The **Dashboard** (from the extension's toolbar button) shows
+the queue, lets you import lists and undo blocks.
 
 ## Contributing
 

@@ -27,8 +27,6 @@
   const MARK = 'xBlocker'
 
   let enabled = true
-  let collectAlways = false
-  let autoScroll = false
   let panelMinimized = true // last choice, shared by every x.com tab (storage.local)
   let viewerScreenName = null
   const pageKey = () => location.pathname + location.search
@@ -67,12 +65,13 @@
     const exclude = user.toLowerCase()
     switch (at(1)) {
       case 'followers':
+        return { mode: 'cells', exclude, total: 'followers', label: `Followers of @${user}` }
       case 'verified_followers':
-        return { mode: 'cells', exclude, label: `Followers of @${user}` }
+        return { mode: 'cells', exclude, label: `Verified followers of @${user}` }
       case 'followers_you_follow':
         return { mode: 'cells', exclude, label: `Followers of @${user} you know` }
       case 'following':
-        return { mode: 'cells', exclude, label: `Accounts @${user} follows` }
+        return { mode: 'cells', exclude, total: 'followingCount', label: `Accounts @${user} follows` }
       case 'status': {
         if (!/^\d+$/.test(p[2] ?? '')) return null
         const what = at(3)
@@ -102,7 +101,7 @@
       : r.left < m.left + m.width * 0.62
   }
 
-  function collect(host, screenName) {
+  function addToList(host, screenName) {
     if (!context) return
     const key = screenName.toLowerCase()
     if (key === context.exclude || key === viewerScreenName || pageHandles.has(key)) return
@@ -456,7 +455,7 @@
       const stale = host.dataset.xbHandle !== key || // element now shows another account
         (host.dataset.xbKind === 'cells' && prev && !prev.isConnected) // X rebuilt the row
       if (!stale) {
-        collect(host, screenName)
+        addToList(host, screenName)
         return
       }
       undecorate(host)
@@ -477,7 +476,7 @@
       hostOwner.set(host, owner)
     }
     host.dataset.xbKind = follow ? 'cells' : 'authors'
-    collect(host, screenName)
+    addToList(host, screenName)
     const btn = document.createElement('button')
     btn.type = 'button'
     btn.dataset.handle = key
@@ -631,7 +630,13 @@
       .panel .text{display:flex;flex-direction:column;gap:3px;min-width:0;--icon-col:18px}
       .panel .title{font-weight:700;font-size:15px;padding-left:var(--icon-col)}
       .panel .sub{color:var(--muted);font-size:12px;line-height:16px}
-      .panel .sub .run[hidden] + .count{padding-left:var(--icon-col)}
+      .panel .sub .run[hidden] + .state[hidden] + .count{padding-left:var(--icon-col)}
+      .panel .sub .state{display:flex;align-items:center;justify-content:center;width:13px;height:13px;flex:none}
+      .panel .sub .state.ok{color:#00ba7c;font-size:12px;font-weight:700}
+      .panel .count b{color:var(--fg);font-weight:700}
+      .chip{height:20px;padding:0 9px;margin-inline-start:8px;font-size:12px;line-height:18px;font-weight:700;
+        color:var(--fg);border:1px solid var(--border);vertical-align:middle}
+      .chip:hover{background:var(--hover)}
       .panel .count{font-variant-numeric:tabular-nums}
       .panel .sub{display:flex;align-items:center;gap:5px}
       .panel .run{position:relative;width:13px;height:13px;flex:none;border:1px solid currentColor;color:var(--fg)}
@@ -640,17 +645,21 @@
       .panel .run svg{width:7px;height:7px}
       .panel .run[data-state=paused]{color:#ffad1f}
       .panel{overflow:hidden}
-      .btn-collect[aria-pressed=true]{border-color:#1d9bf0;color:#1d9bf0;background:rgba(29,155,240,.1);font-variant-numeric:tabular-nums}
-      .btn-collect[aria-pressed=true]::before{content:"";width:8px;height:8px;border-radius:50%;background:#1d9bf0;
-        animation:pulse 1.6s infinite}
-      .fab .dot{width:8px;height:8px;border-radius:50%;background:#1d9bf0;animation:pulse 1.6s infinite}
-      @keyframes pulse{50%{opacity:.35}}
       .panel .prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--border)}
       .panel .prog span{display:block;height:100%;width:0;background:#1d9bf0;transition:width .4s ease}
       .panel .prog[data-state=cooldown] span{background:#ffad1f}
       .panel .prog[data-state=done] span{background:#00ba7c}
-      .panel .sub .on{color:#1d9bf0;font-weight:700}
+      .panel .prog[data-state=indeterminate] span{width:30%!important;animation:slide 1.4s ease-in-out infinite}
+      @keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
       .panel .sub .ok{color:#00ba7c;font-weight:700}
+      .panel .sub .on{color:#1d9bf0;font-weight:700}
+      .dot{display:inline-block;flex:none;width:8px;height:8px;border-radius:50%;background:#1d9bf0;
+        margin-inline-end:6px;vertical-align:middle;animation:pulse 1.2s ease-in-out infinite}
+      .fab .dot,.panel .sub .state .dot{margin:0}
+      @keyframes pulse{50%{opacity:.25}}
+      .fab.done::after{content:"✓";color:#00ba7c;font-weight:700}
+      .link{display:inline;color:#1d9bf0;font-weight:700;font-size:inherit;line-height:inherit;border-radius:4px}
+      .link:hover{text-decoration:underline}
       .panel .sub .warn{color:#ffad1f;font-weight:700}
       .panel .sub .err{color:#f4212e;font-weight:700}
       .fab{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;height:40px;
@@ -658,8 +667,6 @@
         border:1px solid var(--border);box-shadow:var(--shadow);animation:rise .2s ease-out}
       .fab svg{color:#f4212e}
       .fab:hover{background:var(--bg);border-color:var(--muted)}
-      .fab .badge{min-width:22px;height:22px;padding:0 7px;border-radius:9999px;background:#f4212e;color:#fff;
-        font-size:12px;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
       .spin{animation:spin 1s linear infinite}
 
       .backdrop{position:fixed;inset:0;z-index:2147483647;background:var(--backdrop);display:flex;align-items:center;
@@ -721,6 +728,13 @@
       .toast{animation-name:fade}
       @keyframes fade{from{opacity:0}}
       @keyframes pop{from{opacity:0;transform:scale(.96)}}
+      .bump{animation:bump .5s ease-out}
+      .panel .count.bump{animation:glow .8s ease-out}
+      @keyframes bump{40%{transform:scale(1.06)}}
+      .fab.bump{animation:bumpFab .5s ease-out}
+      @keyframes bumpFab{40%{transform:translateX(-50%) scale(1.06)}}
+      @keyframes glow{from{color:#1d9bf0}}
+      .fab,.panel .btn-danger{font-variant-numeric:tabular-nums}
       @keyframes spin{to{transform:rotate(360deg)}}
       @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
       @media (max-width:700px){.panel{left:8px;right:8px;transform:none;bottom:72px;border-radius:16px}
@@ -741,8 +755,6 @@
       e.append(...kids)
       return e
     }
-    const ICON_SCROLL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 15.59l-4.29-4.3-1.42 1.42L12 18.41l5.71-5.7-1.42-1.42L12 15.59zm0-6l-4.29-4.3-1.42 1.42L12 12.41l5.71-5.7-1.42-1.42L12 9.59z"/></svg>'
-    const ICON_STOP = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></svg>'
     const ICON_PLAY = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
     const ICON_PAUSE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
     const ICON_MIN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 10.5h14v3H5z"/></svg>'
@@ -753,7 +765,9 @@
     panel.setAttribute('aria-label', 'X Blocker')
     const count = el('span', 'count')
     const runBtn = el('button', 'run')
-    const sub = el('span', 'sub', runBtn, count)
+    // One icon per line: the run's play/pause, or the list's loading dot / check.
+    const stateIcon = el('span', 'state')
+    const sub = el('span', 'sub', runBtn, stateIcon, count)
     const title = el('span', 'title')
     const minBtn = el('button', 'btn-ghost', svg(ICON_MIN))
     minBtn.title = 'Minimize'
@@ -761,18 +775,16 @@
     // Collapse sits next to the brand label, out of the action row, so it
     // takes no width whatever buttons the panel shows.
     const text = el('div', 'text', el('div', 'head', minBtn, el('span', 'eyebrow', 'X Blocker')), title, sub)
-    const scrollBtn = el('button', 'btn btn-outline btn-icon')
+    const loadBtn = el('button', 'chip')
     const blockAllBtn = el('button', 'btn btn-danger')
-    const collectBtn = el('button', 'btn btn-outline btn-collect')
     const progBar = el('span', '')
     const prog = el('div', 'prog', progBar)
     prog.setAttribute('role', 'progressbar')
-    panel.append(text, scrollBtn, collectBtn, blockAllBtn, prog)
+    panel.append(text, blockAllBtn, prog)
 
-    const fabBadge = el('span', 'badge')
-    const fabDot = el('span', 'dot')
     const fabLabel = el('span', '', 'X Blocker')
-    const fab = el('button', 'fab', svg(BLOCK_ICON), fabLabel, fabDot, fabBadge)
+    const fabDot = el('span', 'dot')
+    const fab = el('button', 'fab', svg(BLOCK_ICON), fabLabel, fabDot)
     fab.title = 'X Blocker'
     fab.setAttribute('aria-label', 'Open X Blocker panel')
 
@@ -780,68 +792,101 @@
     let minimized = panelMinimized
     let scrolling = false
 
-    // ---- collecting: opt-in, for this page's list only ----------------------
-    // Nothing is added to the Collected list unless the user switches Collect on;
-    // it switches off by itself when they leave the page.
-    let collecting = false
-    const collectedHere = new Set()
-    // Taken out of Collected in Review during this collecting run: not
-    // re-collected until the user switches Collect off and on again.
-    const removedHere = new Set()
-    let collectTimer = null
+    // ---- how much of the list is loaded ------------------------------------
+    // X loads long lists a screenful at a time. Say how many are loaded, the
+    // list's size when X told us (followers/following), and when the end is reached.
+    let listEnded = false
+    let listTotal = null
+    let totalAskedAt = 0
+    const fmt = (k) => k.toLocaleString()
+    // Totals read better short ("~17.4K"); loaded counts stay exact.
+    const compact = (k) => (k >= 10_000
+      ? new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(k) : fmt(k))
+    let lastLoaded = 0
 
-    function scheduleCollect() {
-      if (!collecting) return
-      clearTimeout(collectTimer)
-      collectTimer = setTimeout(syncCollect, 700)
+    // A short highlight on the counts when scrolling brings in more accounts.
+    function bump() {
+      for (const e of [fab, blockAllBtn, count]) {
+        e.classList.remove('bump')
+        void e.offsetWidth // restart the animation
+        e.classList.add('bump')
+      }
     }
 
-    async function syncCollect() {
-      if (!collecting || !context) return
-      const pending = candidates().filter((sn) => !collectedHere.has(sn.toLowerCase()) && !removedHere.has(sn.toLowerCase()))
-      if (!pending.length) return
-      const source = context.label
-      const r = await send({ type: 'page:collect', screenNames: pending, source }).catch(() => null)
-      if (!collecting || context?.label !== source) return
-      for (const sn of r?.collected ?? []) {
-        if (!removedHere.has(sn.toLowerCase())) collectedHere.add(sn.toLowerCase())
+    async function fetchTotal() {
+      if (!context?.total || !context.exclude || listTotal != null || Date.now() - totalAskedAt < 5000) return
+      totalAskedAt = Date.now()
+      const key = context.total
+      const owner = context.exclude
+      const info = await send({ type: 'page:lookup', screenNames: [owner] }).catch(() => null)
+      const total = info?.[owner]?.[key]
+      if (context?.exclude === owner && context.total === key && typeof total === 'number') {
+        listTotal = total
+        scheduleUpdate()
       }
+    }
+
+    function listState() {
+      const loaded = pageHandles.size
+      const ended = listEnded || (listTotal != null && loaded >= listTotal)
+      return { loaded, ended, ofTotal: listTotal != null ? ` of ~${compact(listTotal)}` : '' }
+    }
+
+    function startLoading() {
+      if (scrolling) return
+      scrolling = true
       update()
-      // IDs for some handles may arrive a moment later; try those again.
-      if (r?.missing?.length) collectTimer = setTimeout(syncCollect, 2500)
+      setScrolling(true, (reachedEnd) => {
+        scrolling = false
+        if (reachedEnd) {
+          listEnded = true
+          const { loaded } = listState()
+          toast(`All ${fmt(loaded)} account${loaded === 1 ? '' : 's'} in this list loaded. Press Review to choose who to block.`)
+        }
+        update()
+      })
     }
 
-    function stopCollecting(notify) {
-      if (!collecting) return
-      collecting = false
-      clearTimeout(collectTimer)
-      if (notify && collectedHere.size) {
-        toast(`Collecting stopped · ${collectedHere.size} account${collectedHere.size === 1 ? '' : 's'} collected`)
-      }
-    }
-
-    collectBtn.addEventListener('click', () => {
-      if (collecting) {
-        stopCollecting(true)
-      } else {
-        collecting = true
-        collectedHere.clear()
-        removedHere.clear()
-        toast(`Collecting "${context?.label}". Stops when you leave this page.`)
-        syncCollect()
-      }
+    function stopLoading() {
+      if (!scrolling) return
+      scrolling = false
+      setScrolling(false)
       update()
-    })
+    }
+
+    loadBtn.addEventListener('click', () => (scrolling ? stopLoading() : startLoading()))
+
+    function listLine() {
+      const { loaded, ended, ofTotal } = listState()
+      const num = el('b', '', fmt(loaded))
+      stateIcon.className = 'state'
+      if (scrolling) {
+        stateIcon.replaceChildren(el('span', 'dot'))
+        loadBtn.textContent = 'Stop'
+        loadBtn.title = 'Stop loading; what is loaded so far stays'
+        return ['Loading ', num, ofTotal, loadBtn]
+      }
+      if (ended) {
+        stateIcon.replaceChildren(el('span', 'ok', '✓'))
+        stateIcon.className = 'state ok'
+        return ['All ', num, ' loaded']
+      }
+      stateIcon.replaceChildren()
+      loadBtn.textContent = 'Load all'
+      loadBtn.title = listTotal > 2000
+        ? 'Large list: loading everything takes a while and many requests to X. Consider blocking in batches.'
+        : 'Scroll this list to its end so every account is loaded'
+      return [num, ` loaded${ofTotal || ' so far'}`, loadBtn]
+    }
 
     // Live state of the block queue, mirrored from extension storage.
     let run = { runner: null, queueLen: 0 }
-    let collectedCount = 0 // accounts in the Collected list that aren't blocked yet
     const RECENT = 10 * 60 * 1000
 
     function runInfo() {
       const r = run.runner
       if (!r) return null
-      const processed = (r.done ?? 0) + (r.failed ?? 0) + (r.skipped ?? 0)
+      const processed = (r.done ?? 0) + (r.unblocked ?? 0) + (r.failed ?? 0) + (r.skipped ?? 0)
       const total = processed + run.queueLen
       const active = r.state === 'running' || r.state === 'cooldown'
       const recentlyDone = r.state === 'idle' && processed > 0 && Date.now() - (r.lastBeat ?? 0) < RECENT
@@ -856,22 +901,27 @@
       const extras = [r.skipped ? `${nf(r.skipped)} skipped` : '', r.failed ? `${nf(r.failed)} failed` : '']
         .filter(Boolean).join(' · ')
       const tail = extras ? ` · ${extras}` : ''
+      // A run made only of unblocks (from the dashboard) shouldn't say "Blocking".
+      const verb = r.unblocked && !r.done ? 'Unblocking' : 'Blocking'
       switch (r.state) {
         case 'running':
-          return [el('span', '', `Blocking · ${of}`), tail]
+          return [el('span', '', `${verb} · ${of}`), tail]
         case 'cooldown': {
           const at = new Date(r.cooldownUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           const why = r.limit === 'daily' ? 'Daily safety limit reached'
             : r.limit === 'hourly' ? 'Hourly safety limit reached'
-            : r.limit === 'lookup' ? 'Waiting for X lookup limit' : 'Blocking waits for X rate limit'
+            : r.limit === 'lookup' ? 'Waiting for X lookup limit' : `${verb} waits for X rate limit`
           return [el('span', 'warn', why), ` · resumes ${at} · ${of}`]
         }
         case 'paused':
-          return [el('span', 'warn', 'Blocking paused'), ` · ${of}${tail}`]
+          return [el('span', 'warn', `${verb} paused`), ` · ${of}${tail}`]
         case 'error':
           return [el('span', 'err', 'Stopped'), ` · ${r.message || 'error'}`]
-        default:
-          return [el('span', 'ok', 'Done'), ` · ${nf(r.done)} blocked${tail}`]
+        default: {
+          const done = [r.done || !r.unblocked ? `${nf(r.done)} blocked` : '', r.unblocked ? `${nf(r.unblocked)} unblocked` : '']
+            .filter(Boolean).join(' · ')
+          return [el('span', 'ok', 'Done'), ` · ${done}${tail}`]
+        }
       }
     }
 
@@ -887,9 +937,9 @@
       runBtn.replaceChildren(svg(info.active ? ICON_PAUSE : ICON_PLAY))
       runBtn.dataset.state = info.active ? 'running' : 'paused'
       runBtn.title = info.active
-        ? 'Pause blocking after the current account. Collecting is not affected.'
-        : 'Resume blocking the queue'
-      runBtn.setAttribute('aria-label', info.active ? 'Pause blocking' : 'Resume blocking')
+        ? 'Pause after the current account'
+        : 'Resume the queue'
+      runBtn.setAttribute('aria-label', info.active ? 'Pause the queue' : 'Resume the queue')
       return info
     }
 
@@ -897,7 +947,6 @@
     const applyProgress = (p) => {
       if (!p || !alive) return
       run = { runner: p.runner ?? null, queueLen: p.queueLen ?? 0 }
-      if (typeof p.collectedCount === 'number') collectedCount = p.collectedCount
       scheduleUpdate()
     }
     send({ type: 'page:progress' }).then(applyProgress, () => {})
@@ -927,51 +976,39 @@
       wrap.dataset.theme = document.documentElement.dataset.xbTheme ?? 'light'
       const n = candidates().length
       const info = applyRunState()
-      const plural = (k, word) => `${k} ${word}${k === 1 ? '' : 's'}`
-      title.textContent = context?.label ?? (collectedCount ? 'Your Collected list' : 'Block queue')
+      title.textContent = context?.label ?? 'Block queue'
       title.title = title.textContent
-      if (info) count.replaceChildren(...progressLine(info))
-      else if (collecting) {
-        count.replaceChildren(el('span', 'on', `Collecting · ${collectedHere.size} collected`),
-          ` · ${collectedCount} in Collected · scroll for more`)
-      } else if (!context) {
-        count.textContent = `${plural(collectedCount, 'account')} collected, ready to review`
-      } else {
-        // Counting the list on screen is not collecting: say so explicitly.
-        count.textContent = collectedCount
-          ? `${plural(n, 'account')} in this list · ${collectedCount} in Collected`
-          : `${plural(n, 'account')} in this list · not collected`
+      // Loading wins over run progress: the user just asked for it and watches the count.
+      const showRun = Boolean(info) && !scrolling
+      if (showRun) count.replaceChildren(...progressLine(info))
+      else if (context) count.replaceChildren(...listLine())
+      else count.replaceChildren()
+      if (!showRun) runBtn.hidden = true
+      stateIcon.hidden = showRun || !stateIcon.firstChild
+      // The bottom bar follows whatever the status line is about.
+      if (scrolling) {
+        const { loaded } = listState()
+        prog.hidden = false
+        prog.dataset.state = listTotal ? 'loading' : 'indeterminate'
+        progBar.style.width = listTotal ? `${Math.min(100, Math.round((loaded / listTotal) * 100))}%` : ''
       }
-      scrollBtn.hidden = !context || !autoScroll
-      collectBtn.hidden = !context || collectAlways
-      collectBtn.setAttribute('aria-pressed', String(collecting))
-      // The subtitle shows blocking progress while a run exists, so the
-      // collect count lives on the button to stay visible in every state.
-      collectBtn.textContent = collecting ? `Collecting · ${collectedHere.size}` : 'Collect'
-      collectBtn.title = collecting
-        ? `${plural(collectedHere.size, 'account')} added from this page (${collectedCount} in Collected). Click to stop.`
-        : 'Add the accounts of this list to your Collected list, saved only in your browser and stopped when you leave this page'
-      fabDot.hidden = !collecting
-      fabLabel.textContent = info?.active
-        ? `Blocking ${info.processed}/${info.total}`
-        : collecting ? `Collecting ${collectedHere.size}`
-          : collectedCount ? `X Blocker · ${collectedCount} collected` : 'X Blocker'
-      scrollBtn.replaceChildren(svg(scrolling ? ICON_STOP : ICON_SCROLL))
-      scrollBtn.title = scrolling ? 'Stop scrolling' : 'Scroll to the end of this list so every account is shown (nothing is collected)'
-      scrollBtn.setAttribute('aria-label', scrollBtn.title)
-      // No count on the button: it opens both this list and the whole Collected list.
-      blockAllBtn.textContent = 'Review'
-      blockAllBtn.title = collectedCount
-        ? 'Review this list or your Collected list before blocking'
-        : 'Review the accounts in this list before blocking them'
+      fetchTotal()
+      // The loaded count is on the always-visible controls (pill, Review), not
+      // only the status line, so scrolling visibly adds accounts in every state.
+      const { loaded } = listState()
+      fabLabel.textContent = info?.active ? `Blocking ${info.processed}/${info.total}`
+        : context && loaded ? `X Blocker · ${fmt(loaded)} loaded`
+          : 'X Blocker'
+      blockAllBtn.textContent = n ? `Review ${fmt(n)}` : 'Review'
+      fabDot.hidden = !scrolling
+      fab.classList.toggle('done', Boolean(context && listState().ended && !info?.active))
+      if (context && loaded > lastLoaded && lastLoaded > 0) bump()
+      lastLoaded = context ? loaded : 0
+      blockAllBtn.title = 'Review the accounts in this list before blocking them'
       // Nothing to review (e.g. the home timeline while the queue runs): hide it instead.
-      blockAllBtn.hidden = n === 0 && collectedCount === 0
-      fabBadge.textContent = n > 999 ? '999+' : String(n)
-      fabBadge.hidden = true // a bare count on the pill reads like "collected"; the panel shows it
-      scheduleCollect()
-      // Also visible on other pages while the queue runs or the Collected list
-      // has accounts, so a collection can be reviewed and blocked from anywhere.
-      const show = enabled && ((Boolean(context) && pageHandles.size > 0) || Boolean(info) || collectedCount > 0)
+      blockAllBtn.hidden = n === 0
+      // Also visible on other pages while the queue runs, to follow and pause it.
+      const show = enabled && ((Boolean(context) && pageHandles.size > 0) || Boolean(info))
       if (show && !host.isConnected) document.body.append(host)
       panel.remove()
       fab.remove()
@@ -993,37 +1030,22 @@
 
     minBtn.addEventListener('click', () => { saveMinimized(true); fab.focus() })
     fab.addEventListener('click', () => { saveMinimized(false); minBtn.focus() })
-    scrollBtn.addEventListener('click', () => {
-      scrolling = !scrolling
-      update()
-      setScrolling(scrolling, () => { scrolling = false; update() })
-    })
     async function listRows() {
       const list = candidates()
       const info = (await send({ type: 'page:lookup', screenNames: list }).catch(() => null)) ?? {}
       return list.map((sn) => ({ screenName: sn, ...info[sn.toLowerCase()], source: context.label }))
     }
 
-    async function collectedRows() {
-      const list = (await send({ type: 'page:collectedList' }).catch(() => null)) ?? []
-      return list.map((u) => ({ ...u, collected: true, source: u.sources?.at(-1) ?? 'Collected list', showSource: true }))
-    }
-
     blockAllBtn.addEventListener('click', async () => {
-      if (scrolling) { scrolling = false; setScrolling(false); update() }
+      stopLoading()
       const n = context ? candidates().length : 0
-      const tabs = []
-      if (n) {
-        tabs.push({ label: 'This list', count: n, load: listRows, heading: context.label,
-          note: 'Only accounts from this list are included.' })
-      }
-      if (collectedCount) {
-        tabs.push({ label: 'Total collected', count: collectedCount, load: collectedRows, heading: 'Your Collected list',
-          fromCollected: true,
-          note: 'Every account you collected, on any page, that isn\'t blocked yet.' })
-      }
-      if (!tabs.length) return
-      const picked = await reviewDialog(tabs)
+      if (!n) return
+      const { loaded, ended, ofTotal } = listState()
+      const more = ended ? '' : listTotal != null
+        ? `You're reviewing the ${fmt(loaded)} loaded${ofTotal}.`
+        : `More accounts may load as you scroll.`
+      const picked = await reviewDialog([{ label: 'This list', count: n, load: listRows, heading: context.label,
+        note: 'Only accounts from this list are included.', more }])
       if (!picked?.length) return
       blockAllBtn.disabled = true
       try {
@@ -1032,7 +1054,8 @@
           items: picked.map((u) => ({ screenName: u.screenName, id: u.id, source: u.source })),
         })
         if (r?.error) throw new Error(r.error)
-        toast(`${r.added} account${r.added === 1 ? '' : 's'} queued for blocking`)
+        const queued = `${r.added} account${r.added === 1 ? '' : 's'} queued for blocking`
+        toast(listState().ended ? queued : `${queued}. Press Load all or scroll, then Review again for the rest.`)
       } catch (e) {
         toast(String(e.message ?? e), true)
       }
@@ -1040,9 +1063,8 @@
       update()
     })
 
-    // Lets the user confirm exactly which accounts get blocked, from this page's
-    // list or from the Collected list (one tab each). Accounts with a
-    // relationship to the viewer start unticked. Only the active tab is blocked.
+    // Lets the user confirm exactly which accounts get blocked. Accounts with a
+    // relationship to the viewer, or already queued, start unticked.
     async function reviewDialog(tabs) {
       const quota = await send({ type: 'page:quota' }).catch(() => null)
       return new Promise((resolve) => {
@@ -1059,7 +1081,6 @@
         all.type = 'checkbox'
         const allLabel = el('label', '', all, el('span', '', 'Select all'))
         const summary = el('span', '')
-        const uncollectBtn = el('button', 'btn btn-outline btn-sm uncollect')
         const unqueueBtn = el('button', 'btn btn-outline btn-sm unqueue')
         const limitNote = el('p', 'limit')
         const list = el('ul', '')
@@ -1085,32 +1106,27 @@
         tabBar.hidden = tabs.length < 2
 
         const sync = () => {
-          const n = rows.filter((r) => r.checked).length
-          confirm.textContent = n ? `Block ${n}` : 'Block'
-          confirm.disabled = n === 0
+          const ticked = rows.filter((r) => r.checked)
+          const n = ticked.length
+          // Queued accounts are already on their way: ticking them only serves
+          // "Remove from queue", so they don't count toward "Block N".
+          const nBlock = ticked.filter((r) => !r.queued).length
+          const nQueued = n - nBlock
+          confirm.textContent = nBlock ? `Block ${nBlock}` : 'Block'
+          confirm.disabled = nBlock === 0
           all.checked = rows.length > 0 && n === rows.length
           all.indeterminate = n > 0 && n < rows.length
           const skipped = rows.length - n
           summary.textContent = skipped ? `${skipped} unticked` : ''
-          // Like the dashboard: pick rows, then choose what to do with them.
-          // Each action counts only the ticked rows it applies to, and hides
-          // when it applies to none in this tab.
-          const ticked = rows.filter((r) => r.checked)
-          const nCollected = ticked.filter((r) => r.collected).length
-          const nQueued = ticked.filter((r) => r.queued).length
-          uncollectBtn.hidden = !rows.some((r) => r.collected)
-          uncollectBtn.textContent = `Remove ${nCollected} from Collected`
-          uncollectBtn.disabled = nCollected === 0
-          uncollectBtn.title = 'Take the ticked accounts out of your Collected list, so they stop coming back in later reviews'
           unqueueBtn.hidden = !rows.some((r) => r.queued)
           unqueueBtn.textContent = `Remove ${nQueued} from queue`
           unqueueBtn.disabled = nQueued === 0
           unqueueBtn.title = 'Take the ticked accounts out of the block queue, so they won\'t be blocked'
           if (quota?.cap) {
             const left = Math.max(0, quota.cap - quota.used)
-            limitNote.hidden = n <= left
+            limitNote.hidden = nBlock <= left
             limitNote.textContent = `Safety limit: ${left} of ${quota.cap} blocks left in the last 24 h. ` +
-              `The other ${Math.max(0, n - left)} will wait and continue automatically when the limit frees up.`
+              `The other ${Math.max(0, nBlock - left)} will wait and continue automatically when the limit frees up.`
           } else limitNote.hidden = true
         }
 
@@ -1129,7 +1145,6 @@
             if (r.followedBy) tags.append(el('span', 'tag warn', 'Follows you'))
             if (r.blocking) tags.append(el('span', 'tag', 'Blocked'))
             if (r.queued) tags.append(el('span', 'tag', 'Queued'))
-            if (r.collected && !r.showSource) tags.append(el('span', 'tag', 'Collected'))
             if (r.verified) tags.append(el('span', 'tag', 'Verified'))
             const who = el('div', 'who', el('span', 'nm', r.name || `@${r.screenName}`))
             // Link the handle so you can open the profile while reviewing. It must
@@ -1164,10 +1179,16 @@
           tabButtons.forEach((b, j) => b.setAttribute('aria-selected', String(j === i)))
           src.textContent = tab.heading
           heading.textContent = `Review ${tab.count} account${tab.count === 1 ? '' : 's'}`
-          note.textContent = `${tab.note} Untick anyone you don't want to block. People you follow or who follow you start unticked.`
+          note.textContent = `${tab.note} Untick anyone you don't want to block. People you follow or who follow you, and accounts already queued, start unticked.`
+          if (tab.more) {
+            const load = el('button', 'link', 'Load all')
+            load.title = 'Close this and load the rest of the list'
+            load.addEventListener('click', () => { close(null); startLoading() })
+            note.append(el('span', 'more', ` ${tab.more} `), load)
+          }
           // Selections are kept per tab while the dialog is open.
           tab.loaded ??= (await tab.load()).map((r) => ({
-            ...r, checked: !(r.following || r.followedBy || r.blocking),
+            ...r, checked: !(r.following || r.followedBy || r.blocking || r.queued),
           }))
           const seq = ++loadSeq
           rows = []
@@ -1189,44 +1210,6 @@
           sync()
         })
 
-        uncollectBtn.addEventListener('click', async () => {
-          const items = rows.filter((r) => r.checked && r.collected)
-            .map((r) => ({ id: r.id, screenName: r.screenName }))
-          if (!items.length) return
-          uncollectBtn.disabled = true
-          try {
-            const res = await send({ type: 'page:uncollect', items })
-            if (res?.error) throw new Error(res.error)
-            const removed = res?.removed ?? []
-            if (!removed.length) {
-              toast('Nothing removed: already out of the Collected list', { error: true })
-              return
-            }
-            const gone = new Set(removed.map((s) => String(s).toLowerCase()))
-            for (const sn of gone) {
-              collectedHere.delete(sn)
-              removedHere.add(sn)
-            }
-            update()
-            const isGone = (r) => gone.has((r.screenName ?? '').toLowerCase())
-            // They leave the Collected tab, but stay in "This list": they're still on the page.
-            for (const t of tabs) {
-              if (t.fromCollected) {
-                if (t.loaded) t.loaded = t.loaded.filter((r) => !isGone(r))
-                else t.count = Math.max(0, t.count - removed.length)
-              } else for (const r of t.loaded ?? []) if (isGone(r)) r.collected = false
-            }
-            tabs.forEach((t, i) => labelTab(i))
-            const what = `${removed.length} account${removed.length === 1 ? '' : 's'} removed from Collected`
-            toast(collecting ? `${what}. Switch Collect off and on to collect them again.` : what)
-            await select(active)
-          } catch (e) {
-            toast(String(e.message ?? e), true)
-          } finally {
-            sync() // also restores the button's enabled state
-          }
-        })
-
         unqueueBtn.addEventListener('click', async () => {
           const items = rows.filter((r) => r.checked && r.queued)
             .map((r) => ({ id: r.id, screenName: r.screenName }))
@@ -1239,12 +1222,15 @@
             const gone = new Set(removed.map((s) => String(s).toLowerCase()))
             for (const t of tabs) {
               for (const r of t.loaded ?? []) {
-                if (gone.has((r.screenName ?? '').toLowerCase()) || gone.has(String(r.id))) r.queued = false
+                if (!gone.has((r.screenName ?? '').toLowerCase()) && !gone.has(String(r.id))) continue
+                // Out of the queue means "don't block": untick so "Block N" doesn't re-add them.
+                r.queued = false
+                r.checked = false
               }
             }
             toast(removed.length
               ? `${removed.length} account${removed.length === 1 ? '' : 's'} removed from the queue`
-              : 'Nothing removed: already out of the queue', { error: !removed.length })
+              : 'Nothing removed: already out of the queue', !removed.length)
             renderRows()
           } catch (e) {
             toast(String(e.message ?? e), true)
@@ -1256,7 +1242,7 @@
         const dialog = el('div', 'review',
           el('div', 'rh', tabBar, src, heading, note),
           limitNote,
-          el('div', 'bar', allLabel, summary, el('div', 'acts', unqueueBtn, uncollectBtn)),
+          el('div', 'bar', allLabel, summary, el('div', 'acts', unqueueBtn)),
           list,
           el('div', 'rf', cancel, confirm))
         dialog.setAttribute('role', 'dialog')
@@ -1272,7 +1258,7 @@
         const onKey = (e) => {
           if (e.key === 'Escape') { e.stopPropagation(); close(null) }
         }
-        confirm.addEventListener('click', () => close(rows.filter((r) => r.checked)
+        confirm.addEventListener('click', () => close(rows.filter((r) => r.checked && !r.queued)
           .map(({ screenName, id, source }) => ({ screenName, id, source }))))
         cancel.addEventListener('click', () => close(null))
         backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(null) })
@@ -1336,8 +1322,11 @@
         scheduleUpdate()
       },
       onNavigate() {
-        stopCollecting(true)
-        removedHere.clear()
+        stopLoading()
+        listEnded = false
+        listTotal = null
+        totalAskedAt = 0
+        lastLoaded = 0
         scheduleUpdate()
       },
     }
@@ -1349,6 +1338,14 @@
     if (msg?.type === 'page:blockedNotice' && msg.screenName) {
       blockedHere.add(msg.screenName.toLowerCase())
       markBlocked(msg.screenName)
+      ui.scheduleUpdate()
+    }
+    if (msg?.type === 'page:unblockedNotice' && msg.screenName) {
+      const key = msg.screenName.toLowerCase()
+      blockedHere.delete(key)
+      for (const b of document.querySelectorAll('.xb-pill, .xb-icon')) {
+        if (b.dataset.handle === key) setButtonState(b, 'idle')
+      }
       ui.scheduleUpdate()
     }
   })
@@ -1368,8 +1365,6 @@
     }
     const cfg = await send({ type: 'page:config' }).catch(() => null)
     enabled = cfg?.inPageButtons !== false
-    collectAlways = cfg?.collectAlways === true
-    autoScroll = cfg?.autoScroll === true
     for (const sn of cfg?.blockedScreenNames ?? []) blockedHere.add(sn)
     if (!enabled) return
     context = pageContext()

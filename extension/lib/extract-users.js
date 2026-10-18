@@ -43,6 +43,7 @@ export function toUser(o) {
     avatar: avatarUrl(o.avatar?.image_url, legacy.profile_image_url_https),
     description: str(o.profile_bio?.description) ?? str(legacy.description) ?? '',
     followers: num(o.relationship_counts?.followers) ?? num(legacy.followers_count),
+    followingCount: num(o.relationship_counts?.following) ?? num(legacy.friends_count),
     verified: bool(o.is_blue_verified) ?? bool(o.verification?.verified) ?? false,
     following: bool(rel.following) ?? bool(o.is_following) ?? bool(legacy.following),
     followedBy: bool(rel.followed_by) ?? bool(legacy.followed_by),

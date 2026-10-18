@@ -58,7 +58,9 @@ const response = (...users) => ({
   text: JSON.stringify({ data: { list: users.map((u) => ({ user_results: { result: u } })) } }),
 })
 
-test('seen accounts are not collected unless the user collects a list', async () => {
+const DASH = { id: 'ext', url: 'moz-extension://ext/dashboard/dashboard.html' }
+
+test('accounts X shows are only kept in the session cache', async () => {
   await boot()
   await send(response(user('1', 'friend', { following: true }), user('2', 'spammer')))
   await sleep(1300) // capture buffer flush
@@ -70,33 +72,21 @@ test('seen accounts are not collected unless the user collects a list', async ()
   const info = await send({ type: 'page:lookup', screenNames: ['friend', 'spammer'] })
   assert.equal(info.friend.following, true)
   assert.equal(info.spammer.id, '2')
-
-  const res = await send({ type: 'page:collect', screenNames: ['spammer', 'unknown_yet'], source: 'Followers of @someone' })
-  assert.deepEqual(res, { collected: ['spammer'], missing: ['unknown_yet'] })
-  await sleep(2200)
-  assert.deepEqual(Object.keys(store.local.collected), ['2'])
-  assert.deepEqual(store.local.collected['2'].sources, ['Followers of @someone'])
+  assert.equal(await send({ type: 'page:collect', screenNames: ['spammer'] }), undefined)
 })
 
-test('"always collect" restores automatic collecting', async () => {
-  await boot({ settings: { version: 3, collectAlways: true } })
-  await send(response(user('3', 'anyone')))
-  await sleep(1300 + 2200)
-  assert.deepEqual(Object.keys(store.local.collected), ['3'])
-  assert.deepEqual(store.local.collected['3'].sources, ['Collected automatically'])
-})
-
-test('upgrading clears the auto-collected list and keeps the rest', async () => {
+test('upgrading drops the collecting settings and keeps the rest', async () => {
   await boot({
-    settings: { version: 2, collect: true, delayMs: 5000 },
+    settings: { version: 2, collect: true, collectAlways: true, autoScroll: true, delayMs: 5000 },
     collected: { 9: { id: '9', screenName: 'old_friend', seenAt: Date.now() } },
     queue: [{ id: '5', addedAt: 1, tries: 0 }],
   })
   await send({ type: 'page:config' })
   assert.deepEqual(store.local.collected, {})
-  assert.equal(store.local.settings.version, 4)
-  assert.equal(store.local.settings.collectAlways, false)
+  assert.equal(store.local.settings.version, 5)
+  assert.equal('collectAlways' in store.local.settings, false)
   assert.equal('collect' in store.local.settings, false)
+  assert.equal('autoScroll' in store.local.settings, false)
   assert.equal(store.local.settings.delayMs, 5000)
   assert.equal(store.local.queue.length, 1)
 })
@@ -104,63 +94,63 @@ test('upgrading clears the auto-collected list and keeps the rest', async () => 
 test('content scripts cannot call dashboard actions', async () => {
   await boot()
   assert.equal(await send({ type: 'data:wipe' }), undefined)
-  assert.equal(await send({ type: 'settings:set', patch: { collectAlways: true } }), undefined)
+  assert.equal(await send({ type: 'settings:set', patch: { inPageButtons: false } }), undefined)
+  assert.equal(await send({ type: 'legacy:queue' }), undefined)
 })
 
-test('un-collecting drops accounts from the Collected list by handle or ID', async () => {
+test('the old Collected list can be queued or discarded once', async () => {
   const now = Date.now()
-  await boot({
-    settings: { version: 3 },
+  const legacy = {
+    settings: { version: 4 },
     collected: {
-      1: { id: '1', screenName: 'byid', collectedAt: now, sources: ['A'] },
-      2: { id: '2', screenName: 'byname', collectedAt: now, sources: ['A'] },
-      3: { id: '3', screenName: 'kept', collectedAt: now, sources: ['A'] },
+      1: { id: '1', screenName: 'waiting', collectedAt: now, seenAt: now, sources: ['Followers of @a'] },
+      2: { id: '2', screenName: 'queued', collectedAt: now, seenAt: now, sources: ['A'] },
+      3: { id: '3', screenName: 'done', collectedAt: now, seenAt: now, sources: ['A'] },
     },
-    blocked: { 3: { id: '3', screenName: 'kept', at: now } },
-  })
-  const res = await send({ type: 'page:uncollect', items: [{ id: '1' }, { screenName: 'ByNaMe' }, { screenName: 'not-collected' }] })
-  assert.deepEqual(res.removed.sort(), ['byid', 'byname'])
-  const list = await send({ type: 'page:collectedList' })
-  assert.deepEqual(list.map((u) => u.screenName), [])
-  // Blocked entries are not touched by un-collecting.
-  assert.equal(Object.keys(store.local.blocked).length, 1)
-})
-
-test('the Collected list for the page excludes accounts already in the queue', async () => {
-  const now = Date.now()
-  await boot({
-    settings: { version: 3 },
-    collected: {
-      1: { id: '1', screenName: 'queued', collectedAt: now, sources: ['A'] },
-      2: { id: '2', screenName: 'waiting', collectedAt: now, sources: ['A'] },
-    },
-    queue: [{ id: '1', screenName: 'queued', addedAt: now, tries: 0 }],
-  })
-  const list = await send({ type: 'page:collectedList' })
-  assert.deepEqual(list.map((u) => u.screenName), ['waiting'])
-  const progress = await send({ type: 'page:progress' })
-  assert.equal(progress.collectedCount, 1)
-  // Removing it from the queue puts it back in Collected.
-  await send({ type: 'queue:clear' }, { id: 'ext', url: 'moz-extension://ext/dashboard/dashboard.html' })
-  assert.deepEqual((await send({ type: 'page:collectedList' })).map((u) => u.screenName).sort(), ['queued', 'waiting'])
-})
-
-test('the Collected list for the page excludes blocked accounts', async () => {
-  const now = Date.now()
-  await boot({
-    settings: { version: 3 },
-    collected: {
-      1: { id: '1', screenName: 'old', collectedAt: now - 1000, sources: ['A'] },
-      2: { id: '2', screenName: 'newer', collectedAt: now, sources: ['B'] },
-      3: { id: '3', screenName: 'done', collectedAt: now, sources: ['A'] },
-    },
+    queue: [{ id: '2', screenName: 'queued', addedAt: now, tries: 0 }],
     blocked: { 3: { id: '3', screenName: 'done', at: now } },
+  }
+  await boot(legacy)
+  assert.equal((await send({ type: 'state:get' }, DASH)).counts.legacyCollected, 1)
+  const res = await send({ type: 'legacy:queue' }, DASH)
+  assert.equal(res.added, 1)
+  const { counts, queue } = await send({ type: 'data:get', keys: ['queue'] }, DASH)
+  assert.equal(counts.legacyCollected, 0)
+  assert.deepEqual(queue.map((q) => [q.screenName, q.source]), [['queued', undefined], ['waiting', 'Followers of @a']])
+
+  await boot(legacy)
+  await send({ type: 'legacy:discard' }, DASH)
+  assert.equal((await send({ type: 'state:get' }, DASH)).counts.legacyCollected, 0)
+  assert.equal((await send({ type: 'data:get', keys: ['queue'] }, DASH)).queue.length, 1)
+})
+
+test('blocked accounts can be queued for unblocking and are unblocked by the runner', async () => {
+  const now = Date.now()
+  await boot({
+    settings: { version: 5 },
+    blocked: {
+      1: { id: '1', screenName: 'oops', at: now, source: 'x-blocker', reason: 'Replies to @a' },
+      2: { id: '2', screenName: 'meant_it', at: now, source: 'x-blocker', reason: 'Quick block' },
+    },
   })
-  const list = await send({ type: 'page:collectedList' })
-  assert.deepEqual(list.map((u) => u.screenName), ['newer', 'old'])
-  assert.deepEqual(list[0].sources, ['B'])
-  const progress = await send({ type: 'page:progress' })
-  assert.equal(progress.collectedCount, 2)
+  // No x.com tab in this fake browser, so starting the runner fails; the unblock stays queued.
+  await send({ type: 'blocked:unblock', items: [{ id: '1', screenName: 'oops' }, { id: '99' }] }, DASH)
+  const { queue } = await send({ type: 'data:get', keys: ['queue'] }, DASH)
+  assert.deepEqual(queue.map((q) => [q.id, q.action]), [['1', 'unblock']], 'only recorded blocks can be unblocked')
+
+  await boot({
+    settings: { version: 5 },
+    blocked: store.local.blocked,
+    queue: store.local.queue,
+    runner: { state: 'running', tabId: 7, token: 't', lastBeat: Date.now(), done: 0, failed: 0, skipped: 0, strikes: 0 },
+  })
+  const next = await send({ type: 'runner:next', token: 't' })
+  assert.equal(next.item.action, 'unblock')
+  await send({ type: 'runner:result', token: 't', item: next.item, outcome: 'unblocked' })
+  const after = await send({ type: 'data:get', keys: ['blocked', 'queue'] }, DASH)
+  assert.deepEqual(Object.keys(after.blocked), ['2'])
+  assert.equal(after.queue.length, 0)
+  assert.equal(after.runner.unblocked, 1)
 })
 
 test('a rate limit waits for the reset time X reports, not a fixed cooldown', async () => {
@@ -188,7 +178,7 @@ test('v4 moves an untouched old daily limit and keeps custom values', async () =
   await boot({ settings: { version: 3, delayMs: 4000, jitterMs: 4000, dailyCap: 450 } })
   await send({ type: 'page:config' })
   const st = store.local.settings
-  assert.deepEqual([st.version, st.delayMs, st.jitterMs, st.dailyCap, st.hourlyCap], [4, 4000, 4000, 1000, 150])
+  assert.deepEqual([st.version, st.delayMs, st.jitterMs, st.dailyCap, st.hourlyCap], [5, 4000, 4000, 1000, 150])
 
   await boot({ settings: { version: 3, delayMs: 5000, jitterMs: 4000, dailyCap: 300 } })
   await send({ type: 'page:config' })
@@ -214,25 +204,22 @@ test('the hourly limit pauses the queue until the oldest block leaves the hour',
 })
 
 test('resetting settings restores defaults but keeps the never-block list', async () => {
-  await boot({ settings: { version: 4, delayMs: 9000, hourlyCap: 20, autoScroll: true, whitelist: ['friend'] } })
-  const dash = { id: 'ext', url: 'moz-extension://ext/dashboard/dashboard.html' }
+  await boot({ settings: { version: 5, delayMs: 9000, hourlyCap: 20, inPageButtons: false, whitelist: ['friend'] } })
   assert.equal(await send({ type: 'settings:reset' }), undefined, 'content scripts cannot reset settings')
-  await send({ type: 'settings:reset' }, dash)
-  const { settings } = await send({ type: 'data:get', keys: ['settings'] }, dash)
-  assert.deepEqual([settings.delayMs, settings.hourlyCap, settings.autoScroll], [4000, 150, false])
+  await send({ type: 'settings:reset' }, DASH)
+  const { settings } = await send({ type: 'data:get', keys: ['settings'] }, DASH)
+  assert.deepEqual([settings.delayMs, settings.hourlyCap, settings.inPageButtons], [4000, 150, true])
   assert.deepEqual(settings.whitelist, ['friend'])
 })
 
-test('lookup reports collected and queued accounts, and unqueue removes them', async () => {
+test('lookup reports queued accounts, and unqueue removes them', async () => {
   await boot({
-    settings: { version: 4 },
-    collected: { 1: { id: '1', screenName: 'kept', seenAt: Date.now() } },
+    settings: { version: 5 },
     queue: [{ id: '2', screenName: 'queued_one', addedAt: 1, tries: 0 }, { screenName: 'by_name', addedAt: 1, tries: 0 }],
   })
   await send(response(user('1', 'kept'), user('2', 'queued_one')))
   await sleep(1300)
   const info = await send({ type: 'page:lookup', screenNames: ['kept', 'queued_one', 'by_name'] })
-  assert.equal(info.kept.collected, true)
   assert.equal(info.kept.queued, false)
   assert.equal(info.queued_one.queued, true)
   assert.equal(info.by_name.queued, true)

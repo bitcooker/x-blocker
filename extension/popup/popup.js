@@ -18,10 +18,10 @@ async function render() {
   $('status').dataset.state = runner.state
   const active = runner.state === 'running' || runner.state === 'cooldown'
   const progress = active || runner.state === 'paused'
-    ? `${runner.done} blocked · ${runner.skipped} skipped · ${runner.failed} failed` : ''
+    ? `${runner.done} blocked · ${runner.unblocked ? `${runner.unblocked} unblocked · ` : ''}${runner.skipped} skipped · ${runner.failed} failed` : ''
   $('message').hidden = !(runner.message || progress)
   $('message').textContent = runner.message || progress
-  $('c-collected').textContent = nf.format(counts.collected)
+  $('c-total').textContent = nf.format(counts.blocked)
   $('c-queue').textContent = nf.format(counts.queue)
   $('c-24h').textContent = nf.format(counts.last24h)
   $('c-blocked').textContent = `${nf.format(counts.blocked)} blocked · v${browser.runtime.getManifest().version}`

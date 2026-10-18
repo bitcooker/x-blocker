@@ -13,13 +13,12 @@
 <body>
   <div class="layout">
     <aside class="sidebar">
-      <a class="brand" href="#collected">
+      <a class="brand" href="#queue">
         <img src="../icons/icon.svg" alt="" width="32" height="32">
         <span>X Blocker</span>
         <small id="version" class="version"></small>
       </a>
       <nav id="tabs" aria-label="Sections">
-        <button class="nav-item" data-tab="collected"><i data-icon="people"></i><span>Collected</span><b id="n-collected" class="badge"></b></button>
         <button class="nav-item" data-tab="queue"><i data-icon="queue"></i><span>Queue</span><b id="n-queue" class="badge"></b></button>
         <button class="nav-item" data-tab="import"><i data-icon="import"></i><span>Import</span></button>
         <button class="nav-item" data-tab="blocked"><i data-icon="block"></i><span>Blocked</span><b id="n-blocked" class="badge"></b></button>
@@ -41,41 +40,9 @@
 
     <main>
       <section class="overview">
-        <div class="stat"><span>Collected</span><b id="s-collected">0</b></div>
         <div class="stat"><span>In queue</span><b id="s-queue">0</b></div>
         <div class="stat"><span>Blocked total</span><b id="s-blocked">0</b></div>
         <div class="stat"><span>Last 24 hours</span><b id="s-24h">0</b></div>
-      </section>
-
-      <!-- Collected -->
-      <section id="tab-collected" class="panel">
-        <header class="panel-head">
-          <div>
-            <h1>Collected accounts</h1>
-            <p class="muted">Lists you chose to collect on x.com. Open a followers, likes, reposts, replies or search page, open the X Blocker panel at the bottom and press <b>Collect</b>. Collecting stops when you leave the page.</p>
-          </div>
-        </header>
-        <div class="toolbar">
-          <label class="search grow"><i data-icon="search"></i><input id="c-filter" class="input" type="search" placeholder="Search name, @handle or bio"></label>
-          <button id="c-hide-blocked" class="chip" aria-pressed="true">Hide blocked</button>
-          <button id="c-hide-following" class="chip" aria-pressed="true">Hide people I know</button>
-          <select id="c-source" class="input select" aria-label="Filter by source"><option value="">All sources</option></select>
-        </div>
-        <div id="c-selection" class="selection-bar">
-          <label class="row"><input id="c-select-all" type="checkbox" aria-label="Select all shown"><span id="c-selected" class="muted">Select all</span></label>
-          <span class="grow"></span>
-          <button id="c-export" class="btn btn-sm btn-ghost"><i data-icon="download"></i>Export</button>
-          <button id="c-clear" class="btn btn-sm btn-ghost"><i data-icon="trash"></i>Clear list</button>
-          <button id="c-remove" class="btn btn-sm" disabled>Remove</button>
-          <button id="c-queue-selected" class="btn btn-sm btn-danger" disabled><i data-icon="block"></i>Queue for blocking</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th class="w-check"></th><th>Account</th><th class="num">Followers</th><th>Status</th><th>From</th><th>Collected</th></tr></thead>
-            <tbody id="c-body"></tbody>
-          </table>
-        </div>
-        <p id="c-more" class="foot muted"></p>
       </section>
 
       <!-- Queue -->
@@ -83,7 +50,7 @@
         <header class="panel-head">
           <div>
             <h1>Queue</h1>
-            <p class="muted">Processed top to bottom. Progress is saved after every block, so you can pause or close the browser anytime.</p>
+            <p class="muted">Accounts waiting to be blocked or unblocked, processed top to bottom. On x.com, open a followers, likes, reposts, replies or search page, open the X Blocker panel at the bottom and press <b>Review</b> to add accounts. Progress is saved after every account, so you can pause or close the browser anytime.</p>
           </div>
           <div class="row">
             <button id="q-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
@@ -92,6 +59,13 @@
             <button id="q-pause" class="btn btn-sm" hidden><i data-icon="pause"></i><span>Pause</span></button>
           </div>
         </header>
+        <div id="legacy" class="card list" hidden>
+          <div class="setting"><div><b id="legacy-title">Accounts from your old Collected list</b><span>X Blocker no longer keeps a Collected list: you now review a list on x.com and queue it right away. Decide once what happens to the accounts that were still waiting there.</span></div>
+            <div class="row">
+              <button id="legacy-discard" class="btn btn-sm">Discard</button>
+              <button id="legacy-queue" class="btn btn-sm btn-danger"><i data-icon="block"></i>Queue for blocking</button>
+            </div></div>
+        </div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>#</th><th>Account</th><th>From</th><th>Added</th><th>Attempts</th><th></th></tr></thead>
@@ -124,7 +98,7 @@
         <header class="panel-head">
           <div>
             <h1>Blocked</h1>
-            <p class="muted">Accounts blocked by X Blocker, and accounts seen as already blocked. Clearing this history does not unblock anyone.</p>
+            <p class="muted">Accounts blocked by X Blocker, and accounts seen as already blocked. Blocked a group by mistake? Filter by where they came from, select them and press <b>Unblock</b>. Unblocks go through the queue at the same safe pace. Clearing this history does not unblock anyone.</p>
           </div>
           <div class="row">
             <button id="b-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
@@ -133,10 +107,16 @@
         </header>
         <div class="toolbar">
           <label class="search grow"><i data-icon="search"></i><input id="b-filter" class="input" type="search" placeholder="Search blocked accounts"></label>
+          <select id="b-source" class="input select" aria-label="Filter by where they came from"><option value="">All sources</option></select>
+        </div>
+        <div id="b-selection" class="selection-bar">
+          <label class="row"><input id="b-select-all" type="checkbox" aria-label="Select all shown"><span id="b-selected" class="muted">Select all</span></label>
+          <span class="grow"></span>
+          <button id="b-unblock" class="btn btn-sm" disabled>Unblock</button>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Account</th><th>From</th><th>When</th></tr></thead>
+            <thead><tr><th class="w-check"></th><th>Account</th><th>From</th><th>When</th></tr></thead>
             <tbody id="b-body"></tbody>
           </table>
         </div>
@@ -166,8 +146,6 @@
         <form id="settings" class="settings">
           <h2>On x.com</h2>
           <div class="card list">
-            <label class="setting"><div><b>Always collect</b><span>Collect every account X shows you, on any page, instead of only the lists you choose. Not recommended: it also collects friends and people you just read about.</span></div><span class="switch"><input name="collectAlways" type="checkbox"><span></span></span></label>
-            <label class="setting"><div><b>Auto-scroll button</b><span>Show a button in the panel that scrolls a list to its end so every account is shown. Reload x.com after changing this.</span></div><span class="switch"><input name="autoScroll" type="checkbox"><span></span></span></label>
             <label class="setting"><div><b>Block buttons &amp; mass-block panel</b><span>Show X Blocker controls inside x.com. Reload x.com after changing this.</span></div><span class="switch"><input name="inPageButtons" type="checkbox"><span></span></span></label>
           </div>
 
@@ -176,7 +154,7 @@
             <label class="setting"><div><b>Skip accounts I follow</b><span>Never block someone you follow.</span></div><span class="switch"><input name="skipFollowing" type="checkbox"><span></span></span></label>
             <label class="setting"><div><b>Skip my followers</b><span>Never block someone who follows you.</span></div><span class="switch"><input name="skipFollowers" type="checkbox"><span></span></span></label>
             <label class="setting"><div><b>Skip verified accounts</b><span>Leave accounts with a checkmark alone.</span></div><span class="switch"><input name="skipVerified" type="checkbox"><span></span></span></label>
-            <label class="setting stack"><div><b>Never block</b><span>One @handle per line. These accounts are always skipped, even if they are collected, imported or in a list you block.</span></div><textarea name="whitelist" class="input handles" rows="4" spellcheck="false" autocomplete="off" placeholder="@friend&#10;@family"></textarea></label>
+            <label class="setting stack"><div><b>Never block</b><span>One @handle per line. These accounts are always skipped, even if they are imported or in a list you block.</span></div><textarea name="whitelist" class="input handles" rows="4" spellcheck="false" autocomplete="off" placeholder="@friend&#10;@family"></textarea></label>
           </div>
 
           <h2>Speed &amp; limits</h2>
@@ -189,12 +167,12 @@
           </div>
           <h2>Reset</h2>
           <div class="card list">
-            <div class="setting"><div><b>Restore default settings</b><span>Puts every setting on this page back to its default. Your never-block list, collected accounts, queue and history are kept.</span></div>
+            <div class="setting"><div><b>Restore default settings</b><span>Puts every setting on this page back to its default. Your never-block list, queue and history are kept.</span></div>
               <button id="reset-settings" type="button" class="btn btn-sm">Reset settings</button></div>
           </div>
           <h2>Privacy</h2>
           <div class="card list">
-            <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser, on your device, and nothing is sent anywhere except your own requests to X. Only accounts from lists you collect are kept. Others are held in a temporary cache, cleared when the browser closes, that is used to protect your friends and detect blocked accounts. Collected profiles not seen for 30 days are forgotten, and private pages (messages, notifications, settings) are never read.</span></div>
+            <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser, on your device, and nothing is sent anywhere except your own requests to X. Only the accounts you queue and the ones you block are kept. Accounts X shows you are held in a temporary cache, cleared when the browser closes, that is used to protect your friends and detect blocked accounts. Private pages (messages, notifications, settings) are never read.</span></div>
               <button id="wipe" type="button" class="btn btn-sm btn-danger-outline">Delete all data</button></div>
           </div>
         </form>
