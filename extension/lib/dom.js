@@ -134,10 +134,10 @@ export function toast(message, { error = false, timeout } = {}) {
   setTimeout(() => t.remove(), timeout ?? (error ? 6000 : 3500))
 }
 
-export function confirmDialog({ title, body, confirmLabel = 'Confirm', danger = true }) {
+export function confirmDialog({ title, body, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = true }) {
   return new Promise((resolve) => {
     const ok = h('button', { class: `btn btn-lg btn-block ${danger ? 'btn-danger' : 'btn-primary'}`, value: 'ok' }, confirmLabel)
-    const cancel = h('button', { class: 'btn btn-lg btn-block', value: 'cancel' }, 'Cancel')
+    const cancel = h('button', { class: 'btn btn-lg btn-block', value: 'cancel' }, cancelLabel)
     const form = h('form', { method: 'dialog' }, h('h2', {}, title), h('p', {}, body), h('div', { class: 'actions' }, ok, cancel))
     const dialog = h('dialog', { class: 'modal' }, form)
     dialog.addEventListener('close', () => {

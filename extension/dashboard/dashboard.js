@@ -177,7 +177,7 @@ function renderBatches() {
       actions.push(h('button', {
         class: 'btn btn-xs', title: 'Stop blocking the accounts still waiting',
         onclick: () => cancelBatch(b),
-      }, 'Cancel rest'))
+      }, b.waiting < b.total ? 'Cancel the rest' : 'Cancel'))
     }
     if (!undo && b.done) {
       actions.push(h('button', {
@@ -217,10 +217,14 @@ function renderBatches() {
 }
 
 async function cancelBatch(b) {
+  const started = b.waiting < b.total
+  const verb = b.action === 'unblock' ? 'unblocked' : 'blocked'
   if (!await confirmDialog({
-    title: `Cancel ${plural(b.waiting, 'waiting account')}?`,
-    body: `They won't be ${b.action === 'unblock' ? 'unblocked' : 'blocked'}. Accounts already done stay as they are.`,
-    confirmLabel: 'Cancel them',
+    title: started ? `Cancel the ${plural(b.waiting, 'waiting account')}?` : 'Cancel this batch?',
+    body: started ? `They won't be ${verb}. Accounts already done stay as they are.`
+      : `None of its ${plural(b.waiting, 'account')} will be ${verb}.`,
+    confirmLabel: started ? 'Cancel the rest' : 'Cancel batch',
+    cancelLabel: 'Keep going',
   })) return
   action(async () => {
     const r = await send('batch:cancel', { id: b.id })
