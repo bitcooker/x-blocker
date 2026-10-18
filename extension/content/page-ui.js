@@ -626,13 +626,12 @@
       svg{width:18px;height:18px;fill:currentColor;flex:none}
 
       .panel{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;display:flex;
-        align-items:center;gap:12px;padding:12px 12px 12px 16px;border-radius:16px;background:var(--bg);
+        align-items:center;gap:12px;padding:12px 16px 12px 13px;border-radius:16px;background:var(--bg);
         border:1px solid var(--border);box-shadow:var(--shadow);animation:rise .2s ease-out}
-      .panel .logo{width:32px;height:32px;border-radius:9999px;background:rgba(244,33,46,.12);color:#f4212e;
-        display:flex;align-items:center;justify-content:center;flex:none}
-      .panel .text{display:flex;flex-direction:column;min-width:0}
-      .panel .title{font-weight:700;font-size:15px}
-      .panel .sub{color:var(--muted);font-size:12px;line-height:16px;margin-top:3px}
+      .panel .text{display:flex;flex-direction:column;gap:3px;min-width:0;--icon-col:18px}
+      .panel .title{font-weight:700;font-size:15px;padding-left:var(--icon-col)}
+      .panel .sub{color:var(--muted);font-size:12px;line-height:16px}
+      .panel .sub .run[hidden] + .count{padding-left:var(--icon-col)}
       .panel .count{font-variant-numeric:tabular-nums}
       .panel .sub{display:flex;align-items:center;gap:5px}
       .panel .run{position:relative;width:13px;height:13px;flex:none;border:1px solid currentColor;color:var(--fg)}
@@ -674,6 +673,10 @@
 
       .panel .title{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .panel .eyebrow{color:#f4212e;font-size:11px;line-height:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+      .panel .head{display:flex;align-items:center;gap:5px}
+      .panel .head .btn-ghost{position:relative;width:13px;height:13px;border:1px solid currentColor}
+      .panel .head .btn-ghost::after{content:"";position:absolute;inset:-6px}
+      .panel .head .btn-ghost svg{width:7px;height:7px}
 
       .review{width:560px;max-width:calc(100vw - 32px);max-height:min(720px,calc(100vh - 64px));background:var(--bg);
         border-radius:16px;display:flex;flex-direction:column;animation:pop .15s ease-out;overflow:hidden}
@@ -742,7 +745,7 @@
     const ICON_STOP = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></svg>'
     const ICON_PLAY = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
     const ICON_PAUSE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
-    const ICON_MIN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 11h14v2H5z"/></svg>'
+    const ICON_MIN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 10.5h14v3H5z"/></svg>'
 
     // Panel
     const panel = el('div', 'panel')
@@ -752,18 +755,19 @@
     const runBtn = el('button', 'run')
     const sub = el('span', 'sub', runBtn, count)
     const title = el('span', 'title')
-    const text = el('div', 'text', el('span', 'eyebrow', 'X Blocker'), title, sub)
-    const logo = el('div', 'logo', svg(BLOCK_ICON))
-    const scrollBtn = el('button', 'btn btn-outline btn-icon')
-    const blockAllBtn = el('button', 'btn btn-danger')
-    const collectBtn = el('button', 'btn btn-outline btn-collect')
     const minBtn = el('button', 'btn-ghost', svg(ICON_MIN))
     minBtn.title = 'Minimize'
     minBtn.setAttribute('aria-label', 'Minimize X Blocker panel')
+    // Collapse sits next to the brand label, out of the action row, so it
+    // takes no width whatever buttons the panel shows.
+    const text = el('div', 'text', el('div', 'head', minBtn, el('span', 'eyebrow', 'X Blocker')), title, sub)
+    const scrollBtn = el('button', 'btn btn-outline btn-icon')
+    const blockAllBtn = el('button', 'btn btn-danger')
+    const collectBtn = el('button', 'btn btn-outline btn-collect')
     const progBar = el('span', '')
     const prog = el('div', 'prog', progBar)
     prog.setAttribute('role', 'progressbar')
-    panel.append(logo, text, scrollBtn, collectBtn, blockAllBtn, minBtn, prog)
+    panel.append(text, scrollBtn, collectBtn, blockAllBtn, prog)
 
     const fabBadge = el('span', 'badge')
     const fabDot = el('span', 'dot')
