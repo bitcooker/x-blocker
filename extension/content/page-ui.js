@@ -1290,6 +1290,15 @@
 
     return {
       update,
+      // What the toolbar popup shows about this tab.
+      pageInfo() {
+        if (!enabled || !context) return { list: false }
+        const { loaded, ended } = listState()
+        return { list: true, label: context.label, loaded, total: listTotal, ended, reviewable: candidates().length }
+      },
+      openPanel() {
+        saveMinimized(false)
+      },
       scheduleUpdate,
       confirm: confirmDialog,
       toast,
@@ -1312,7 +1321,16 @@
 
   // ---- lifecycle -------------------------------------------------------------
 
-  browser.runtime.onMessage.addListener((msg) => {
+  browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type === 'tab:page') {
+      sendResponse(ui.pageInfo())
+      return false
+    }
+    if (msg?.type === 'tab:openPanel') {
+      ui.openPanel()
+      sendResponse({ ok: true })
+      return false
+    }
     if (msg?.type === 'page:blockedNotice' && msg.screenName) {
       blockedHere.add(msg.screenName.toLowerCase())
       markBlocked(msg.screenName)

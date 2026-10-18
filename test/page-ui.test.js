@@ -92,7 +92,8 @@ async function load(body, { path = '/target/followers', search = '', respond = (
     visible: () => buttons().filter((b) => !b.hidden).map((b) => b.dataset.sn),
     handles: () => [...ctx.__handles.values()],
     shadow: () => document.getElementById('xb-root')?.shadowRoot,
-    message: (m) => listeners.forEach((f) => f(m)),
+    message: (m) => listeners.forEach((f) => f(m, {}, () => {})),
+    ask: (m) => { let reply; listeners.forEach((f) => f(m, {}, (r) => { reply ??= r })); return reply },
     store,
     storageChanged: (changes, area = 'local') => changedListeners.forEach((f) => f(changes, area)),
     location,
@@ -443,4 +444,18 @@ test('accounts loaded by scrolling show up in the counts, even when minimized', 
   assert.ok(fab().classList.contains('bump'))
   await page.click('.fab')
   assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'Review 3')
+})
+
+test('the toolbar popup can ask the page about its list and open the panel', async () => {
+  const page = await load(`<main>${cell('alice')}${cell('bob', { followClass: 'x-blocked' })}</main>`)
+  await sleep(300)
+  assert.deepEqual(JSON.parse(JSON.stringify(page.ask({ type: 'tab:page' }))),
+    { list: true, label: 'Followers of @target', loaded: 2, total: null, ended: false, reviewable: 1 })
+  assert.equal(page.shadow().querySelector('.panel'), null)
+  page.ask({ type: 'tab:openPanel' })
+  await sleep(200)
+  assert.ok(page.shadow().querySelector('.panel'))
+
+  const home = await load(`<main>${post('someone')}</main>`, { path: '/home' })
+  assert.deepEqual(JSON.parse(JSON.stringify(home.ask({ type: 'tab:page' }))), { list: false })
 })

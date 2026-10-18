@@ -695,6 +695,9 @@ function summary(s) {
       lastHour: s.blockTimes.filter((t) => Date.now() - t < HOUR).length,
       etaMs: estimateMs(s),
     },
+    // The batch being worked on (the head of the queue), for status displays.
+    current: s.queue[0]?.batch && s.batches[s.queue[0].batch]
+      ? { source: s.batches[s.queue[0].batch].source, action: s.batches[s.queue[0].batch].action } : null,
   }
 }
 
