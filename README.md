@@ -17,13 +17,16 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   loaded (and the list's size for followers and following). **Load all**
   scrolls the list to its end for you. Or review what is loaded, block, scroll,
   and review again: accounts already queued or blocked are left out.
-- **Undo a group.** Blocked a list by mistake? In the dashboard's Blocked tab,
-  filter by where they came from, select them and press **Unblock**.
+- **Batches you can undo.** Every review you block becomes a batch. Right
+  after blocking, **Undo** takes it back out of the queue; later, **Undo** on
+  the dashboard unblocks the whole batch. Single accounts can be unblocked in
+  the Blocked list.
 - **Import.** Paste or upload @handles, profile links, user IDs or a CSV.
 - **Runs in the background.** Accounts are blocked one by one. Pause and resume
   anytime, even after closing the browser.
-- **Dashboard.** Browse, filter and export your queued and blocked accounts,
-  and see a log of everything that happened.
+- **Toolbar menu and dashboard.** The toolbar menu shows the queue, the time
+  left and the safety limits, and what you can do on the current tab. The
+  dashboard lists your batches, every blocked account, imports and settings.
 
 ## Safety
 

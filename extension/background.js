@@ -18,6 +18,7 @@ import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 // blocks out (avg ~6 s, at most 150 an hour) rather than only capping the day.
 const DEFAULT_SETTINGS = {
   inPageButtons: true,
+  buttonsEverywhere: true, // false: per-account Block buttons only on list pages
   delayMs: 4000,
   jitterMs: 4000,
   cooldownMin: 15,
@@ -198,7 +199,11 @@ function pendingCollected(s) {
 
 function progressPayload() {
   const { token, ...runner } = cache.runner
-  return { type: 'page:progress', runner, queueLen: cache.queue.length, last24h: last24h(cache) }
+  const head = cache.queue[0]?.batch && cache.batches[cache.queue[0].batch]
+  return {
+    type: 'page:progress', runner, queueLen: cache.queue.length, last24h: last24h(cache), etaMs: estimateMs(cache),
+    current: head ? { source: head.source, action: head.action } : null,
+  }
 }
 
 async function broadcastProgress() {
@@ -837,6 +842,7 @@ async function mutate(s, keys, fn) {
 const pageHandlers = {
   'page:config': (s) => ({
     inPageButtons: s.settings.inPageButtons,
+    buttonsEverywhere: s.settings.buttonsEverywhere,
     blockedScreenNames: Object.values(s.blocked).map((b) => b.screenName?.toLowerCase()).filter(Boolean),
   }),
   'page:lookup': (s, msg) => {
@@ -878,6 +884,12 @@ const pageHandlers = {
     })
     return { removed }
   }),
+  // Undo right after Block on the page: cancel what is still waiting in that batch.
+  'page:cancelBatch': (s, msg) => mutate(s, ['queue', 'batches'], () => {
+    const b = s.batches[msg.id]
+    if (!b) return { cancelled: 0, done: 0 }
+    return { cancelled: cancelWhere(s, (q) => q.batch === msg.id), done: b.done }
+  }),
   // Quick blocks count toward the same safety limits as the queue.
   'page:quota': (s) => {
     const used = last24h(s)
@@ -885,7 +897,8 @@ const pageHandlers = {
     const hourly = s.settings.hourlyCap
     const usedHour = s.blockTimes.filter((t) => Date.now() - t < HOUR).length
     const limit = cap > 0 && used >= cap ? 'daily' : hourly > 0 && usedHour >= hourly ? 'hourly' : ''
-    return { used, cap, usedHour, hourly, limit, allowed: !limit }
+    const paceMs = s.settings.delayMs + s.settings.jitterMs / 2 + 1500
+    return { used, cap, usedHour, hourly, limit, allowed: !limit, paceMs }
   },
   'page:blocked': (s, msg) => mutate(s, ['blocked', 'collected', 'blockTimes', 'log', 'queue', 'batches'], () => {
     const { id, screenName } = msg.user ?? {}

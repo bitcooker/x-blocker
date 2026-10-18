@@ -26,7 +26,7 @@ const post = (sn, text = '') => `
   <div class="icons"><div class="g"><button>G</button><span></span></div><div><button>…</button></div></div></div>
   <p>${text}</p><div><button>reply</button><button>like</button></div></article>`
 
-async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1, storage = {} } = {}) {
+async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1, storage = {}, config = {} } = {}) {
   const { window, document } = parseHTML(`<html><body>${body}</body></html>`)
   const location = { pathname: path, search }
   window.HTMLElement.prototype.getBoundingClientRect = function () {
@@ -43,7 +43,7 @@ async function load(body, { path = '/target/followers', search = '', respond = (
     runtime: {
       sendMessage: async (m) => {
         sent.push(m)
-        if (m.type === 'page:config') return { inPageButtons: true, blockedScreenNames: [] }
+        if (m.type === 'page:config') return { inPageButtons: true, blockedScreenNames: [], ...config }
         if (m.type === 'page:viewer') return { screenName: 'me' }
         return respond(m)
       },
@@ -215,17 +215,24 @@ test('re-injection leaves a single UI instance', async () => {
   assert.equal(page.document.querySelectorAll('style[data-xb-style]').length, 1)
 })
 
-test('panel shows live queue progress', async () => {
+test('panel shows live queue progress in its own strip, below the list', async () => {
   const page = await load(`<main>${cell('alice')}</main>`)
   await page.click('.fab')
-  const sub = () => page.shadow().querySelector('.sub').textContent
+  const sub = () => page.shadow().querySelector('.run-text').textContent
+  const strip = () => page.shadow().querySelector('.strip')
+  assert.equal(strip().hidden, true)
   const runner = (state, extra = {}) => ({ state, done: 4, failed: 0, skipped: 1, lastBeat: Date.now(), ...extra })
-  page.message({ type: 'page:progress', runner: runner('running'), queueLen: 9 })
+  page.message({ type: 'page:progress', runner: runner('running'), queueLen: 9, etaMs: 25 * 60_000,
+    current: { source: 'Followers of @x', action: 'block' } })
   await sleep(200)
-  assert.equal(sub(), 'Blocking · 5 of 14 · 1 skipped')
+  assert.equal(strip().hidden, false)
+  assert.equal(sub(), 'Blocking · 5 of 14 · ~25 min left · 1 skipped · Followers of @x')
+  assert.equal(page.shadow().querySelector('.strip .run').textContent, 'Pause')
+  assert.equal(page.shadow().querySelector('.sub').textContent, '1 loaded so farLoad all', 'the list line stays about the list')
   page.message({ type: 'page:progress', runner: runner('paused'), queueLen: 9 })
   await sleep(200)
   assert.equal(sub(), 'Blocking paused · 5 of 14 · 1 skipped')
+  assert.equal(page.shadow().querySelector('.strip .run').textContent, 'Resume')
   page.message({ type: 'page:progress', runner: runner('idle', { done: 12, skipped: 2 }), queueLen: 0 })
   await sleep(200)
   assert.equal(sub(), 'Done · 12 blocked · 2 skipped')
@@ -345,7 +352,7 @@ test('on other pages the panel only shows while the queue runs', async () => {
   await sleep(250)
   assert.equal(page.shadow().querySelector('.fab').textContent, 'Blocking 5/14')
   await page.click('.fab')
-  assert.equal(page.shadow().querySelector('.title').textContent, 'Block queue')
+  assert.equal(page.shadow().querySelector('.title').textContent, 'Queue')
   assert.equal(page.shadow().querySelector('.panel .btn-danger').hidden, true)
 })
 
@@ -354,10 +361,10 @@ test('a run of unblocks reports unblocking, not blocking', async () => {
   await page.click('.fab')
   page.message({ type: 'page:progress', runner: { state: 'running', done: 0, unblocked: 2, failed: 0, skipped: 0, lastBeat: Date.now() }, queueLen: 3 })
   await sleep(200)
-  assert.equal(page.shadow().querySelector('.sub').textContent, 'Unblocking · 2 of 5')
+  assert.equal(page.shadow().querySelector('.run-text').textContent, 'Unblocking · 2 of 5')
   page.message({ type: 'page:progress', runner: { state: 'idle', done: 0, unblocked: 5, failed: 0, skipped: 0, lastBeat: Date.now() }, queueLen: 0 })
   await sleep(200)
-  assert.equal(page.shadow().querySelector('.sub').textContent, 'Done · 5 unblocked')
+  assert.equal(page.shadow().querySelector('.run-text').textContent, 'Done · 5 unblocked')
 })
 
 test('the review dialog links each handle to its profile without changing the tick', async () => {
@@ -411,7 +418,6 @@ test('the panel says how much of the list is loaded and can load the rest', asyn
   await page.click('.sub .btn-xs')
   assert.equal(page.scroll().on, true)
   assert.equal(sub(), 'Loading 2 of ~17.4KStop')
-  assert.equal(page.shadow().querySelector('.run').hidden, true, 'one icon per line')
   assert.equal(page.shadow().querySelector('.sub .dot').hidden, false)
 
   // The review says it is only part of the list, and offers to load the rest.
@@ -458,4 +464,54 @@ test('the toolbar popup can ask the page about its list and open the panel', asy
 
   const home = await load(`<main>${post('someone')}</main>`, { path: '/home' })
   assert.deepEqual(JSON.parse(JSON.stringify(home.ask({ type: 'tab:page' }))), { list: false })
+})
+
+test('review filters hide people you know and verified accounts, and estimate the time', async () => {
+  const page = await load(`<main>${cell('a1')}${cell('a2')}${cell('a3')}</main>`, {
+    respond: (m) => {
+      if (m.type === 'page:lookup') return { a1: { id: '1' }, a2: { id: '2', followedBy: true }, a3: { id: '3', verified: true } }
+      if (m.type === 'page:quota') return { used: 0, cap: 1000, allowed: true, paceMs: 7500 }
+      if (m.type === 'page:massBlock') return { added: m.items.length, skipped: 0, batch: 'b1' }
+      if (m.type === 'page:cancelBatch') return { cancelled: 2, done: 0 }
+      return {}
+    },
+  })
+  await page.click('.fab')
+  await page.click('.panel .btn-danger')
+  const dialog = page.shadow().querySelector('.review')
+  const names = () => [...dialog.querySelectorAll('li .hd')].map((e) => e.textContent)
+  const [known, verified] = dialog.querySelectorAll('.filters .filter')
+  assert.deepEqual(names(), ['@a1', '@a2', '@a3'])
+  assert.equal(dialog.querySelector('.rf .eta').textContent, 'under a minute at the current pace')
+
+  known.click()
+  await sleep(20)
+  assert.deepEqual(names(), ['@a1', '@a3'])
+  verified.click()
+  await sleep(20)
+  assert.deepEqual(names(), ['@a1'])
+  assert.match(dialog.querySelector('.bar').textContent, /2 hidden/)
+  verified.click()
+  await sleep(20)
+
+  // Hidden accounts are never blocked; Undo right after takes the batch back out of the queue.
+  dialog.querySelector('.rf .btn-danger').click()
+  await sleep(250)
+  const block = page.sent.find((m) => m.type === 'page:massBlock')
+  assert.deepEqual([...block.items.map((i) => i.screenName)], ['a1', 'a3'])
+  const undo = page.shadow().querySelector('.toast-action')
+  assert.equal(undo.textContent, 'Undo')
+  undo.click()
+  await sleep(100)
+  assert.deepEqual(page.sent.find((m) => m.type === 'page:cancelBatch')?.id, 'b1')
+  assert.match(page.shadow().querySelector('.toasts').textContent, /2 accounts taken out of the queue/)
+})
+
+test('Block buttons can be limited to list pages', async () => {
+  const home = await load(`<main>${post('a')}</main>`, { path: '/home', config: { buttonsEverywhere: false } })
+  assert.equal(home.buttons().length, 0)
+  const list = await load(`<main>${cell('alice')}</main>`, { config: { buttonsEverywhere: false } })
+  assert.equal(list.buttons().length, 1)
+  const everywhere = await load(`<main>${post('a')}</main>`, { path: '/home' })
+  assert.equal(everywhere.buttons().length, 1)
 })

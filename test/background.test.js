@@ -281,7 +281,8 @@ test('past blocks and waiting accounts are grouped into batches on upgrade', asy
   const { batches } = await send({ type: 'data:get', keys: ['batches'] }, DASH)
   assert.deepEqual(batches.map((b) => [b.source, b.total, b.waiting]).sort(),
     [['Followers of @x', 2, 0], ['Imported list', 1, 1], ['Quick block', 1, 0]])
-  assert.equal(store.local.blocked['4'].batch, undefined, 'accounts X already showed as blocked are not ours to undo')
+  const { blocked } = await send({ type: 'data:get', keys: ['blocked'] }, DASH)
+  assert.equal(blocked['4'].batch, undefined, 'accounts X already showed as blocked are not ours to undo')
 })
 
 test('quick blocks of a day share one batch', async () => {
