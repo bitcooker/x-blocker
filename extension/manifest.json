@@ -27,6 +27,7 @@
   },
   "permissions": [
     "storage",
+    "alarms",
     "unlimitedStorage",
     "webRequest",
     "webRequestBlocking",

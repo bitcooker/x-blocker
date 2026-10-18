@@ -53,6 +53,14 @@
 
   let running = false
   let runToken = null
+  // The loop's waits end early when the background nudges it (tab:run), e.g.
+  // when a cooldown is over but this background tab's timers are throttled.
+  let wake = null
+  const nap = (ms) => new Promise((resolve) => {
+    const done = () => { clearTimeout(timer); wake = null; resolve() }
+    const timer = setTimeout(done, ms)
+    wake = done
+  })
 
   // Returns { res, blockRequested }. The delay between blocks only matters
   // after a real block request; skipped accounts move on immediately.
@@ -101,13 +109,14 @@
         const next = await send({ type: 'runner:next', token: runToken })
         if (!next || next.stop) break
         if (next.waitMs) {
-          await sleep(Math.min(next.waitMs, 20_000))
+          await nap(Math.min(next.waitMs, 20_000))
           continue
         }
         const { res, blockRequested } = await processItem(next.item)
         if (res?.stop) break
         // Wait only after an actual block call; a handle lookup that ended in a
         // skip just gets a short breather so lookups aren't fired back to back.
+        // The pause after a block is never cut short, so a nudge can't speed blocking up.
         await sleep(blockRequested ? (next.delayMs ?? 4000) : 800)
       }
     } catch (e) {
@@ -209,6 +218,7 @@
         )
       case 'tab:run':
         runToken = msg.token
+        wake?.()
         runLoop()
         return Promise.resolve({ ok: true })
       case 'tab:scroll':

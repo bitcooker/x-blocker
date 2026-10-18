@@ -29,7 +29,9 @@ globalThis.browser = {
   storage: { local: area('local'), session: area('session') },
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
   tabs: { query: async () => [], sendMessage: async () => {}, onRemoved: { addListener() {} } },
+  alarms: { create() {}, clear: async () => true, onAlarm: { addListener: (f) => { onAlarm = f } } },
 }
+let onAlarm = null
 
 let instance = 0
 // Fresh background instance on top of the given stored state.
@@ -339,4 +341,54 @@ test('an imported handle that is out of date does not get past the Never block l
   // A blocked account is stored under the handle X shows now, not the file's.
   await send({ type: 'runner:result', item: { id: '6', screenName: 'stale', batch: 'b1' }, outcome: 'blocked' })
   assert.equal(store.local.blocked?.['6']?.screenName ?? (await send({ type: 'data:get', keys: ['blocked'] }, DASH)).blocked['6'].screenName, 'newname')
+})
+
+test('a stalled run is reported as it is stored, then revived in its tab', async () => {
+  const sent = []
+  browser.tabs.sendMessage = async (tabId, msg) => { sent.push([tabId, msg.type]); return { ok: true } }
+  await boot({
+    settings: { version: 6 },
+    runner: { state: 'cooldown', tabId: 7, token: 't', lastBeat: Date.now() - 600_000, cooldownUntil: Date.now() - 10_000, limit: 'block' },
+    queue: [{ id: '5', addedAt: 1, tries: 0 }],
+  })
+  // Every view gets the same stored state: no "paused" made up on the side.
+  const data = await send({ type: 'data:get', keys: [] }, DASH)
+  assert.equal(data.runner.state, 'cooldown')
+  await sleep(20)
+  // The cooldown is over and the loop missed its check-in: it's woken in place.
+  assert.deepEqual(sent, [[7, 'tab:run']])
+
+  sent.length = 0
+  onAlarm({ name: 'runner-wake' })
+  await sleep(20)
+  assert.deepEqual(sent, [[7, 'tab:run']])
+  browser.tabs.sendMessage = async () => {}
+})
+
+test('a run that cannot continue anywhere is paused for every view', async () => {
+  browser.tabs.sendMessage = async () => { throw new Error('no receiver') }
+  await boot({
+    settings: { version: 6 },
+    runner: { state: 'running', tabId: 7, token: 't', lastBeat: Date.now() - 600_000 },
+    queue: [{ id: '5', addedAt: 1, tries: 0 }],
+  })
+  onAlarm({ name: 'runner-watch' })
+  await sleep(50)
+  assert.equal(store.local.runner.state, 'paused')
+  assert.match(store.local.runner.message, /Open x\.com and press Resume/)
+  browser.tabs.sendMessage = async () => {}
+})
+
+test('a cooldown that is still running is left alone', async () => {
+  const sent = []
+  browser.tabs.sendMessage = async (tabId, msg) => { sent.push(msg.type); return { ok: true } }
+  await boot({
+    settings: { version: 6 },
+    runner: { state: 'cooldown', tabId: 7, token: 't', lastBeat: Date.now() - 600_000, cooldownUntil: Date.now() + 600_000 },
+    queue: [{ id: '5', addedAt: 1, tries: 0 }],
+  })
+  onAlarm({ name: 'runner-watch' })
+  await sleep(20)
+  assert.deepEqual(sent, [])
+  browser.tabs.sendMessage = async () => {}
 })

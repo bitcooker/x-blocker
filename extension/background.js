@@ -197,6 +197,7 @@ function notify(keys) {
     const keys = [...notifyKeys]
     notifyKeys = new Set()
     browser.runtime.sendMessage({ type: 'state:changed', keys }).catch(() => {})
+    if (cache && keys.includes('runner')) scheduleWake(cache.runner)
     if (cache && ['runner', 'queue', 'collected', 'blocked'].some((k) => keys.includes(k))) broadcastProgress()
   }, 250)
 }
@@ -527,8 +528,12 @@ function label(item) {
   return item.screenName ? `@${item.screenName}` : `id ${item.id}`
 }
 
+// The loop in the x.com tab checks in on every step. During a cooldown it may
+// sleep longer than usual (browsers throttle timers in background tabs), so
+// only a missed check-in after the cooldown ends counts as a stall.
 function runnerAlive(r) {
-  return Date.now() - r.lastBeat < STALE_MS
+  const since = r.state === 'cooldown' ? Math.max(r.lastBeat, r.cooldownUntil ?? 0) : r.lastBeat
+  return Date.now() - since < STALE_MS
 }
 
 async function findXTab(preferredId) {
@@ -549,8 +554,10 @@ async function pingTab(tabId, attempts = 1) {
   return null
 }
 
-async function startRunner(preferredTabId) {
+async function startRunner(preferredTabId, { recover = false } = {}) {
   let tab = await findXTab(preferredTabId)
+  // Recovering never opens tabs on its own: the user may have closed x.com on purpose.
+  if (!tab && recover) throw new Error('Open x.com and press Resume.')
   if (!tab) tab = await browser.tabs.create({ url: 'https://x.com/home', active: false })
   const ping = await pingTab(tab.id, 20)
   if (!ping) throw new Error('Could not reach the x.com tab. Reload it and try again.')
@@ -558,12 +565,15 @@ async function startRunner(preferredTabId) {
   const token = crypto.randomUUID()
   await exclusive(async (s) => {
     // Resuming a paused run keeps its counters so "n of m" continues.
-    const resume = s.runner.state === 'paused'
+    const resume = recover || s.runner.state === 'paused'
+    // Moving a run to another tab must not cut a cooldown short.
+    const waiting = recover && s.runner.state === 'cooldown' && Date.now() < s.runner.cooldownUntil
     Object.assign(s.runner, {
-      state: 'running', tabId: tab.id, token, lastBeat: Date.now(), cooldownUntil: 0, message: '', limit: '',
+      tabId: tab.id, token, lastBeat: Date.now(),
+      ...(waiting ? {} : { state: 'running', cooldownUntil: 0, message: '', limit: '' }),
       ...(resume ? {} : { done: 0, unblocked: 0, failed: 0, skipped: 0, strikes: 0 }),
     })
-    log(s, 'info', `Started on tab ${tab.id} with ${s.queue.length} in the queue`)
+    log(s, 'info', recover ? `Continuing on tab ${tab.id}` : `Started on tab ${tab.id} with ${s.queue.length} in the queue`)
     updateBadge(s)
     await save('runner', 'log')
   })
@@ -700,10 +710,9 @@ function applyResult(s, msg) {
 
 function summary(s) {
   const runner = { ...s.runner }
-  if ((runner.state === 'running' || runner.state === 'cooldown') && !runnerAlive(runner)) {
-    runner.state = 'paused'
-    runner.message = 'The x.com tab stopped responding. Press Start to resume.'
-  }
+  // Never report a different state than the one stored (the panel on x.com
+  // reads the stored one too); a stall is fixed, or recorded, by supervise().
+  if (runnerStuck(runner)) supervise()
   delete runner.token
   return {
     settings: s.settings,
@@ -754,7 +763,7 @@ const contentHandlers = {
   'runner:fatal': (s, msg) => mutate(s, ['runner', 'log'], () => {
     if (msg.token && msg.token !== s.runner.token) return {}
     s.runner.state = 'error'
-    s.runner.message = msg.error?.message ?? 'Something went wrong. Press Start to try again.'
+    s.runner.message = msg.error?.message ?? 'Something went wrong. Press Resume to try again.'
     log(s, 'error', s.runner.message)
     return {}
   }),
@@ -995,6 +1004,61 @@ async function openDashboard(route) {
   return { ok: true }
 }
 
+// ---- supervisor ---------------------------------------------------------------
+// The run loop lives in an x.com tab, which can be throttled, frozen, reloaded
+// or discarded while it waits out a rate limit. The background owns the
+// schedule instead: an alarm wakes it when a cooldown ends and every half
+// minute, and it nudges the loop, or moves the run to another x.com tab.
+
+const WATCH_ALARM = 'runner-watch'
+const WAKE_ALARM = 'runner-wake'
+let supervising = null
+
+function supervise(force = false) {
+  supervising ??= reviveRunner(force).catch(() => {}).finally(() => { supervising = null })
+  return supervising
+}
+
+// Stalled, or a cooldown that has ended without the loop noticing yet.
+function runnerStuck(r) {
+  if (r.state !== 'running' && r.state !== 'cooldown') return false
+  return !runnerAlive(r) || (r.state === 'cooldown' && Date.now() >= r.cooldownUntil + 5_000)
+}
+
+async function reviveRunner(force) {
+  const r = (await load()).runner
+  if (r.state !== 'running' && r.state !== 'cooldown') return
+  if (!force && !runnerStuck(r)) return
+  // Same tab, same token: wakes a sleeping loop or starts a stopped one.
+  const res = await browser.tabs.sendMessage(r.tabId, { type: 'tab:run', token: r.token }).catch(() => null)
+  if (res?.ok) return
+  try {
+    await startRunner(undefined, { recover: true })
+  } catch (e) {
+    await exclusive((s) => {
+      if (s.runner.state !== 'running' && s.runner.state !== 'cooldown') return
+      s.runner.state = 'paused'
+      s.runner.message = `Couldn't continue in an x.com tab. ${String(e.message ?? e)}`
+      log(s, 'warn', s.runner.message)
+      updateBadge(s)
+      return save('runner', 'log')
+    })
+  }
+}
+
+// A one-off alarm right when the cooldown ends, so resuming isn't left to a
+// throttled timer in the tab.
+function scheduleWake(r) {
+  if (!browser.alarms) return
+  if (r.state === 'cooldown' && r.cooldownUntil > Date.now()) browser.alarms.create(WAKE_ALARM, { when: r.cooldownUntil + 1000 })
+  else browser.alarms.clear(WAKE_ALARM).catch(() => {})
+}
+
+if (browser.alarms) {
+  browser.alarms.create(WATCH_ALARM, { periodInMinutes: 0.5 })
+  browser.alarms.onAlarm.addListener((a) => { if (a.name === WATCH_ALARM || a.name === WAKE_ALARM) supervise() })
+}
+
 // Queues accounts and makes sure the runner is going. Unblocks requested from
 // the dashboard have no tab of their own: the runner picks (or opens) an x.com tab.
 async function massQueue(tabId, items, action = 'block', source, batchId) {
@@ -1019,8 +1083,13 @@ browser.tabs.onRemoved.addListener((tabId) => {
   exclusive(async (s) => {
     if (s.runner.tabId !== tabId) return
     if (s.runner.state === 'running' || s.runner.state === 'cooldown') {
+      // Another x.com tab can take over; supervise() moves the run there.
+      if ((await browser.tabs.query({ url: 'https://x.com/*' }).catch(() => [])).length) {
+        setTimeout(() => supervise(true), 0)
+        return
+      }
       s.runner.state = 'paused'
-      s.runner.message = 'The x.com tab was closed. Press Start to resume.'
+      s.runner.message = 'The x.com tab was closed. Open x.com and press Resume.'
       log(s, 'warn', s.runner.message)
       updateBadge(s)
       await save('runner', 'log')
