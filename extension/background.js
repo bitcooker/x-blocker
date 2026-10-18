@@ -18,6 +18,7 @@ import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 // with headroom for manual blocks, and pace requests like a human (avg ~6 s).
 const DEFAULT_SETTINGS = {
   collectAlways: false,
+  autoScroll: false,
   inPageButtons: true,
   delayMs: 4000,
   jitterMs: 4000,
@@ -666,6 +667,7 @@ const pageHandlers = {
   'page:config': (s) => ({
     inPageButtons: s.settings.inPageButtons,
     collectAlways: s.settings.collectAlways,
+    autoScroll: s.settings.autoScroll,
     blockedScreenNames: Object.values(s.blocked).map((b) => b.screenName?.toLowerCase()).filter(Boolean),
   }),
   'page:lookup': (s, msg) => {

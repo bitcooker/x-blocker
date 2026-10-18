@@ -28,6 +28,7 @@
 
   let enabled = true
   let collectAlways = false
+  let autoScroll = false
   let panelMinimized = true // last choice, shared by every x.com tab (storage.local)
   let viewerScreenName = null
   const pageKey = () => location.pathname + location.search
@@ -926,7 +927,7 @@
           ? `${plural(n, 'account')} in this list · ${collectedCount} in Collected`
           : `${plural(n, 'account')} in this list · not collected`
       }
-      scrollBtn.hidden = !context
+      scrollBtn.hidden = !context || !autoScroll
       collectBtn.hidden = !context || collectAlways
       collectBtn.setAttribute('aria-pressed', String(collecting))
       // The subtitle shows blocking progress while a run exists, so the
@@ -1298,6 +1299,7 @@
     const cfg = await send({ type: 'page:config' }).catch(() => null)
     enabled = cfg?.inPageButtons !== false
     collectAlways = cfg?.collectAlways === true
+    autoScroll = cfg?.autoScroll === true
     for (const sn of cfg?.blockedScreenNames ?? []) blockedHere.add(sn)
     if (!enabled) return
     context = pageContext()

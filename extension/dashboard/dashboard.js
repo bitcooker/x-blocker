@@ -297,6 +297,7 @@ function readSettings() {
   const f = $('settings').elements
   return {
     collectAlways: f.collectAlways.checked,
+    autoScroll: f.autoScroll.checked,
     inPageButtons: f.inPageButtons.checked,
     // Delays are edited in seconds and stored in milliseconds.
     delayMs: Math.max(2000, Math.round((Number(f.delaySec.value) || 0) * 1000)),
