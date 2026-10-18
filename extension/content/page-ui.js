@@ -632,7 +632,7 @@
       .panel .sub{color:var(--muted);font-size:13px;line-height:16px}
       .panel .count{font-variant-numeric:tabular-nums}
       .panel{overflow:hidden}
-      .btn-collect[aria-pressed=true]{border-color:#1d9bf0;color:#1d9bf0;background:rgba(29,155,240,.1)}
+      .btn-collect[aria-pressed=true]{border-color:#1d9bf0;color:#1d9bf0;background:rgba(29,155,240,.1);font-variant-numeric:tabular-nums}
       .btn-collect[aria-pressed=true]::before{content:"";width:8px;height:8px;border-radius:50%;background:#1d9bf0;
         animation:pulse 1.6s infinite}
       .fab .dot{width:8px;height:8px;border-radius:50%;background:#1d9bf0;animation:pulse 1.6s infinite}
@@ -919,9 +919,11 @@
       scrollBtn.hidden = !context
       collectBtn.hidden = !context || collectAlways
       collectBtn.setAttribute('aria-pressed', String(collecting))
-      collectBtn.textContent = collecting ? 'Collecting' : 'Collect'
+      // The subtitle shows blocking progress while a run exists, so the
+      // collect count lives on the button to stay visible in every state.
+      collectBtn.textContent = collecting ? `Collecting · ${collectedHere.size}` : 'Collect'
       collectBtn.title = collecting
-        ? 'Adding this list to your Collected list. Click to stop.'
+        ? `${plural(collectedHere.size, 'account')} added from this page (${collectedCount} in Collected). Click to stop.`
         : 'Add the accounts of this list to your Collected list, saved only in your browser and stopped when you leave this page'
       fabDot.hidden = !collecting
       fabLabel.textContent = info?.active
