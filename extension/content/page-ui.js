@@ -630,13 +630,13 @@
         display:flex;align-items:center;justify-content:center;flex:none}
       .panel .text{display:flex;flex-direction:column;min-width:0}
       .panel .title{font-weight:700;font-size:15px}
-      .panel .sub{color:var(--muted);font-size:13px;line-height:16px}
+      .panel .sub{color:var(--muted);font-size:12px;line-height:16px;margin-top:3px}
       .panel .count{font-variant-numeric:tabular-nums}
       .panel .sub{display:flex;align-items:center;gap:5px}
-      .panel .run{position:relative;width:14px;height:14px;flex:none;border:1px solid currentColor;color:var(--fg)}
+      .panel .run{position:relative;width:13px;height:13px;flex:none;border:1px solid currentColor;color:var(--fg)}
       .panel .run::after{content:"";position:absolute;inset:-6px}
       .panel .run:hover:not([disabled]){background:var(--hover)}
-      .panel .run svg{width:8px;height:8px}
+      .panel .run svg{width:7px;height:7px}
       .panel .run[data-state=paused]{color:#ffad1f}
       .panel{overflow:hidden}
       .btn-collect[aria-pressed=true]{border-color:#1d9bf0;color:#1d9bf0;background:rgba(29,155,240,.1);font-variant-numeric:tabular-nums}
