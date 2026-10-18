@@ -84,11 +84,11 @@ async function action(fn) {
 const PAGE = { batches: BATCH_LIMIT, queue: RENDER_LIMIT, blocked: RENDER_LIMIT }
 const shown = { ...PAGE }
 
-function moreFoot(el, key, total, note = '') {
+function moreFoot(el, key, total) {
   if (total <= shown[key]) return el.replaceChildren()
   const next = Math.min(PAGE[key], total - shown[key])
   el.replaceChildren(
-    h('span', {}, `Showing ${nf.format(shown[key])} of ${nf.format(total)}.${note ? ` ${note}` : ''}`),
+    h('span', {}, `Showing ${nf.format(shown[key])} of ${nf.format(total)}`),
     h('button', {
       class: 'btn btn-sm', onclick: () => { shown[key] += PAGE[key]; renderers[key]() },
     }, `Show ${nf.format(next)} more`))
@@ -135,7 +135,7 @@ function renderStatus() {
     parts.push(runner.message)
   }
   $('now-detail').textContent = parts.filter(Boolean).join(' · ') ||
-    'On x.com, open a followers, likes, reposts, replies or search page and press Review in the X Blocker panel.'
+    'Open a list on x.com, like someone\'s followers or the replies to a post, and press Review in the X Blocker panel.'
   meter($('now-bar'), total - counts.queue, total)
   $('now-bar').parentElement.hidden = !counts.queue
 
@@ -175,23 +175,23 @@ function renderBatches() {
     const actions = []
     if (b.waiting) {
       actions.push(h('button', {
-        class: 'btn btn-xs', title: 'Take the accounts that are still waiting out of the queue',
+        class: 'btn btn-xs', title: 'Stop blocking the accounts still waiting',
         onclick: () => cancelBatch(b),
       }, 'Cancel rest'))
     }
     if (!undo && b.done) {
       actions.push(h('button', {
-        class: 'btn btn-xs', title: 'See the accounts this batch blocked',
+        class: 'btn btn-xs', title: 'See who this batch blocked',
         onclick: () => { $('b-batch').value = b.id; go('blocked') },
       }, 'View'))
       actions.push(h('button', {
-        class: 'btn btn-xs', title: 'Unblock every account this batch blocked',
+        class: 'btn btn-xs', title: 'Unblock everyone this batch blocked',
         onclick: () => undoBatch(b),
       }, icon('undo'), 'Undo'))
     }
     if (finished) {
       actions.push(h('button', {
-        class: 'btn btn-xs btn-quiet btn-icon', title: 'Remove from this list (blocked accounts stay blocked)',
+        class: 'btn btn-xs btn-quiet btn-icon', title: 'Hide from this list. Accounts stay blocked.',
         'aria-label': 'Remove from this list', onclick: () => action(() => send('batch:forget', { id: b.id })),
       }, icon('close')))
     }
@@ -210,7 +210,7 @@ function renderBatches() {
   })
   if (!rows.length) {
     rows.push(h('li', { class: 'batch-empty' }, emptyState('block', 'No batches yet',
-      'On x.com, open someone\'s followers, the likes or replies of a post, or a search, then press Review in the X Blocker panel at the bottom.')))
+      'Open a list on x.com, like someone\'s followers or the replies to a post, and press Review in the X Blocker panel.')))
   }
   $('batches').replaceChildren(...rows)
   moreFoot($('batches-more'), 'batches', list.length)
@@ -219,25 +219,25 @@ function renderBatches() {
 async function cancelBatch(b) {
   if (!await confirmDialog({
     title: `Cancel ${plural(b.waiting, 'waiting account')}?`,
-    body: `They are taken out of the queue and won't be ${b.action === 'unblock' ? 'unblocked' : 'blocked'}. What is already done stays done.`,
-    confirmLabel: 'Cancel the rest',
+    body: `They won't be ${b.action === 'unblock' ? 'unblocked' : 'blocked'}. Accounts already done stay as they are.`,
+    confirmLabel: 'Cancel them',
   })) return
   action(async () => {
     const r = await send('batch:cancel', { id: b.id })
-    toast(`${plural(r.cancelled, 'account')} taken out of the queue`)
+    toast(`${plural(r.cancelled, 'account')} removed from the queue`)
   })
 }
 
 async function undoBatch(b) {
   if (!await confirmDialog({
     title: `Undo “${b.source}”?`,
-    body: `Every account this batch blocked is unblocked, one by one in an x.com tab, at the same pace and limits as blocking.${b.waiting ? ' Accounts still waiting in it are not affected; use Cancel rest for those.' : ''}`,
+    body: `Everyone this batch blocked will be unblocked, at the same pace as blocking.${b.waiting ? ' Accounts still waiting aren\'t affected. Use Cancel for those.' : ''}`,
     confirmLabel: 'Unblock them',
   })) return
   action(async () => {
     const r = await send('batch:unblock', { id: b.id })
     if (r?.error) throw new Error(r.error)
-    toast(r.added ? `${plural(r.added, 'account')} queued for unblocking` : 'Nothing to unblock: they are no longer blocked')
+    toast(r.added ? `${plural(r.added, 'account')} queued for unblocking` : 'Nothing to unblock. These accounts are no longer blocked.')
   })
 }
 
@@ -250,7 +250,7 @@ function renderWaiting() {
     h('td', {}, accountCell(item)),
     h('td', {}, h('div', { class: 'tags' },
       item.action === 'unblock' ? h('span', { class: 'tag tag-ok' }, 'Unblock') : null,
-      h('span', { class: 'tag source', title: names[item.batch] ?? item.source ?? '' }, names[item.batch] ?? item.source ?? 'Added in the dashboard'))),
+      h('span', { class: 'tag source', title: names[item.batch] ?? item.source ?? '' }, names[item.batch] ?? item.source ?? 'Added here'))),
     h('td', {}, item.tries ? h('span', { class: 'tag tag-warn' }, `${item.tries} failed`) : ''),
     h('td', { class: 'num' }, h('button', {
       class: 'btn btn-sm btn-quiet btn-icon', title: 'Remove from queue', 'aria-label': 'Remove from queue',
@@ -258,7 +258,7 @@ function renderWaiting() {
     }, icon('close')))))
   if (!rows.length) {
     rows.push(emptyRow(5, 'queue', 'Nothing waiting',
-      'Queue accounts from a review on x.com, or import a list, and they show up here.'))
+      'Accounts you queue on x.com or import will appear here.'))
   }
   $('q-body').replaceChildren(...rows)
   moreFoot($('q-more'), 'queue', queue.length)
@@ -318,7 +318,7 @@ function renderBlocked() {
       type: 'checkbox', checked: selected.has(b.id), disabled: pending,
       'aria-label': `Select ${b.screenName ? `@${b.screenName}` : b.id}`,
     })
-    const source = b.source === 'seen' ? 'Already blocked on X' : names[b.batch] ?? b.reason ?? 'Manual / import'
+    const source = b.source === 'seen' ? 'Already blocked on X' : names[b.batch] ?? b.reason ?? 'Imported'
     const tr = h('tr', { class: selected.has(b.id) ? 'selected' : '' },
       h('td', {}, box),
       h('td', {}, accountCell(b)),
@@ -341,11 +341,11 @@ function renderBlocked() {
   })
   if (!rows.length) {
     rows.push(Object.keys(data.blocked).length
-      ? emptyRow(4, 'search', 'No matches', 'Try a different search or batch.')
-      : emptyRow(4, 'block', 'No blocks yet', 'Accounts you block will be listed here.'))
+      ? emptyRow(4, 'search', 'No matches', 'Try another search or batch.')
+      : emptyRow(4, 'block', 'No blocks yet', 'Accounts you block will appear here.'))
   }
   $('b-body').replaceChildren(...rows)
-  moreFoot($('b-more'), 'blocked', filteredBlocked.length, '"Select all" includes every match.')
+  moreFoot($('b-more'), 'blocked', filteredBlocked.length)
   updateSelection()
 }
 
@@ -476,12 +476,12 @@ for (const id of ['pause', 'now-pause']) $(id).addEventListener('click', () => a
 
 $('legacy-queue').addEventListener('click', () => action(async () => {
   const r = await send('legacy:queue')
-  toast(`${plural(r.added, 'account')} added to the queue${r.skipped ? ` · ${nf.format(r.skipped)} already queued or blocked` : ''}`)
+  toast(`${plural(r.added, 'account')} added to the queue${r.skipped ? `. ${nf.format(r.skipped)} were already queued or blocked.` : ''}`)
 }))
 $('legacy-discard').addEventListener('click', async () => {
   if (await confirmDialog({
     title: 'Discard the old Collected list?',
-    body: 'These accounts are forgotten. Nobody is blocked or unblocked.',
+    body: 'X Blocker will forget these accounts. Nobody is blocked or unblocked.',
     confirmLabel: 'Discard',
   })) action(() => send('legacy:discard'))
 })
@@ -489,8 +489,8 @@ $('legacy-discard').addEventListener('click', async () => {
 $('q-clear').addEventListener('click', async (e) => {
   e.preventDefault()
   if (await confirmDialog({
-    title: 'Clear every waiting account?',
-    body: `${plural(data.queue.length, 'account')} will be taken out of the queue. Nothing already done is undone.`,
+    title: 'Clear the queue?',
+    body: `${plural(data.queue.length, 'account')} will be removed from the queue. Blocks already done stay.`,
     confirmLabel: 'Clear the queue',
   })) action(() => send('queue:clear'))
 })
@@ -516,13 +516,13 @@ $('i-file').addEventListener('change', async (e) => {
 })
 $('i-add').addEventListener('click', () => action(async () => {
   const items = parseUserList($('i-text').value)
-  if (!items.length) throw new Error('No valid @handles or IDs found.')
+  if (!items.length) throw new Error('No @handles or IDs found. Check the list and try again.')
   const source = $('i-name').value.trim() || 'Imported list'
   const r = await send('queue:add', { source, items: items.map((it) => ({ ...it, source })) })
   $('i-text').value = ''
   $('i-name').value = ''
   updateImportPreview()
-  toast(`${plural(r.added, 'account')} added as “${source}”${r.skipped ? ` · ${nf.format(r.skipped)} already queued or blocked` : ''}`)
+  toast(`${plural(r.added, 'account')} added as “${source}”${r.skipped ? `. ${nf.format(r.skipped)} were already queued or blocked.` : ''}`)
   go('home')
 }))
 
@@ -542,15 +542,15 @@ $('b-unblock').addEventListener('click', async () => {
   const n = items.length
   if (!await confirmDialog({
     title: `Unblock ${plural(n, 'account')}?`,
-    body: 'They are unblocked one by one in an x.com tab, at the same pace and limits as blocking. ' +
-      'You can pause or cancel them on Home until then.',
+    body: 'They will be unblocked at the same pace as blocking. ' +
+      'Until then, you can pause or remove them on the Queue page.',
     confirmLabel: 'Unblock',
   })) return
   action(async () => {
     const r = await send('blocked:unblock', { items, source: `Unblock ${plural(n, 'selected account')}` })
     if (r?.error) throw new Error(r.error)
     selected.clear()
-    toast(`${plural(r.added, 'account')} queued for unblocking${r.skipped ? ` · ${nf.format(r.skipped)} skipped` : ''}`)
+    toast(`${plural(r.added, 'account')} queued for unblocking${r.skipped ? `. ${nf.format(r.skipped)} skipped.` : ''}`)
   })
 })
 $('b-export').addEventListener('click', () =>
@@ -558,7 +558,7 @@ $('b-export').addEventListener('click', () =>
 $('b-clear').addEventListener('click', async () => {
   if (await confirmDialog({
     title: 'Clear block history?',
-    body: 'This only forgets the local history and finished batches. It does NOT unblock anyone on X, and batches can no longer be undone.',
+    body: 'X Blocker will forget its history and finished batches. Nobody is unblocked on X, but you won\'t be able to undo those batches anymore.',
     confirmLabel: 'Clear history',
   })) action(() => send('blocked:clear'))
 })
@@ -566,20 +566,20 @@ $('l-clear').addEventListener('click', (e) => { e.preventDefault(); action(() =>
 $('reset-settings').addEventListener('click', async () => {
   if (await confirmDialog({
     title: 'Reset all settings?',
-    body: 'Every setting goes back to its default. Your never-block list, queue and history are kept.',
+    body: 'Every setting returns to its default. Your Never block list, queue and history stay.',
     confirmLabel: 'Reset settings',
   })) {
     clearTimeout(saveTimer)
     editingSettings = false
     await action(() => send('settings:reset'))
-    toast('Settings reset to defaults', { timeout: 1500 })
+    toast('Settings reset', { timeout: 1500 })
   }
 })
 $('wipe').addEventListener('click', async () => {
   if (await confirmDialog({
     title: 'Delete all X Blocker data?',
-    body: 'The queue, batches, block history and activity are erased from this browser. ' +
-      'Settings are kept. Nobody is unblocked on X.',
+    body: 'This erases the queue, batches, history and activity log from this browser. ' +
+      'Your settings stay, and nobody is unblocked on X.',
     confirmLabel: 'Delete everything',
   })) action(() => send('data:wipe'))
 })

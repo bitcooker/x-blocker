@@ -43,14 +43,14 @@
         <header class="panel-head">
           <div>
             <h1>Home</h1>
-            <p class="muted">Each time you press <b>Block</b> in a review on x.com, the accounts become a batch here. Batches are blocked one account at a time, in the background.</p>
+            <p class="muted">When you block a list on x.com, it's added here as a batch. X Blocker works through it in the background, one account at a time.</p>
           </div>
           <button id="open-import" class="btn btn-sm"><i data-icon="import"></i>Import a list</button>
         </header>
 
         <div id="legacy" class="card notice" hidden>
           <div class="grow"><b id="legacy-title">Accounts from your old Collected list</b>
-            <span class="muted">X Blocker no longer keeps a Collected list: you now review a list on x.com and queue it right away. Decide once what happens to the accounts that were still waiting there.</span></div>
+            <span class="muted">X Blocker no longer keeps a Collected list. Choose what to do with the accounts that were still in it.</span></div>
           <div class="row">
             <button id="legacy-discard" class="btn btn-sm">Discard</button>
             <button id="legacy-queue" class="btn btn-sm btn-danger">Queue for blocking</button>
@@ -105,7 +105,7 @@
         <header class="panel-head">
           <div>
             <h1>Import a list</h1>
-            <p class="muted">Paste @handles, profile links, ID links (<code>x.com/i/user/12345</code>) or IDs (<code>id:12345</code>), separated by spaces, commas or new lines. You can also drop in a .txt or .csv file with an <code>id</code> and/or <code>screen_name</code> column. The accounts become one batch.</p>
+            <p class="muted">Paste @handles, profile links or account IDs (<code>id:12345</code>), one per line or separated by commas. You can also choose a .txt or .csv file with an <code>id</code> or <code>screen_name</code> column. Everything you add is queued as one batch.</p>
           </div>
         </header>
         <div class="card import-card">
@@ -124,7 +124,7 @@
         <header class="panel-head">
           <div>
             <h1>Batches</h1>
-            <p class="muted">Every review you block becomes a batch, worked through one account at a time in the background. Cancel what is still waiting, or unblock a whole batch.</p>
+            <p class="muted">Each list you block or import is a batch. Cancel the accounts still waiting, or undo a batch to unblock everyone in it.</p>
           </div>
         </header>
         <ol id="batches" class="batches card"></ol>
@@ -136,7 +136,7 @@
         <header class="panel-head">
           <div>
             <h1>Queue</h1>
-            <p class="muted">Accounts waiting to be blocked, in the order they will be done. The pace and safety limits live in Settings.</p>
+            <p class="muted">Accounts waiting to be blocked, in order. You can change the pace and limits in Settings.</p>
           </div>
           <div id="q-actions" class="row">
             <button id="q-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
@@ -157,7 +157,7 @@
         <header class="panel-head">
           <div>
             <h1>Blocked</h1>
-            <p class="muted">Accounts blocked by X Blocker, and accounts seen as already blocked. To undo a whole batch, use <b>Undo</b> on Batches; here you can pick individual accounts.</p>
+            <p class="muted">Everyone X Blocker has blocked, plus accounts it found you had already blocked. Select accounts here to unblock them, or undo a whole batch on the Batches page.</p>
           </div>
           <div class="row">
             <button id="b-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
@@ -187,13 +187,13 @@
         <header class="panel-head">
           <div>
             <h1>Settings</h1>
-            <p class="muted">Changes are saved immediately.</p>
+            <p class="muted">Changes are saved automatically.</p>
           </div>
         </header>
         <form id="settings" class="settings">
           <h2>On x.com</h2>
           <div class="card list">
-            <div class="setting choice"><div><b>Block buttons</b><span>A Block button next to accounts and posts, for blocking one account at a time. Reload x.com after changing this.</span></div>
+            <div class="setting choice"><div><b>Block buttons</b><span>Show a Block button on posts and accounts, so you can queue one account with a click. Reload x.com after changing this.</span></div>
               <div class="seg" role="radiogroup" aria-label="Block buttons">
                 <label><input type="radio" name="blockButtons" value="everywhere"><span>Everywhere</span></label>
                 <label><input type="radio" name="blockButtons" value="lists"><span>Only on lists</span></label>
@@ -205,30 +205,30 @@
           <div class="card list">
             <label class="setting"><div><b>Skip accounts I follow</b><span>Never block someone you follow.</span></div><span class="switch"><input name="skipFollowing" type="checkbox"><span></span></span></label>
             <label class="setting"><div><b>Skip my followers</b><span>Never block someone who follows you.</span></div><span class="switch"><input name="skipFollowers" type="checkbox"><span></span></span></label>
-            <label class="setting"><div><b>Skip verified accounts</b><span>Leave accounts with a checkmark alone.</span></div><span class="switch"><input name="skipVerified" type="checkbox"><span></span></span></label>
-            <label class="setting stack"><div><b>Never block</b><span>One @handle per line. These accounts are always skipped, even if they are imported or in a list you block.</span></div><textarea name="whitelist" class="input handles" rows="4" spellcheck="false" autocomplete="off" placeholder="@friend&#10;@family"></textarea></label>
+            <label class="setting"><div><b>Skip verified accounts</b><span>Never block accounts with a checkmark.</span></div><span class="switch"><input name="skipVerified" type="checkbox"><span></span></span></label>
+            <label class="setting stack"><div><b>Never block</b><span>One @handle per line. These accounts are always skipped, even if they're in a list you block or import.</span></div><textarea name="whitelist" class="input handles" rows="4" spellcheck="false" autocomplete="off" placeholder="@friend&#10;@family"></textarea></label>
           </div>
 
           <h2>Speed &amp; limits</h2>
           <div class="card list">
-            <label class="setting"><div><b>Delay between blocks</b><span>Pause after each block. Minimum 2 s. Default 4 s.</span></div><span class="field"><input name="delaySec" type="number" min="2" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
-            <label class="setting"><div><b>Random extra delay</b><span>Adds a random pause of up to this long, so blocks aren't evenly spaced. Default 4 s.</span></div><span class="field"><input name="jitterSec" type="number" min="0" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
-            <label class="setting"><div><b>Cooldown after rate limit</b><span>X usually says when its limit resets, and blocking resumes right then. This wait is used only when X doesn't say, or after repeated limits in a row. Doubles on each repeat, up to 4 hours. Default 15 min.</span></div><span class="field"><input name="cooldownMin" type="number" min="1" max="240" step="1" inputmode="numeric"><span class="unit">min</span></span></label>
-            <label class="setting"><div><b>Hourly safety limit</b><span>Blocks and unblocks per rolling hour, including quick blocks. Spreading them out looks less automated than a burst. Default 150. 0 turns the limit off.</span></div><span class="field"><input name="hourlyCap" type="number" min="0" max="1000" step="10" inputmode="numeric"><span class="unit">per hour</span></span></label>
-            <label class="setting"><div><b>Daily safety limit</b><span>Blocks and unblocks per rolling 24 hours. X publishes no block limit; heavy blockers report being logged out after several hundred blocks in a burst. Default 1000. 0 turns the limit off (not recommended).</span></div><span class="field"><input name="dailyCap" type="number" min="0" max="5000" step="10" inputmode="numeric"><span class="unit">per day</span></span></label>
+            <label class="setting"><div><b>Delay between blocks</b><span>How long to wait after each block. At least 2 seconds. Default: 4 seconds.</span></div><span class="field"><input name="delaySec" type="number" min="2" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
+            <label class="setting"><div><b>Random extra delay</b><span>Adds a random wait of up to this long, so blocks don't follow a fixed rhythm. Default: 4 seconds.</span></div><span class="field"><input name="jitterSec" type="number" min="0" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
+            <label class="setting"><div><b>Cooldown after rate limit</b><span>When X slows you down, blocking usually resumes as soon as X allows. If X doesn't say when, X Blocker waits this long, doubling each time up to 4 hours. Default: 15 minutes.</span></div><span class="field"><input name="cooldownMin" type="number" min="1" max="240" step="1" inputmode="numeric"><span class="unit">min</span></span></label>
+            <label class="setting"><div><b>Hourly safety limit</b><span>The most blocks and unblocks in any hour. Spreading them out looks less automated. Default: 150. Set to 0 for no limit.</span></div><span class="field"><input name="hourlyCap" type="number" min="0" max="1000" step="10" inputmode="numeric"><span class="unit">per hour</span></span></label>
+            <label class="setting"><div><b>Daily safety limit</b><span>The most blocks and unblocks in any 24 hours. X doesn't publish a limit, but some people get logged out after a few hundred blocks in a row. Default: 1,000. Set to 0 for no limit (not recommended).</span></div><span class="field"><input name="dailyCap" type="number" min="0" max="5000" step="10" inputmode="numeric"><span class="unit">per day</span></span></label>
           </div>
 
           <h2>Data &amp; privacy</h2>
           <div class="card list">
-            <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser, on your device, and nothing is sent anywhere except your own requests to X. Only the accounts you queue and the ones you block are kept. Accounts X shows you are held in a temporary cache, cleared when the browser closes, that is used to protect your friends and detect blocked accounts. Private pages (messages, notifications, settings) are never read.</span></div>
+            <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser. Nothing is sent anywhere except your own requests to X. X Blocker saves only the accounts you queue and block. Other accounts you see are kept in memory until the browser closes, to protect people you follow. Messages, notifications and settings pages are never read.</span></div>
               <button id="wipe" type="button" class="btn btn-sm btn-danger-outline">Delete all data</button></div>
-            <div class="setting"><div><b>Restore default settings</b><span>Puts every setting on this page back to its default. Your never-block list, queue and history are kept.</span></div>
+            <div class="setting"><div><b>Restore default settings</b><span>Return every setting on this page to its default. Your Never block list, queue and history stay.</span></div>
               <button id="reset-settings" type="button" class="btn btn-sm">Reset settings</button></div>
           </div>
 
           <h2>Diagnostics</h2>
           <details class="card diag">
-            <summary><b>Activity log</b> <span class="muted">The most recent 300 events, for when something seems wrong.</span>
+            <summary><b>Activity log</b> <span class="muted">The last 300 events. Useful when something goes wrong.</span>
               <span class="grow"></span><button id="l-clear" class="btn btn-xs" type="button">Clear</button></summary>
             <ol id="l-body" class="log"></ol>
           </details>
