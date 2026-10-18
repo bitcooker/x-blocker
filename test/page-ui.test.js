@@ -548,6 +548,16 @@ test('on other pages the panel only shows while the queue runs', async () => {
   assert.equal(page.shadow().querySelector('.panel .btn-danger').hidden, true)
 })
 
+test('Details in the queue strip opens the queue in the dashboard', async () => {
+  const page = await load(`<main>${post('someone')}</main>`, { path: '/home', respond: respondReview })
+  page.message({ type: 'page:progress', runner: { state: 'running', done: 4, failed: 0, skipped: 1, lastBeat: Date.now() }, queueLen: 9 })
+  await sleep(250)
+  await page.click('.fab')
+  await page.click('.strip .details')
+  await sleep(20)
+  assert.ok(page.sent.some((m) => m.type === 'page:openQueue'))
+})
+
 test('a run of unblocks reports unblocking, not blocking', async () => {
   const page = await load(`<main>${cell('alice')}</main>`)
   await page.click('.fab')

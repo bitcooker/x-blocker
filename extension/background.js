@@ -943,6 +943,7 @@ onMessage((msg, sender) => {
     // one "Quick blocks" batch so they can be undone together from the dashboard.
     if (msg.type === 'page:quickBlock') return massQueue(sender.tab.id, msg.items, 'block', 'Quick blocks', quickBatchId())
     if (msg.type === 'page:pause') return exclusive((s) => uiHandlers['runner:pause'](s))
+    if (msg.type === 'page:openQueue') return openDashboard('queue')
     if (msg.type === 'page:resume') {
       return startRunner(sender.tab.id).then(() => ({ ok: true }), (e) => ({ error: String(e.message ?? e) }))
     }
@@ -970,9 +971,25 @@ onMessage((msg, sender) => {
     }).then(({ items, source }) => massQueue(null, items, 'unblock', source))
   }
   if (msg.type === 'collect:flush') return flushCollected().then(() => exclusive(summary))
+  if (msg.type === 'dashboard:route') {
+    const r = dashboardRoute && Date.now() - dashboardRoute.at < 15_000 ? dashboardRoute.route : null
+    dashboardRoute = null
+    return Promise.resolve({ route: r })
+  }
   const h = uiHandlers[msg.type]
   return h ? exclusive((s) => h(s, msg)) : undefined
 })
+
+// Opens (or focuses) the dashboard on a section. Without the tabs permission the
+// hash can't be set on an open tab, so the section is handed over by message:
+// broadcast to a dashboard that is already open, and picked up by a new one.
+let dashboardRoute = null
+async function openDashboard(route) {
+  dashboardRoute = { route, at: Date.now() }
+  await browser.runtime.openOptionsPage()
+  browser.runtime.sendMessage({ type: 'dashboard:go', route }).catch(() => {})
+  return { ok: true }
+}
 
 // Queues accounts and makes sure the runner is going. Unblocks requested from
 // the dashboard have no tab of their own: the runner picks (or opens) an x.com tab.

@@ -590,3 +590,7 @@ const legacyRoutes = { log: 'settings', collected: 'home' }
 const start = location.hash.slice(1)
 go(legacyRoutes[start] ?? start)
 refresh().catch((e) => toast(e, { error: true }))
+// Opened from the x.com panel: jump to the section it asked for.
+const takeRoute = () => send('dashboard:route').then((r) => r?.route && go(r.route), () => {})
+takeRoute()
+browser.runtime.onMessage.addListener((msg) => { if (msg?.type === 'dashboard:go') takeRoute() })

@@ -710,6 +710,8 @@
         font-variant-numeric:tabular-nums}
       .panel .run-text b{color:var(--fg);font-weight:700}
       .panel .strip .run{margin-inline-start:8px}
+      .panel .strip .details{margin-inline-start:4px}
+      .panel .strip .details + .run{margin-inline-start:0}
       .panel .prog{position:absolute;left:0;right:0;bottom:0;height:2px;border-radius:0}
       .panel .title{font-weight:700;font-size:15px;line-height:20px}
       .panel .sub{color:var(--muted);font-size:12px;line-height:16px}
@@ -843,10 +845,12 @@
     const runDot = el('span', 'dot')
     const runText = el('span', 'run-text')
     const runBtn = el('button', 'btn btn-xs run')
+    const detailsBtn = el('button', 'btn btn-xs btn-quiet details', 'Details')
+    detailsBtn.title = 'See the queue in the X Blocker dashboard'
     const progBar = el('span', '')
     const prog = el('div', 'meter prog', progBar)
     prog.setAttribute('role', 'progressbar')
-    const strip = el('div', 'strip', runDot, runText, runBtn, prog)
+    const strip = el('div', 'strip', runDot, runText, detailsBtn, runBtn, prog)
     panel.append(top, strip)
 
     const fabLabel = el('span', '', 'X Blocker')
@@ -1032,6 +1036,10 @@
     send({ type: 'page:progress' }).then(applyProgress, () => {})
     browser.runtime.onMessage.addListener((msg) => {
       if (msg?.type === 'page:progress') applyProgress(msg)
+    })
+
+    detailsBtn.addEventListener('click', () => {
+      send({ type: 'page:openQueue' }).catch((e) => toast(String(e.message ?? e), true))
     })
 
     runBtn.addEventListener('click', async () => {
