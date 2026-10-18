@@ -368,7 +368,8 @@
       blockedHere.add(key)
       unknownState.delete(key)
       setButtonState(btn, 'blocked')
-      if (pageHandles.delete(key)) ui.scheduleUpdate()
+      // Stays in the list (it is loaded), but candidates() leaves blocked accounts out.
+      ui.scheduleUpdate()
     }
   }
 
@@ -391,7 +392,7 @@
       if (u.blocking) {
         blockedHere.add(key)
         markBlocked(key)
-        if (pageHandles.delete(key)) ui.scheduleUpdate()
+        ui.scheduleUpdate()
       }
     }
   }
@@ -869,6 +870,7 @@
       if (ended) {
         stateIcon.replaceChildren(el('span', 'ok', '✓'))
         stateIcon.className = 'state ok'
+        if (!candidates().length) return ['All ', num, ' accounts in this list are already blocked']
         return ['All ', num, ' loaded']
       }
       stateIcon.replaceChildren()
@@ -876,6 +878,8 @@
       loadBtn.title = listTotal > 2000
         ? 'Large list: loading everything takes a while and many requests to X. Consider blocking in batches.'
         : 'Scroll this list to its end so every account is loaded'
+      // Nothing left to review here yet: say why, and offer the way to the rest.
+      if (!candidates().length) return ['All ', num, ' loaded accounts are already blocked', loadBtn]
       return [num, ` loaded${ofTotal || ' so far'}`, loadBtn]
     }
 

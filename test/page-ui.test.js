@@ -180,13 +180,29 @@ test('post buttons join the header icon row before the first icon', async () => 
   assert.equal(btn.nextElementSibling.className, 'g')
 })
 
-test('already-blocked accounts get no button and are left out of the list', async () => {
+test('already-blocked accounts get no button and are left out of the review', async () => {
   const page = await load(`<main>${cell('alice')}${cell('bob', { followClass: 'x-blocked' })}${cell('carol')}</main>`, {
     respond: (m) => (m.type === 'page:lookup' ? { carol: { id: '3', blocking: true }, alice: { id: '1', blocking: false } } : {}),
   })
   await sleep(1700) // block-state lookup is debounced
   assert.deepEqual(page.visible(), ['alice'])
-  assert.deepEqual(page.handles(), ['alice'])
+  // Still counted as loaded, but only alice can be reviewed.
+  await page.click('.fab')
+  assert.equal(page.shadow().querySelector('.sub').textContent, '3 loaded so farLoad all')
+  assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'Review 1')
+})
+
+test('the panel stays when every loaded account is already blocked', async () => {
+  const page = await load(`<main>${cell('bob', { followClass: 'x-blocked' })}${cell('carol', { followClass: 'x-blocked' })}</main>`)
+  await sleep(300)
+  await page.click('.fab')
+  assert.ok(page.shadow().querySelector('.panel'))
+  assert.equal(page.shadow().querySelector('.sub').textContent, 'All 2 loaded accounts are already blockedLoad all')
+  assert.equal(page.shadow().querySelector('.panel .btn-danger').hidden, true)
+  await page.click('.sub .chip')
+  page.scroll().onDone(true)
+  await sleep(200)
+  assert.equal(page.shadow().querySelector('.sub').textContent, '✓All 2 accounts in this list are already blocked')
 })
 
 test('re-injection leaves a single UI instance', async () => {
