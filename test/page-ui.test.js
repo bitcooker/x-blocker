@@ -304,6 +304,8 @@ test('unticked accounts can be removed from the Collected list', async () => {
     },
   })
   await page.click('.fab')
+  page.message({ type: 'page:progress', runner: null, queueLen: 0, collectedCount: 2 })
+  await sleep(200)
   await page.click('.btn-danger')
   const dialog = page.shadow().querySelector('.review')
   const remove = dialog.querySelector('.bar .uncollect')
@@ -326,6 +328,7 @@ test('unticked accounts can be removed from the Collected list', async () => {
   assert.equal(dialog.querySelectorAll('li input').length, 2)
   assert.equal(remove.textContent, 'Remove 0 from Collected')
   assert.equal(remove.disabled, true)
+  assert.equal(dialog.querySelectorAll('.tab')[1].textContent, 'Total collected · 1')
 })
 
 test('remove buttons only count accounts that are collected or queued', async () => {

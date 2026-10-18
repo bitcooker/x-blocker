@@ -1200,9 +1200,12 @@
             const isGone = (r) => gone.has((r.screenName ?? '').toLowerCase())
             // They leave the Collected tab, but stay in "This list": they're still on the page.
             for (const t of tabs) {
-              if (t.fromCollected) t.loaded = t.loaded?.filter((r) => !isGone(r))
-              else for (const r of t.loaded ?? []) if (isGone(r)) r.collected = false
+              if (t.fromCollected) {
+                if (t.loaded) t.loaded = t.loaded.filter((r) => !isGone(r))
+                else t.count = Math.max(0, t.count - removed.length)
+              } else for (const r of t.loaded ?? []) if (isGone(r)) r.collected = false
             }
+            tabs.forEach((t, i) => labelTab(i))
             toast(`${removed.length} account${removed.length === 1 ? '' : 's'} removed from Collected`)
             await select(active)
           } catch (e) {
