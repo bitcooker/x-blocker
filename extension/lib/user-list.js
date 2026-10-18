@@ -47,32 +47,44 @@ export function parseToken(raw) {
   return null
 }
 
-function splitCsvLine(line) {
-  const out = []
+// Splits CSV text into rows of cells. Quoted cells may hold commas, quotes
+// and line breaks (display names can contain all three).
+function csvRows(text) {
+  const rows = []
+  let row = []
   let cur = ''
   let quoted = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
     if (quoted) {
-      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++ }
+      if (c === '"' && text[i + 1] === '"') { cur += '"'; i++ }
       else if (c === '"') quoted = false
       else cur += c
     } else if (c === '"') quoted = true
-    else if (c === ',') { out.push(cur); cur = '' }
-    else cur += c
+    else if (c === ',') { row.push(cur); cur = '' }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++
+      row.push(cur); cur = ''
+      if (row.some((v) => v.trim())) rows.push(row)
+      row = []
+    } else cur += c
   }
-  out.push(cur)
-  return out
+  row.push(cur)
+  if (row.some((v) => v.trim())) rows.push(row)
+  return rows
 }
 
-function parseCsv(lines) {
-  const header = splitCsvLine(lines[0]).map((h) => h.trim().toLowerCase())
+function parseCsv(text) {
+  const [head, ...rows] = csvRows(text)
+  const header = head.map((h) => h.trim().toLowerCase())
   const idCol = header.findIndex((h) => ID_HEADERS.includes(h))
   const nameCol = header.findIndex((h) => NAME_HEADERS.includes(h))
+  // A queue export can hold pending unblocks; importing those must not block them.
+  const actionCol = header.indexOf('action')
   if (idCol < 0 && nameCol < 0) return null
   const items = []
-  for (const line of lines.slice(1)) {
-    const cols = splitCsvLine(line)
+  for (const cols of rows) {
+    if (actionCol >= 0 && cols[actionCol]?.trim().toLowerCase() === 'unblock') continue
     const id = idCol >= 0 ? cols[idCol]?.trim() : undefined
     const screenName = nameCol >= 0 ? cols[nameCol]?.trim().replace(/^@/, '') : undefined
     const item = {}
@@ -84,9 +96,9 @@ function parseCsv(lines) {
 }
 
 export function parseUserList(text) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim())
-  if (lines.length === 0) return []
-  const items = (lines[0].includes(',') && parseCsv(lines)) ||
+  const first = text.split(/\r?\n/).find((l) => l.trim())
+  if (!first) return []
+  const items = (first.includes(',') && parseCsv(text)) ||
     text.split(/[\s,;]+/).map(parseToken).filter(Boolean)
   return dedupeItems(items)
 }

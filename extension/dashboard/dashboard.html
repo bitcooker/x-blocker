@@ -105,7 +105,7 @@
         <header class="panel-head">
           <div>
             <h1>Import a list</h1>
-            <p class="muted">Paste @handles, profile links or account IDs (<code>id:12345</code>), one per line or separated by commas. You can also choose a .txt or .csv file with an <code>id</code> or <code>screen_name</code> column. Everything you add is queued as one batch.</p>
+            <p class="muted">Paste @handles, profile links or account IDs (<code>id:12345</code>), one per line or separated by commas. You can also choose a .txt or .csv file, including a Blocked or Queue export from X Blocker. Everything you add is queued as one batch.</p>
           </div>
         </header>
         <div class="card import-card">
@@ -139,7 +139,7 @@
             <p class="muted">Accounts waiting to be blocked, in order. You can change the pace and limits in Settings.</p>
           </div>
           <div id="q-actions" class="row">
-            <button id="q-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
+            <button id="q-export" class="btn btn-sm" title="Download a CSV with IDs and @handles. You can import it here or share it."><i data-icon="download"></i>Export</button>
             <button id="q-clear" class="btn btn-sm btn-danger-outline">Clear all</button>
           </div>
         </header>
@@ -160,7 +160,7 @@
             <p class="muted">Everyone X Blocker has blocked, plus accounts it found you had already blocked. Select accounts here to unblock them, or undo a whole batch on the Batches page.</p>
           </div>
           <div class="row">
-            <button id="b-export" class="btn btn-sm"><i data-icon="download"></i>Export</button>
+            <button id="b-export" class="btn btn-sm" title="Download a CSV with IDs and @handles. You can import it here or share it."><i data-icon="download"></i>Export</button>
             <button id="b-clear" class="btn btn-sm btn-danger-outline">Clear history</button>
           </div>
         </header>

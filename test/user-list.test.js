@@ -69,3 +69,22 @@ test('queued accounts are matched by ID or handle, either way round', () => {
   assert.equal(isQueued({ id: '9', screenName: 'carol' }, keys), false)
   assert.equal(isQueued({ screenName: 'carol' }, keys), false)
 })
+
+test('blocked and queue exports import back as the same accounts', () => {
+  const blocked = toCsv([
+    { id: '123', screenName: 'alice', name: 'Al, "the" one\n999,mallory', at: 1, reason: 'Quick block' },
+    { id: '456', screenName: 'bob', name: 'Bob', at: 2 },
+    { id: '789' },
+  ], ['id', 'screenName', 'name', 'at', 'reason'])
+  assert.deepEqual(parseUserList(blocked), [
+    { id: '123', screenName: 'alice' }, { id: '456', screenName: 'bob' }, { id: '789' },
+  ])
+
+  const queue = toCsv([
+    { id: '1', screenName: 'carol', source: 'Followers of @x', action: 'block' },
+    { screenName: 'dave', source: 'Import' },
+    { id: '2', screenName: 'erin', source: 'Undo', action: 'unblock' },
+  ], ['id', 'screenName', 'source', 'action'])
+  // Pending unblocks are not turned into blocks.
+  assert.deepEqual(parseUserList(queue), [{ id: '1', screenName: 'carol' }, { screenName: 'dave' }])
+})
