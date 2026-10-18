@@ -623,23 +623,27 @@
       .panel{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;display:flex;
         flex-direction:column;min-width:300px;max-width:calc(100vw - 32px);border-radius:16px;background:var(--bg);
         border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden;animation:rise .2s ease-out}
-      .panel .top{display:flex;align-items:center;gap:16px;padding:12px 16px 12px 13px}
-      .panel .top .text{flex:1}
-      .panel .strip{position:relative;display:flex;align-items:center;gap:5px;padding:8px 12px 10px 13px;
+      .panel .top{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand min" "title act" "sub act";
+        column-gap:20px;row-gap:2px;padding:10px 10px 14px 16px}
+      .panel .eyebrow{grid-area:brand;align-self:center}
+      .panel .min{grid-area:min;justify-self:end;width:24px;height:24px;border-radius:50%;color:var(--muted)}
+      .panel .min:hover{background:var(--hover);color:var(--fg)}
+      .panel .min svg{width:14px;height:14px}
+      .panel .title{grid-area:title}
+      .panel .sub{grid-area:sub;margin-top:2px}
+      .panel .top > .btn-danger{grid-area:act;align-self:center;margin-inline-end:6px}
+      .panel .strip{position:relative;display:flex;align-items:center;gap:8px;padding:8px 12px 10px 16px;
         border-top:1px solid var(--border);background:var(--bg-subtle);font-size:12px;line-height:16px;color:var(--muted)}
-      .panel .strip .dot{margin:0 2.5px}
       .panel .run-text{flex:1;min-width:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
         font-variant-numeric:tabular-nums}
       .panel .run-text b{color:var(--fg);font-weight:700}
       .panel .strip .run{margin-inline-start:8px}
       .panel .prog{position:absolute;left:0;right:0;bottom:0;height:2px;border-radius:0}
-      .panel .text{display:flex;flex-direction:column;gap:3px;min-width:0;--icon-col:18px}
-      .panel .title{font-weight:700;font-size:15px;padding-left:var(--icon-col)}
+      .panel .title{font-weight:700;font-size:15px;line-height:20px}
       .panel .sub{color:var(--muted);font-size:12px;line-height:16px}
-      .panel .sub .state[hidden] + .count{padding-left:var(--icon-col)}
-      .panel .sub .state{display:flex;align-items:center;justify-content:center;width:13px;height:13px;flex:none}
-      .panel .sub .state.ok{color:var(--ok);font-size:12px;font-weight:700}
-      .panel .count b{color:var(--fg);font-weight:700}
+      .panel .sub .state{display:inline-flex;align-items:center;flex:none}
+      .panel .sub .state .ok{color:var(--ok);font-weight:700}
+      .panel .count b{color:var(--fg);font-weight:700;margin:0 2px}
       .panel .count .btn-xs{margin-inline-start:8px;vertical-align:middle}
       .panel .count{font-variant-numeric:tabular-nums}
       .panel .sub{display:flex;align-items:center;gap:5px}
@@ -667,7 +671,6 @@
 
       .panel .title{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .panel .eyebrow{color:var(--danger);font-size:11px;line-height:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
-      .panel .head{display:flex;align-items:center;gap:5px}
 
       .review{width:560px;max-width:calc(100vw - 32px);max-height:min(720px,calc(100vh - 64px));background:var(--bg);
         border-radius:16px;display:flex;flex-direction:column;animation:pop .15s ease-out;overflow:hidden}
@@ -753,16 +756,18 @@
     const stateIcon = el('span', 'state')
     const sub = el('span', 'sub', stateIcon, count)
     const title = el('span', 'title')
-    const minBtn = el('button', 'round min', svg(ICON_MIN))
+    const minBtn = el('button', 'min', svg(ICON_MIN))
     minBtn.title = 'Minimize'
     minBtn.setAttribute('aria-label', 'Minimize X Blocker panel')
     // Collapse sits next to the brand label, out of the action row, so it
     // takes no width whatever buttons the panel shows.
-    const text = el('div', 'text', el('div', 'head', minBtn, el('span', 'eyebrow', 'X Blocker')), title, sub)
+    const eyebrow = el('span', 'eyebrow', 'X Blocker')
     const loadBtn = el('button', 'btn btn-xs')
     const blockAllBtn = el('button', 'btn btn-danger')
     // Two zones: this list (top), and the queue (bottom strip, on every page).
-    const top = el('div', 'top', text, blockAllBtn)
+    // A grid: brand + minimize on the first row, title / status on the left,
+    // Review on the right. No icon gutter: state signs sit inline in the text.
+    const top = el('div', 'top', eyebrow, minBtn, title, sub, blockAllBtn)
     const runDot = el('span', 'dot')
     const runText = el('span', 'run-text')
     const runBtn = el('button', 'btn btn-xs run')
