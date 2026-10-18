@@ -134,7 +134,7 @@
 
   const style = document.createElement('style')
   style.textContent = `
-    :root{--xb-fg:#0f1419;--xb-border:#cfd9de;--xb-muted:#536471}
+    :root{--xb-fg:#0f1419;--xb-border:#cfd9de;--xb-muted:#536471;--xb-warn:#ffad1f}
     :root[data-xb-theme=dim]{--xb-fg:#f7f9f9;--xb-border:#536471;--xb-muted:#8b98a5}
     :root[data-xb-theme=dark]{--xb-fg:#eff3f4;--xb-border:#536471;--xb-muted:#71767b}
     .xb-pill{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:none;
@@ -151,6 +151,7 @@
     .xb-pill.xb-compact{padding:0!important;min-width:0}
     .xb-pill.xb-compact svg{width:18px;height:18px;fill:currentColor}
     .xb-pill.xb-done{background:#f4212e;border-color:#f4212e;color:#fff;cursor:default}
+    .xb-pill.xb-queued{border-color:var(--xb-warn);color:var(--xb-warn);cursor:default}
     .xb-pill[aria-busy=true]{opacity:.6;cursor:progress}
     .xb-icon{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:none;
       align-self:center;width:28px;height:28px;margin-inline-start:4px;border-radius:9999px;color:var(--xb-muted);
@@ -159,6 +160,7 @@
     .xb-icon:hover{background:rgba(244,33,46,.1);color:#f4212e}
     .xb-icon:focus-visible{box-shadow:0 0 0 2px var(--accent)}
     .xb-icon.xb-done{color:#f4212e;cursor:default}
+    .xb-icon.xb-queued{color:var(--xb-warn);cursor:default}
     .xb-icon[aria-busy=true]{opacity:.5;cursor:progress}
     .xb-icon.xb-action{margin:0;width:34px;height:34px}
     .xb-icon.xb-action svg{width:20px;height:20px}
@@ -314,50 +316,55 @@
     btn.hidden = state === 'blocked'
     reserveSpace(btn)
     btn.classList.toggle('xb-done', state === 'blocked')
+    btn.classList.toggle('xb-queued', state === 'queued')
     btn.setAttribute('aria-busy', String(state === 'busy'))
     btn.disabled = state !== 'idle'
-    const label = state === 'blocked' ? 'Blocked' : 'Block'
-    btn.title = state === 'blocked' ? `@${btn.dataset.sn} is blocked` : `Block @${btn.dataset.sn}`
+    const label = state === 'blocked' ? 'Blocked' : state === 'queued' ? 'Queued' : 'Block'
+    btn.title = state === 'blocked' ? `@${btn.dataset.sn} is blocked`
+      : state === 'queued' ? `@${btn.dataset.sn} is waiting in the block queue`
+      : `Block @${btn.dataset.sn}`
     btn.setAttribute('aria-label', btn.title)
     if (pill && btn.classList.contains('xb-compact')) {
       if (!btn.firstElementChild) btn.append(svg(BLOCK_ICON))
     } else if (pill) btn.textContent = state === 'busy' ? 'Blocking…' : label
   }
 
-  async function blockNow(screenName, btn) {
-    const ok = await ui.confirm({
-      title: `Block @${screenName}?`,
-      body: 'They will be able to see your public posts, but will no longer be able to engage with them. ' +
-        '@' + screenName + ' will also not be able to follow or message you, and you will not see notifications from them.',
-      confirmLabel: 'Block',
-    })
-    if (!ok) return
-    const quota = await send({ type: 'page:quota' }).catch(() => null)
-    if (quota && !quota.allowed) {
-      ui.toast(quota.limit === 'hourly'
-        ? `Hourly safety limit reached (${quota.usedHour}/${quota.hourly} in the last hour). Try again a bit later.`
-        : `Daily safety limit reached (${quota.used}/${quota.cap} in 24 h). Blocking more risks a forced logout by X.`, true)
-      return
-    }
+  // Adds the account to the paced block queue instead of blocking on the spot (or
+  // asking to confirm first). The queue runner does the blocking and reports back
+  // through page:blockedNotice, which settles the button to "blocked".
+  async function queueBlock(screenName, btn) {
     setButtonState(btn, 'busy')
     try {
-      const known = await send({ type: 'page:lookup', screenNames: [screenName] })
-      let id = known?.[screenName.toLowerCase()]?.id
-      if (!id) {
-        const r = await callMain('resolve', { screenName })
-        if (String(r?.screenName).toLowerCase() !== screenName.toLowerCase()) throw new Error('Unexpected lookup result')
-        id = r.id
+      const r = await send({ type: 'page:quickBlock', items: [{ screenName }] })
+      if (!r) throw new Error('No answer from the extension')
+      // Queued is what matters; a run that could not start yet (no reachable tab)
+      // only means it waits. Only report failure when nothing was queued.
+      if (!r.added) {
+        if (r.error) throw new Error(r.error)
+        setButtonState(btn, 'idle')
+        ui.toast(`@${screenName} is already queued or blocked`)
+        return
       }
-      if (!/^\d{1,20}$/.test(String(id))) throw new Error('Invalid account id')
-      await callMain('block', { userId: id })
-      await send({ type: 'page:blocked', user: { id, screenName } })
-      blockedHere.add(screenName.toLowerCase())
-      markBlocked(screenName)
-      ui.toast(`@${screenName} has been blocked`)
+      setButtonState(btn, 'queued')
+      ui.toast(`@${screenName} added to the block queue`, false, {
+        label: 'Undo',
+        run: async () => {
+          const c = await send({ type: 'page:cancelBatch', id: r.batch }).catch(() => null)
+          const key = screenName.toLowerCase()
+          if (!blockedHere.has(key)) {
+            for (const b of document.querySelectorAll('.xb-pill, .xb-icon')) {
+              if (b.dataset.handle === key) setButtonState(b, 'idle')
+            }
+          }
+          const done = c?.done ? ` ${c.done} already blocked; undo those from the dashboard.` : ''
+          ui.toast(`@${screenName} taken out of the block queue.${done}`)
+          ui.update()
+        },
+      })
       ui.update()
     } catch (e) {
       setButtonState(btn, 'idle')
-      ui.toast(`Couldn't block @${screenName}: ${e.message ?? e}`, true)
+      ui.toast(`Couldn't queue @${screenName}: ${e.message ?? e}`, true)
     }
   }
 
@@ -547,7 +554,7 @@
       e.stopPropagation()
       // Re-verify at click time: the row must still show this account.
       if (host.dataset.xbHandle !== key || !host.isConnected) return
-      if (!btn.disabled) blockNow(screenName, btn)
+      if (!btn.disabled) queueBlock(screenName, btn)
     }, true)
   }
 

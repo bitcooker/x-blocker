@@ -419,9 +419,9 @@ function countBatch(s, item, field, n = 1) {
 }
 
 // Quick blocks from the page: one batch per day, so a day's clicks can be undone together.
+const quickBatchId = () => `quick-${new Date().toISOString().slice(0, 10)}`
 function quickBatch(s) {
-  const day = new Date().toISOString().slice(0, 10)
-  return newBatch(s, 'Quick blocks', 'block', `quick-${day}`)
+  return newBatch(s, 'Quick blocks', 'block', quickBatchId())
 }
 
 // Batches for the dashboard, newest first, with how many accounts still wait.
@@ -460,7 +460,8 @@ function migrateBatches(c) {
 
 // Adds blocks (default) or unblocks to the queue. An account is in the queue
 // at most once; unblocks need a known ID and an account recorded as blocked.
-function addToQueue(s, items, action = 'block', batchSource) {
+// Callers that want a shared batch (e.g. a day's quick blocks) pass its id.
+function addToQueue(s, items, action = 'block', batchSource, batchId) {
   let batch = null
   const existing = new Set(s.queue.map(itemKey))
   for (const q of s.queue) if (q.id && q.screenName) existing.add(itemKey({ screenName: q.screenName }))
@@ -481,7 +482,7 @@ function addToQueue(s, items, action = 'block', batchSource) {
     } else if (existing.has(itemKey(item)) || (item.id && s.blocked[item.id])) { skipped++; continue }
     existing.add(itemKey(item))
     if (item.screenName) existing.add(itemKey({ screenName: item.screenName }))
-    batch ??= newBatch(s, batchSource ?? item.source, action)
+    batch ??= newBatch(s, batchSource ?? item.source, action, batchId)
     batch.total++
     s.queue.push({ ...item, batch: batch.id, addedAt: Date.now(), tries: 0 })
     added++
@@ -938,6 +939,9 @@ onMessage((msg, sender) => {
       return undefined
     }
     if (msg.type === 'page:massBlock') return massQueue(sender.tab.id, msg.items)
+    // A Block button on the page: the same paced queue, but today's clicks share
+    // one "Quick blocks" batch so they can be undone together from the dashboard.
+    if (msg.type === 'page:quickBlock') return massQueue(sender.tab.id, msg.items, 'block', 'Quick blocks', quickBatchId())
     if (msg.type === 'page:pause') return exclusive((s) => uiHandlers['runner:pause'](s))
     if (msg.type === 'page:resume') {
       return startRunner(sender.tab.id).then(() => ({ ok: true }), (e) => ({ error: String(e.message ?? e) }))
@@ -972,17 +976,22 @@ onMessage((msg, sender) => {
 
 // Queues accounts and makes sure the runner is going. Unblocks requested from
 // the dashboard have no tab of their own: the runner picks (or opens) an x.com tab.
-async function massQueue(tabId, items, action = 'block', source) {
-  try {
-    const { added, skipped, active, batch } = await exclusive((s) => mutate(s, ['queue', 'batches'], () => ({
-      ...addToQueue(s, items ?? [], action, source),
-      active: (s.runner.state === 'running' || s.runner.state === 'cooldown') && runnerAlive(s.runner),
-    })))
-    if (!active && (added || tabId != null)) await startRunner(tabId ?? undefined)
-    return { added, skipped, batch }
-  } catch (e) {
-    return { error: String(e.message ?? e) }
+async function massQueue(tabId, items, action = 'block', source, batchId) {
+  const { added, skipped, active, batch } = await exclusive((s) => mutate(s, ['queue', 'batches'], () => ({
+    ...addToQueue(s, items ?? [], action, source, batchId),
+    active: (s.runner.state === 'running' || s.runner.state === 'cooldown') && runnerAlive(s.runner),
+  })))
+  // The accounts are queued whether or not the run can start now: a tab that
+  // isn't reachable only means it waits until one is.
+  let error
+  if (!active && (added || tabId != null)) {
+    try {
+      await startRunner(tabId ?? undefined)
+    } catch (e) {
+      error = String(e.message ?? e)
+    }
   }
+  return error ? { added, skipped, batch, error } : { added, skipped, batch }
 }
 
 browser.tabs.onRemoved.addListener((tabId) => {

@@ -294,6 +294,21 @@ test('quick blocks of a day share one batch', async () => {
   assert.deepEqual([batches[0].source, batches[0].done], ['Quick blocks', 2])
 })
 
+test("a page Block button queues the account into the day's Quick blocks batch", async () => {
+  await boot({ settings: { version: 6 } })
+  // No x.com tab in this fake browser, so the run cannot start just yet; the
+  // accounts are still queued and the page is told what was added.
+  const r = await send({ type: 'page:quickBlock', items: [{ screenName: 'spammer' }] })
+  assert.equal(r.added, 1)
+  await send({ type: 'page:quickBlock', items: [{ screenName: 'spammer2' }] })
+  const { batches, queue } = await send({ type: 'data:get', keys: ['batches', 'queue'] }, DASH)
+  assert.equal(batches.length, 1, "a day's clicks share one batch")
+  assert.deepEqual([batches[0].source, batches[0].total], ['Quick blocks', 2])
+  assert.match(batches[0].id, /^quick-\d{4}-\d{2}-\d{2}$/)
+  assert.deepEqual(queue.map((q) => [q.screenName, q.batch]),
+    [['spammer', batches[0].id], ['spammer2', batches[0].id]])
+})
+
 test('the old in-page switches become the new choices, and only known values are accepted', async () => {
   await boot({ settings: { version: 5, inPageButtons: false, buttonsEverywhere: true } })
   await send({ type: 'page:config' })

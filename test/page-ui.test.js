@@ -204,6 +204,59 @@ test('narrow rows get a compact icon button', async () => {
   assert.ok(page.buttons()[0].classList.contains('xb-compact'))
 })
 
+test('a Block button queues the account instead of blocking it on the spot', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, {
+    respond: (m) => {
+      if (m.type === 'page:quickBlock') return { added: m.items.length, skipped: 0, batch: 'quick-2026-10-18' }
+      if (m.type === 'page:cancelBatch') return { cancelled: 1, done: 0 }
+      return {}
+    },
+  })
+  const btn = page.buttons()[0]
+  btn.click()
+  await sleep(50)
+  const queued = page.sent.find((m) => m.type === 'page:quickBlock')
+  assert.deepEqual(JSON.parse(JSON.stringify(queued.items)), [{ screenName: 'alice' }])
+  // Nothing is blocked on the spot: the paced queue runner does it.
+  assert.equal(page.sent.some((m) => m.type === 'page:blocked'), false)
+  assert.ok(btn.classList.contains('xb-queued'))
+  assert.equal(btn.textContent, 'Queued')
+  assert.equal(btn.title, '@alice is waiting in the block queue')
+
+  // Undo takes the day's batch back out of the queue and resets the button.
+  const undo = page.shadow().querySelector('.toast-action')
+  assert.equal(undo.textContent, 'Undo')
+  undo.click()
+  await sleep(100)
+  assert.equal(page.sent.find((m) => m.type === 'page:cancelBatch')?.id, 'quick-2026-10-18')
+  assert.equal(btn.classList.contains('xb-queued'), false)
+  assert.equal(btn.textContent, 'Block')
+})
+
+test('a Block button says so when the account is already queued', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, {
+    respond: (m) => (m.type === 'page:quickBlock' ? { added: 0, skipped: 1 } : {}),
+  })
+  const btn = page.buttons()[0]
+  btn.click()
+  await sleep(50)
+  assert.equal(btn.classList.contains('xb-queued'), false)
+  assert.equal(btn.textContent, 'Block')
+  assert.match(page.shadow().querySelector('.toasts').textContent, /already queued or blocked/)
+})
+
+test('a Block button stays queued even when the run cannot start yet', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, {
+    respond: (m) => (m.type === 'page:quickBlock' ? { added: 1, skipped: 0, batch: 'b1', error: 'no x.com tab' } : {}),
+  })
+  const btn = page.buttons()[0]
+  btn.click()
+  await sleep(50)
+  // It is in the queue, which is what the button reports.
+  assert.ok(btn.classList.contains('xb-queued'))
+  assert.match(page.shadow().querySelector('.toasts').textContent, /added to the block queue/)
+})
+
 test('post buttons join the header icon row, just before the more menu', async () => {
   const page = await load(`<main>${post('a')}</main>`, { path: '/home' })
   const btn = page.buttons()[0]
