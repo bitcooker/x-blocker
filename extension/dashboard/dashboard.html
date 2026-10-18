@@ -187,6 +187,11 @@
             <label class="setting"><div><b>Hourly safety limit</b><span>Blocks per rolling hour, including quick blocks. Spreading blocks out looks less automated than a burst. Default 150. 0 turns the limit off.</span></div><span class="field"><input name="hourlyCap" type="number" min="0" max="1000" step="10" inputmode="numeric"><span class="unit">per hour</span></span></label>
             <label class="setting"><div><b>Daily safety limit</b><span>Blocks per rolling 24 hours, including quick blocks. X publishes no block limit; heavy blockers report being logged out after several hundred blocks in a burst. Default 1000. 0 turns the limit off (not recommended).</span></div><span class="field"><input name="dailyCap" type="number" min="0" max="5000" step="10" inputmode="numeric"><span class="unit">per day</span></span></label>
           </div>
+          <h2>Reset</h2>
+          <div class="card list">
+            <div class="setting"><div><b>Restore default settings</b><span>Puts every setting on this page back to its default. Your never-block list, collected accounts, queue and history are kept.</span></div>
+              <button id="reset-settings" type="button" class="btn btn-sm">Reset settings</button></div>
+          </div>
           <h2>Privacy</h2>
           <div class="card list">
             <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser, on your device, and nothing is sent anywhere except your own requests to X. Only accounts from lists you collect are kept. Others are held in a temporary cache, cleared when the browser closes, that is used to protect your friends and detect blocked accounts. Collected profiles not seen for 30 days are forgotten, and private pages (messages, notifications, settings) are never read.</span></div>

@@ -212,3 +212,13 @@ test('the hourly limit pauses the queue until the oldest block leaves the hour',
   assert.equal(quota.allowed, false)
   assert.equal(quota.limit, 'hourly')
 })
+
+test('resetting settings restores defaults but keeps the never-block list', async () => {
+  await boot({ settings: { version: 4, delayMs: 9000, hourlyCap: 20, autoScroll: true, whitelist: ['friend'] } })
+  const dash = { id: 'ext', url: 'moz-extension://ext/dashboard/dashboard.html' }
+  assert.equal(await send({ type: 'settings:reset' }), undefined, 'content scripts cannot reset settings')
+  await send({ type: 'settings:reset' }, dash)
+  const { settings } = await send({ type: 'data:get', keys: ['settings'] }, dash)
+  assert.deepEqual([settings.delayMs, settings.hourlyCap, settings.autoScroll], [4000, 150, false])
+  assert.deepEqual(settings.whitelist, ['friend'])
+})

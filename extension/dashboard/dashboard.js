@@ -445,6 +445,18 @@ $('b-clear').addEventListener('click', async () => {
   })) action(() => send('blocked:clear'))
 })
 $('l-clear').addEventListener('click', () => action(() => send('log:clear')))
+$('reset-settings').addEventListener('click', async () => {
+  if (await confirmDialog({
+    title: 'Reset all settings?',
+    body: 'Every setting goes back to its default. Your never-block list, collected accounts, queue and history are kept.',
+    confirmLabel: 'Reset settings',
+  })) {
+    clearTimeout(saveTimer)
+    editingSettings = false
+    await action(() => send('settings:reset'))
+    toast('Settings reset to defaults', { timeout: 1500 })
+  }
+})
 $('wipe').addEventListener('click', async () => {
   if (await confirmDialog({
     title: 'Delete all X Blocker data?',

@@ -639,6 +639,11 @@ const uiHandlers = {
     }
     return summary(s)
   }),
+  'settings:reset': (s) => mutate(s, ['settings'], () => {
+    // The never-block list is the user's own data, not a preference: keep it.
+    s.settings = { ...structuredClone(DEFAULT_SETTINGS), whitelist: s.settings.whitelist, version: SETTINGS_VERSION }
+    return summary(s)
+  }),
   'queue:add': (s, msg) => mutate(s, ['queue'], () => addToQueue(s, msg.items ?? [])),
   'queue:addCollected': (s, msg) => mutate(s, ['queue'], () =>
     addToQueue(s, (msg.ids ?? []).map((id) => s.collected[id]).filter(Boolean)
