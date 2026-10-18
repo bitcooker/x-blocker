@@ -24,9 +24,10 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
 
 ## Safety
 
-- **Stays under X's limits.** A daily limit (450 blocks per 24 hours by default)
-  and human-like pacing (about 6 seconds per block) keep your account safe. If X
-  says "too many requests", the queue waits and then resumes by itself.
+- **Stays under X's limits.** Safety limits (150 blocks per hour and 1,000 per
+  24 hours by default) and human-like pacing (about 6 seconds per block) keep
+  blocking spread out. If X says "too many requests", the queue waits until
+  X's limit resets, then resumes by itself.
 - **Protects your friends.** Never blocks you, and by default skips people you
   follow and people who follow you. You can also skip verified accounts and keep
   a never-block list.

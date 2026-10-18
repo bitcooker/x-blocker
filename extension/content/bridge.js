@@ -47,7 +47,7 @@
     if (res && typeof res === 'object' && '__error' in res) throw new Error(res.__error)
     return res
   }
-  const errInfo = (e) => ({ code: e?.code ?? 'error', message: String(e?.message ?? e), retryAt: e?.retryAt })
+  const errInfo = (e) => ({ code: e?.code ?? 'error', message: String(e?.message ?? e), retryAt: e?.retryAt, scope: e?.scope })
 
   // ---- queue runner -------------------------------------------------------
 

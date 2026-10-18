@@ -321,7 +321,9 @@
     if (!ok) return
     const quota = await send({ type: 'page:quota' }).catch(() => null)
     if (quota && !quota.allowed) {
-      ui.toast(`Daily safety limit reached (${quota.used}/${quota.cap} in 24 h). Blocking more risks a forced logout by X.`, true)
+      ui.toast(quota.limit === 'hourly'
+        ? `Hourly safety limit reached (${quota.usedHour}/${quota.hourly} in the last hour). Try again a bit later.`
+        : `Daily safety limit reached (${quota.used}/${quota.cap} in 24 h). Blocking more risks a forced logout by X.`, true)
       return
     }
     setButtonState(btn, 'busy')
@@ -849,7 +851,10 @@
           return [el('span', '', `Blocking · ${of}`), tail]
         case 'cooldown': {
           const at = new Date(r.cooldownUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          return [el('span', 'warn', 'Blocking waits for X rate limit'), ` · resumes ${at} · ${of}`]
+          const why = r.limit === 'daily' ? 'Daily safety limit reached'
+            : r.limit === 'hourly' ? 'Hourly safety limit reached'
+            : r.limit === 'lookup' ? 'Waiting for X lookup limit' : 'Blocking waits for X rate limit'
+          return [el('span', 'warn', why), ` · resumes ${at} · ${of}`]
         }
         case 'paused':
           return [el('span', 'warn', 'Blocking paused'), ` · ${of}${tail}`]

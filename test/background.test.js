@@ -94,7 +94,7 @@ test('upgrading clears the auto-collected list and keeps the rest', async () => 
   })
   await send({ type: 'page:config' })
   assert.deepEqual(store.local.collected, {})
-  assert.equal(store.local.settings.version, 3)
+  assert.equal(store.local.settings.version, 4)
   assert.equal(store.local.settings.collectAlways, false)
   assert.equal('collect' in store.local.settings, false)
   assert.equal(store.local.settings.delayMs, 5000)
@@ -161,4 +161,54 @@ test('the Collected list for the page excludes blocked accounts', async () => {
   assert.deepEqual(list[0].sources, ['B'])
   const progress = await send({ type: 'page:progress' })
   assert.equal(progress.collectedCount, 2)
+})
+
+test('a rate limit waits for the reset time X reports, not a fixed cooldown', async () => {
+  const now = Date.now()
+  await boot({
+    queue: [{ screenName: 'spammer' }],
+    runner: { state: 'running', tabId: 7, token: 't', lastBeat: now, done: 0, failed: 0, skipped: 0, strikes: 0 },
+  })
+  const error = { code: 'rate_limit', message: 'Rate limited by X', retryAt: now + 60_000, scope: 'lookup' }
+  await send({ type: 'runner:result', token: 't', item: { screenName: 'spammer' }, outcome: 'failed', error })
+  const { runner, queueLen } = await send({ type: 'page:progress' })
+  assert.equal(runner.state, 'cooldown')
+  assert.equal(runner.limit, 'lookup')
+  assert.ok(runner.cooldownUntil < now + 2 * 60_000, 'should not wait the 15-minute fallback')
+  assert.equal(queueLen, 1, 'the account stays queued')
+
+  // Without a reset time, the configured fallback cooldown applies.
+  await send({ type: 'runner:result', token: 't', item: { screenName: 'spammer' }, outcome: 'failed', error: { code: 'rate_limit', scope: 'block' } })
+  const after = (await send({ type: 'page:progress' })).runner
+  assert.equal(after.limit, 'block')
+  assert.ok(after.cooldownUntil >= now + 25 * 60_000)
+})
+
+test('v4 moves an untouched old daily limit and keeps custom values', async () => {
+  await boot({ settings: { version: 3, delayMs: 4000, jitterMs: 4000, dailyCap: 450 } })
+  await send({ type: 'page:config' })
+  const st = store.local.settings
+  assert.deepEqual([st.version, st.delayMs, st.jitterMs, st.dailyCap, st.hourlyCap], [4, 4000, 4000, 1000, 150])
+
+  await boot({ settings: { version: 3, delayMs: 5000, jitterMs: 4000, dailyCap: 300 } })
+  await send({ type: 'page:config' })
+  assert.deepEqual([store.local.settings.delayMs, store.local.settings.dailyCap], [5000, 300])
+})
+
+test('the hourly limit pauses the queue until the oldest block leaves the hour', async () => {
+  const now = Date.now()
+  const blockTimes = Array.from({ length: 150 }, (_, i) => now - 50 * 60_000 + i * 1000)
+  await boot({
+    settings: { version: 4, hourlyCap: 150, dailyCap: 1000 },
+    blockTimes,
+    queue: [{ screenName: 'spammer' }],
+    runner: { state: 'running', tabId: 7, token: 't', lastBeat: now, done: 0, failed: 0, skipped: 0, strikes: 0 },
+  })
+  const next = await send({ type: 'runner:next', token: 't' })
+  assert.ok(next.waitMs > 9 * 60_000 && next.waitMs <= 10 * 60_000)
+  const { runner } = await send({ type: 'page:progress' })
+  assert.equal(runner.limit, 'hourly')
+  const quota = await send({ type: 'page:quota' })
+  assert.equal(quota.allowed, false)
+  assert.equal(quota.limit, 'hourly')
 })

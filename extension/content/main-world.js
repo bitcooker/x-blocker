@@ -147,7 +147,9 @@
     }
   }
 
-  async function api(method, path, { variables, body } = {}) {
+  // X limits each endpoint separately, so a 429 says which limit was hit:
+  // 'lookup' (resolving @names) or 'block' (the block mutation itself).
+  async function api(method, path, { variables, body, scope } = {}) {
     const url = new URL(path, API_ORIGIN)
     if (variables && method === 'GET') url.searchParams.set('variables', JSON.stringify(variables))
     const csrf = cookie('ct0')
@@ -178,7 +180,7 @@
     if (res.status === 429) {
       const reset = Number(res.headers.get('x-rate-limit-reset')) * 1000
       const sane = Number.isFinite(reset) && reset > Date.now() && reset < Date.now() + 86_400_000
-      throw new ApiError('rate_limit', 'Rate limited by X', { retryAt: sane ? reset : undefined })
+      throw new ApiError('rate_limit', 'Rate limited by X', { retryAt: sane ? reset : undefined, scope })
     }
     if (res.status === 401) throw new ApiError('auth', errMsg || 'Logged out or session expired (401)')
     // 403 here means the account itself is restricted (locked, challenged, …).
@@ -194,9 +196,10 @@
   async function gql(method, name, variables) {
     const id = await operationId(name)
     const path = `/graphql/${id}/${name}`
+    const scope = name === 'blockUserMutation' ? 'block' : 'lookup'
     return method === 'GET'
-      ? api('GET', path, { variables })
-      : api('POST', path, { body: { queryId: id, variables } })
+      ? api('GET', path, { variables, scope })
+      : api('POST', path, { body: { queryId: id, variables }, scope })
   }
 
   const commands = {
@@ -219,7 +222,7 @@
       if (typename === 'BlockSuccessResult') return { ok: true }
       const codes = (json?.errors ?? []).map((e) => Number(e.code ?? e.extensions?.code))
       const msg = json?.errors?.map((e) => e.message).join('; ') || typename || 'Unknown block response'
-      if (codes.includes(88)) throw new ApiError('rate_limit', msg)
+      if (codes.includes(88)) throw new ApiError('rate_limit', msg, { scope: 'block' })
       if (codes.some((c) => [32, 64, 215, 326].includes(c))) throw new ApiError('forbidden', msg)
       throw new ApiError(/not.?found|suspend/i.test(msg) ? 'not_found' : 'failed', msg)
     },
@@ -237,7 +240,7 @@
     } catch (e) {
       reply = {
         ok: false,
-        error: { code: e.code ?? 'error', message: String(e.message ?? e), retryAt: e.retryAt },
+        error: { code: e.code ?? 'error', message: String(e.message ?? e), retryAt: e.retryAt, scope: e.scope },
       }
     }
     window.postMessage({ [TAG]: 'response', id: msg.id, ...reply }, location.origin)

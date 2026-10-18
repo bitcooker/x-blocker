@@ -304,6 +304,7 @@ function readSettings() {
     jitterMs: Math.max(0, Math.round((Number(f.jitterSec.value) || 0) * 1000)),
     cooldownMin: Math.max(1, Number(f.cooldownMin.value) || 1),
     dailyCap: Math.max(0, Number(f.dailyCap.value) || 0),
+    hourlyCap: Math.max(0, Number(f.hourlyCap.value) || 0),
     skipFollowing: f.skipFollowing.checked,
     skipFollowers: f.skipFollowers.checked,
     skipVerified: f.skipVerified.checked,

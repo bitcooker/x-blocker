@@ -92,3 +92,9 @@ test('maps rate limits and refuses to block yourself', async () => {
   const self = await page.call('block', { userId: '777' })
   assert.equal(self.error.code, 'invalid')
 })
+
+test('rate limits say whether lookups or blocks were limited', async () => {
+  const page = createPage(() => ({ status: 429, body: {} }))
+  assert.equal((await page.call('resolve', { screenName: 'bob' })).error.scope, 'lookup')
+  assert.equal((await page.call('block', { userId: '1' })).error.scope, 'block')
+})

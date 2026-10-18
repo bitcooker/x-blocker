@@ -13,9 +13,9 @@ import { browser, onMessage } from './lib/compat.js'
 import { extractUsers } from './lib/extract-users.js'
 import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 
-// Rate limits: X tolerates roughly 500 blocks per rolling 24 h; beyond that it
-// starts answering 429 and may force-logout the session. Defaults stay under that
-// with headroom for manual blocks, and pace requests like a human (avg ~6 s).
+// Rate limits: X publishes no limit for blocking. Heavy blockers report being
+// logged out after several hundred blocks in a burst, so the defaults spread
+// blocks out (avg ~6 s, at most 150 an hour) rather than only capping the day.
 const DEFAULT_SETTINGS = {
   collectAlways: false,
   autoScroll: false,
@@ -23,7 +23,8 @@ const DEFAULT_SETTINGS = {
   delayMs: 4000,
   jitterMs: 4000,
   cooldownMin: 15,
-  dailyCap: 450,
+  hourlyCap: 150,
+  dailyCap: 1000,
   skipFollowing: true,
   skipFollowers: true,
   skipVerified: false,
@@ -36,6 +37,7 @@ const DEFAULT_RUNNER = {
   lastBeat: 0,
   cooldownUntil: 0,
   message: '',
+  limit: '', // what the cooldown waits for: block | lookup | daily
   done: 0,
   failed: 0,
   skipped: 0,
@@ -53,9 +55,13 @@ const DEFAULTS = {
 const MAX_COLLECTED = 50_000
 const COLLECTED_TTL = 30 * 24 * 60 * 60 * 1000 // data minimisation: forget profiles after 30 days
 const MAX_COOLDOWN_MIN = 240
+// Consecutive 429s for which X's own reset time is trusted before backing off.
+const TRUST_RESET_STRIKES = 2
+const RESET_SLACK_MS = 5_000
 const MAX_LOG = 300
 const MAX_TRIES = 3
 const DAY = 24 * 60 * 60 * 1000
+const HOUR = 60 * 60 * 1000
 const STALE_MS = 60_000
 const API_URLS = [
   'https://api.x.com/graphql/*',
@@ -91,8 +97,8 @@ const BIG_KEYS = new Set(['collected', 'blocked', 'log', 'blockTimes'])
 let cache = null
 let lock = Promise.resolve()
 
-const SETTINGS_VERSION = 3
-const MIN = { delayMs: 2000, jitterMs: 0, cooldownMin: 1, dailyCap: 0 }
+const SETTINGS_VERSION = 4
+const MIN = { delayMs: 2000, jitterMs: 0, cooldownMin: 1, hourlyCap: 0, dailyCap: 0 }
 
 // v1 shipped with 3 s delay and no daily limit, which can get accounts
 // force-logged-out. Move untouched old defaults to the safer ones.
@@ -104,6 +110,9 @@ function migrateSettings(st) {
   }
   // v3: collecting became opt-in; the old always-on switch is replaced.
   delete st.collect
+  // v4: an hourly limit spreads blocks out, so the daily one can be looser.
+  // Only an untouched old default moves; a value the user chose is kept.
+  if ((st.version ?? 1) < 4 && st.dailyCap === 450) st.dailyCap = DEFAULT_SETTINGS.dailyCap
   st.version = SETTINGS_VERSION
   return st
 }
@@ -450,7 +459,7 @@ async function startRunner(preferredTabId) {
     // Resuming a paused run keeps its counters so "n of m" continues.
     const resume = s.runner.state === 'paused'
     Object.assign(s.runner, {
-      state: 'running', tabId: tab.id, token, lastBeat: Date.now(), cooldownUntil: 0, message: '',
+      state: 'running', tabId: tab.id, token, lastBeat: Date.now(), cooldownUntil: 0, message: '', limit: '',
       ...(resume ? {} : { done: 0, failed: 0, skipped: 0, strikes: 0 }),
     })
     log(s, 'info', `Started on tab ${tab.id} with ${s.queue.length} queued`)
@@ -469,14 +478,25 @@ function nextItem(s, token) {
     if (now < r.cooldownUntil) return { waitMs: r.cooldownUntil - now }
     r.state = 'running'
     r.message = ''
+    r.limit = ''
     log(s, 'info', 'Cooldown over, resuming')
   }
   s.blockTimes = s.blockTimes.filter((t) => now - t < DAY)
   if (s.settings.dailyCap > 0 && s.blockTimes.length >= s.settings.dailyCap) {
     r.state = 'cooldown'
+    r.limit = 'daily'
     r.cooldownUntil = s.blockTimes[0] + DAY
     r.message = `Daily cap of ${s.settings.dailyCap} reached`
     log(s, 'warn', r.message)
+    return { waitMs: r.cooldownUntil - now }
+  }
+  const lastHour = s.blockTimes.filter((t) => now - t < HOUR)
+  if (s.settings.hourlyCap > 0 && lastHour.length >= s.settings.hourlyCap) {
+    r.state = 'cooldown'
+    r.limit = 'hourly'
+    r.cooldownUntil = lastHour[0] + HOUR
+    r.message = `Hourly limit of ${s.settings.hourlyCap} reached`
+    log(s, 'info', r.message)
     return { waitMs: r.cooldownUntil - now }
   }
   while (s.queue.length > 0) {
@@ -521,12 +541,17 @@ function applyResult(s, msg) {
   }
   const err = msg.error ?? {}
   if (err.code === 'rate_limit') {
-    // Back off exponentially on repeated limits: 15 → 30 → 60 → … → 240 min.
+    // X reports when its 15-minute window resets; wait exactly that long
+    // (plus a few seconds). Only without that header, or after repeated
+    // limits in a row, fall back to our own backoff: 15 → 30 → … → 240 min.
     r.strikes = (r.strikes ?? 0) + 1
-    const minutes = Math.min(s.settings.cooldownMin * 2 ** (r.strikes - 1), MAX_COOLDOWN_MIN)
+    const backoff = Math.min(s.settings.cooldownMin * 2 ** (r.strikes - 1), MAX_COOLDOWN_MIN) * 60_000
+    const told = err.retryAt ? err.retryAt + RESET_SLACK_MS : 0
     r.state = 'cooldown'
-    r.cooldownUntil = Math.max(err.retryAt ?? 0, now + minutes * 60_000)
-    r.message = `Rate limited by X, waiting until ${new Date(r.cooldownUntil).toLocaleTimeString()}`
+    r.limit = err.scope === 'lookup' ? 'lookup' : 'block'
+    r.cooldownUntil = told && r.strikes <= TRUST_RESET_STRIKES ? told : Math.max(told, now + backoff)
+    const what = r.limit === 'lookup' ? 'X limited account lookups' : 'Rate limited by X'
+    r.message = `${what}, waiting until ${new Date(r.cooldownUntil).toLocaleTimeString()}`
     log(s, 'warn', r.message)
     return { stop: false }
   }
@@ -735,11 +760,14 @@ const pageHandlers = {
       id: u.id, screenName: u.screenName, name: u.name, avatar: u.avatar, verified: u.verified,
       following: u.following, followedBy: u.followedBy, sources: u.sources ?? [],
     })),
-  // Quick blocks count toward the same daily safety limit as the queue.
+  // Quick blocks count toward the same safety limits as the queue.
   'page:quota': (s) => {
     const used = last24h(s)
     const cap = s.settings.dailyCap
-    return { used, cap, allowed: cap === 0 || used < cap }
+    const hourly = s.settings.hourlyCap
+    const usedHour = s.blockTimes.filter((t) => Date.now() - t < HOUR).length
+    const limit = cap > 0 && used >= cap ? 'daily' : hourly > 0 && usedHour >= hourly ? 'hourly' : ''
+    return { used, cap, usedHour, hourly, limit, allowed: !limit }
   },
   'page:blocked': (s, msg) => mutate(s, ['blocked', 'collected', 'blockTimes', 'log', 'queue'], () => {
     const { id, screenName } = msg.user ?? {}
