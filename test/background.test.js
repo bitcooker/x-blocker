@@ -222,3 +222,21 @@ test('resetting settings restores defaults but keeps the never-block list', asyn
   assert.deepEqual([settings.delayMs, settings.hourlyCap, settings.autoScroll], [4000, 150, false])
   assert.deepEqual(settings.whitelist, ['friend'])
 })
+
+test('lookup reports collected and queued accounts, and unqueue removes them', async () => {
+  await boot({
+    settings: { version: 4 },
+    collected: { 1: { id: '1', screenName: 'kept', seenAt: Date.now() } },
+    queue: [{ id: '2', screenName: 'queued_one', addedAt: 1, tries: 0 }, { screenName: 'by_name', addedAt: 1, tries: 0 }],
+  })
+  await send(response(user('1', 'kept'), user('2', 'queued_one')))
+  await sleep(1300)
+  const info = await send({ type: 'page:lookup', screenNames: ['kept', 'queued_one', 'by_name'] })
+  assert.equal(info.kept.collected, true)
+  assert.equal(info.kept.queued, false)
+  assert.equal(info.queued_one.queued, true)
+  assert.equal(info.by_name.queued, true)
+  const res = await send({ type: 'page:unqueue', items: [{ id: '2' }, { screenName: 'BY_NAME' }] })
+  assert.deepEqual(res.removed.sort(), ['by_name', 'queued_one'])
+  assert.equal((await send({ type: 'page:progress' })).queueLen, 0)
+})

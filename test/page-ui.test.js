@@ -299,6 +299,7 @@ test('unticked accounts can be removed from the Collected list', async () => {
   const page = await load(`<main>${cell('a1')}${cell('a2')}</main>`, {
     respond: (m) => {
       if (m.type === 'page:uncollect') return { removed: m.items.map((i) => i.screenName) }
+      if (m.type === 'page:lookup') return { a1: { collected: true }, a2: { collected: true } }
       return respondCollected(m)
     },
   })
@@ -307,6 +308,7 @@ test('unticked accounts can be removed from the Collected list', async () => {
   const dialog = page.shadow().querySelector('.review')
   const remove = dialog.querySelector('.bar .uncollect')
   assert.equal(remove.textContent, 'Remove 2 from Collected')
+  assert.equal(dialog.querySelector('.bar .unqueue').hidden, true)
 
   // Like the dashboard: the button acts on the ticked rows.
   const boxes = [...dialog.querySelectorAll('li input')]
@@ -320,13 +322,34 @@ test('unticked accounts can be removed from the Collected list', async () => {
   const sent = page.sent.find((m) => m.type === 'page:uncollect')
   assert.deepEqual(JSON.parse(JSON.stringify(sent.items)), [{ screenName: 'a2' }])
   assert.equal(page.sent.filter((m) => m.type === 'page:massBlock').length, 0)
-
-  // Nothing ticked: the button is inert.
-  const left = dialog.querySelector('li input')
-  left.checked = false
-  left.dispatchEvent(new page.document.defaultView.Event('change'))
-  await sleep(20)
+  // Still on the page, so still in "This list".
+  assert.equal(dialog.querySelectorAll('li input').length, 2)
+  assert.equal(remove.textContent, 'Remove 0 from Collected')
   assert.equal(remove.disabled, true)
+})
+
+test('remove buttons only count accounts that are collected or queued', async () => {
+  const page = await load(`<main>${cell('a1')}${cell('a2')}${cell('a3')}</main>`, {
+    respond: (m) => {
+      if (m.type === 'page:lookup') return { a1: { collected: true }, a2: { queued: true } }
+      if (m.type === 'page:unqueue') return { removed: m.items.map((i) => i.screenName) }
+      return respondCollected(m)
+    },
+  })
+  await page.click('.fab')
+  await page.click('.btn-danger')
+  const dialog = page.shadow().querySelector('.review')
+  const uncollect = dialog.querySelector('.bar .uncollect')
+  const unqueue = dialog.querySelector('.bar .unqueue')
+  assert.equal(uncollect.textContent, 'Remove 1 from Collected')
+  assert.equal(unqueue.textContent, 'Remove 1 from queue')
+  assert.equal(unqueue.hidden, false)
+
+  unqueue.click()
+  await sleep(250)
+  const sent = page.sent.find((m) => m.type === 'page:unqueue')
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.items)), [{ screenName: 'a2' }])
+  assert.equal(unqueue.hidden, true)
 })
 
 test('collected total is shown and reviewable from a page that is not a list', async () => {

@@ -688,7 +688,7 @@
       .review .bar{display:flex;align-items:center;gap:12px;padding:10px 24px;border-bottom:1px solid var(--border);
         font-size:14px;color:var(--muted)}
       .review .bar label{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--fg);font-weight:700}
-      .review .bar .uncollect{margin-inline-start:auto}
+      .review .bar .acts{margin-inline-start:auto;display:flex;gap:8px}
       .review ul{list-style:none;padding:0;margin:0;overflow:auto;flex:1}
       .review li{display:flex;align-items:center;gap:12px;padding:10px 24px;cursor:pointer;transition:background-color .15s}
       .review li:hover{background:var(--hover)}
@@ -1000,7 +1000,7 @@
 
     async function collectedRows() {
       const list = (await send({ type: 'page:collectedList' }).catch(() => null)) ?? []
-      return list.map((u) => ({ ...u, source: u.sources?.at(-1) ?? 'Collected list', showSource: true }))
+      return list.map((u) => ({ ...u, collected: true, source: u.sources?.at(-1) ?? 'Collected list', showSource: true }))
     }
 
     blockAllBtn.addEventListener('click', async () => {
@@ -1013,6 +1013,7 @@
       }
       if (collectedCount) {
         tabs.push({ label: 'Total collected', count: collectedCount, load: collectedRows, heading: 'Your Collected list',
+          fromCollected: true,
           note: 'Every account you collected, on any page, that isn\'t blocked yet.' })
       }
       if (!tabs.length) return
@@ -1053,6 +1054,7 @@
         const allLabel = el('label', '', all, el('span', '', 'Select all'))
         const summary = el('span', '')
         const uncollectBtn = el('button', 'btn btn-outline btn-sm uncollect')
+        const unqueueBtn = el('button', 'btn btn-outline btn-sm unqueue')
         const limitNote = el('p', 'limit')
         const list = el('ul', '')
         list.setAttribute('aria-label', 'Accounts to block')
@@ -1085,9 +1087,19 @@
           const skipped = rows.length - n
           summary.textContent = skipped ? `${skipped} unticked` : ''
           // Like the dashboard: pick rows, then choose what to do with them.
-          uncollectBtn.textContent = `Remove ${n} from Collected`
-          uncollectBtn.disabled = n === 0
+          // Each action counts only the ticked rows it applies to, and hides
+          // when it applies to none in this tab.
+          const ticked = rows.filter((r) => r.checked)
+          const nCollected = ticked.filter((r) => r.collected).length
+          const nQueued = ticked.filter((r) => r.queued).length
+          uncollectBtn.hidden = !rows.some((r) => r.collected)
+          uncollectBtn.textContent = `Remove ${nCollected} from Collected`
+          uncollectBtn.disabled = nCollected === 0
           uncollectBtn.title = 'Take the ticked accounts out of your Collected list, so they stop coming back in later reviews'
+          unqueueBtn.hidden = !rows.some((r) => r.queued)
+          unqueueBtn.textContent = `Remove ${nQueued} from queue`
+          unqueueBtn.disabled = nQueued === 0
+          unqueueBtn.title = 'Take the ticked accounts out of the block queue, so they won\'t be blocked'
           if (quota?.cap) {
             const left = Math.max(0, quota.cap - quota.used)
             limitNote.hidden = n <= left
@@ -1110,6 +1122,8 @@
             if (r.following) tags.append(el('span', 'tag warn', 'You follow'))
             if (r.followedBy) tags.append(el('span', 'tag warn', 'Follows you'))
             if (r.blocking) tags.append(el('span', 'tag', 'Blocked'))
+            if (r.queued) tags.append(el('span', 'tag', 'Queued'))
+            if (r.collected && !r.showSource) tags.append(el('span', 'tag', 'Collected'))
             if (r.verified) tags.append(el('span', 'tag', 'Verified'))
             const who = el('div', 'who', el('span', 'nm', r.name || `@${r.screenName}`))
             // Link the handle so you can open the profile while reviewing. It must
@@ -1170,7 +1184,7 @@
         })
 
         uncollectBtn.addEventListener('click', async () => {
-          const items = rows.filter((r) => r.checked)
+          const items = rows.filter((r) => r.checked && r.collected)
             .map((r) => ({ id: r.id, screenName: r.screenName }))
           if (!items.length) return
           uncollectBtn.disabled = true
@@ -1183,7 +1197,12 @@
               return
             }
             const gone = new Set(removed.map((s) => String(s).toLowerCase()))
-            for (const t of tabs) t.loaded = t.loaded?.filter((r) => !gone.has((r.screenName ?? '').toLowerCase()))
+            const isGone = (r) => gone.has((r.screenName ?? '').toLowerCase())
+            // They leave the Collected tab, but stay in "This list": they're still on the page.
+            for (const t of tabs) {
+              if (t.fromCollected) t.loaded = t.loaded?.filter((r) => !isGone(r))
+              else for (const r of t.loaded ?? []) if (isGone(r)) r.collected = false
+            }
             toast(`${removed.length} account${removed.length === 1 ? '' : 's'} removed from Collected`)
             await select(active)
           } catch (e) {
@@ -1193,10 +1212,36 @@
           }
         })
 
+        unqueueBtn.addEventListener('click', async () => {
+          const items = rows.filter((r) => r.checked && r.queued)
+            .map((r) => ({ id: r.id, screenName: r.screenName }))
+          if (!items.length) return
+          unqueueBtn.disabled = true
+          try {
+            const res = await send({ type: 'page:unqueue', items })
+            if (res?.error) throw new Error(res.error)
+            const removed = res?.removed ?? []
+            const gone = new Set(removed.map((s) => String(s).toLowerCase()))
+            for (const t of tabs) {
+              for (const r of t.loaded ?? []) {
+                if (gone.has((r.screenName ?? '').toLowerCase()) || gone.has(String(r.id))) r.queued = false
+              }
+            }
+            toast(removed.length
+              ? `${removed.length} account${removed.length === 1 ? '' : 's'} removed from the queue`
+              : 'Nothing removed: already out of the queue', { error: !removed.length })
+            renderRows()
+          } catch (e) {
+            toast(String(e.message ?? e), true)
+          } finally {
+            sync()
+          }
+        })
+
         const dialog = el('div', 'review',
           el('div', 'rh', tabBar, src, heading, note),
           limitNote,
-          el('div', 'bar', allLabel, summary, uncollectBtn),
+          el('div', 'bar', allLabel, summary, el('div', 'acts', unqueueBtn, uncollectBtn)),
           list,
           el('div', 'rf', cancel, confirm))
         dialog.setAttribute('role', 'dialog')

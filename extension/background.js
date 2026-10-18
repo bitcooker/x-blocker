@@ -702,13 +702,20 @@ const pageHandlers = {
   }),
   'page:lookup': (s, msg) => {
     const out = {}
+    const queued = queueKeys(s.queue)
     for (const raw of (msg.screenNames ?? []).slice(0, 5000)) {
       const u = bySn(s, raw)
-      if (!u) continue
+      if (!u) {
+        // Queued by handle before X showed us the account: still worth reporting.
+        if (isQueued({ screenName: String(raw) }, queued)) out[String(raw).toLowerCase()] = { queued: true }
+        continue
+      }
       out[u.screenName.toLowerCase()] = {
         id: u.id, name: u.name, avatar: u.avatar, verified: u.verified,
         following: u.following, followedBy: u.followedBy,
         blocking: typeof u.blocking === 'boolean' ? u.blocking : Boolean(s.blocked[u.id]),
+        collected: Boolean(s.collected[u.id]),
+        queued: isQueued(u, queued),
       }
     }
     return out
@@ -756,6 +763,23 @@ const pageHandlers = {
       removed.push(u.screenName)
     }
     if (removed.length) snIndex = null
+    return { removed }
+  }),
+  // Takes accounts back out of the block queue (by ID or handle).
+  'page:unqueue': (s, msg) => mutate(s, ['queue'], () => {
+    const keys = new Set()
+    for (const it of Array.isArray(msg.items) ? msg.items.slice(0, 5000) : []) {
+      const id = String(it?.id ?? '')
+      const sn = String(it?.screenName ?? '')
+      if (/^\d{1,20}$/.test(id)) keys.add(itemKey({ id }))
+      if (/^[A-Za-z0-9_]{1,15}$/.test(sn)) keys.add(itemKey({ screenName: sn }))
+    }
+    const removed = []
+    s.queue = s.queue.filter((q) => {
+      const hit = keys.has(itemKey(q)) || (q.screenName && keys.has(itemKey({ screenName: q.screenName })))
+      if (hit) removed.push(q.screenName ?? knownUser(s, q.id)?.screenName ?? q.id)
+      return !hit
+    })
     return { removed }
   }),
   'page:collectedList': (s) => pendingCollected(s)
