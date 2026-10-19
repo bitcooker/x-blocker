@@ -103,3 +103,7 @@ see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 [GPL-3.0-or-later](LICENSE). You may use, modify and share this code, as long
 as you share your changes under the same license.
+
+Persian and Arabic text uses [Vazirmatn](https://github.com/rastikerdar/vazirmatn)
+by Saber Rastikerdar, under the SIL Open Font License
+([extension/fonts/Vazirmatn-OFL.txt](extension/fonts/Vazirmatn-OFL.txt)).
