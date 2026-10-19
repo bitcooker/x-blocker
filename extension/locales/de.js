@@ -294,7 +294,7 @@
   'panel.detailsTitle': 'Warteschlange im X Blocker-Dashboard ansehen',
   'panel.queue': 'Warteschlange',
   'panel.fab.blocking': 'Blockiert {done}/{total}',
-  'panel.fab.loaded': 'X Blocker · {count} geladen',
+  'panel.fab.loaded': '{count} geladen',
   'panel.list.loading': 'Lade {count}',
   'panel.list.loadingOf': 'Lade {count} von ~{total}',
   'panel.list.allBlocked': 'Alle {count} Accounts dieser Liste sind bereits blockiert',

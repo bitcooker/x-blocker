@@ -294,7 +294,7 @@
   'panel.detailsTitle': 'مشاهدهٔ صف در داشبورد X Blocker',
   'panel.queue': 'صف',
   'panel.fab.blocking': 'مسدود کردن {done} از {total}',
-  'panel.fab.loaded': 'X Blocker، {count} بارگذاری‌شده',
+  'panel.fab.loaded': '{count} بارگذاری‌شده',
   'panel.list.loading': 'در حال بارگذاری {count}',
   'panel.list.loadingOf': 'در حال بارگذاری {count} از ~{total}',
   'panel.list.allBlocked': 'هر {count} حساب این فهرست از قبل مسدود هستند',

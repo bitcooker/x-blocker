@@ -297,7 +297,7 @@
   'panel.detailsTitle': 'See the queue in the X Blocker dashboard',
   'panel.queue': 'Queue',
   'panel.fab.blocking': 'Blocking {done}/{total}',
-  'panel.fab.loaded': 'X Blocker · {count} loaded',
+  'panel.fab.loaded': '{count} loaded',
   'panel.list.loading': 'Loading {count}',
   'panel.list.loadingOf': 'Loading {count} of ~{total}',
   'panel.list.allBlocked': 'All {count} accounts in this list are already blocked',

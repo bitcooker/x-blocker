@@ -292,7 +292,7 @@
   'panel.detailsTitle': 'Voir la file d’attente dans le tableau de bord X Blocker',
   'panel.queue': 'File d’attente',
   'panel.fab.blocking': 'Blocage {done}/{total}',
-  'panel.fab.loaded': 'X Blocker · {count} chargés',
+  'panel.fab.loaded': '{count} chargés',
   'panel.list.loading': 'Chargement de {count}',
   'panel.list.loadingOf': 'Chargement de {count} sur ~{total}',
   'panel.list.allBlocked': 'Les {count} comptes de cette liste sont déjà bloqués',

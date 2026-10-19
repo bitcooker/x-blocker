@@ -297,7 +297,7 @@
   'panel.detailsTitle': 'Ver la cola en el panel de control de X Blocker',
   'panel.queue': 'Cola',
   'panel.fab.blocking': 'Bloqueando {done}/{total}',
-  'panel.fab.loaded': 'X Blocker · {count} cargadas',
+  'panel.fab.loaded': '{count} cargadas',
   'panel.list.loading': 'Cargando {count}',
   'panel.list.loadingOf': 'Cargando {count} de ~{total}',
   'panel.list.allBlocked': 'Las {count} cuentas de esta lista ya están bloqueadas',

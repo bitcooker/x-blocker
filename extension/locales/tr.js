@@ -294,7 +294,7 @@
   'panel.detailsTitle': 'Sırayı kontrol panelinde gör',
   'panel.queue': 'Sıra',
   'panel.fab.blocking': 'Engelleniyor {done}/{total}',
-  'panel.fab.loaded': 'X Blocker · {count} yüklendi',
+  'panel.fab.loaded': '{count} yüklendi',
   'panel.list.loading': '{count} yükleniyor',
   'panel.list.loadingOf': '~{total} hesaptan {count} yükleniyor',
   'panel.list.allBlocked': 'Bu listedeki {count} hesabın tümü zaten engelli',

@@ -306,7 +306,7 @@
   'panel.detailsTitle': 'عرض قائمة الانتظار في لوحة تحكم X Blocker',
   'panel.queue': 'قائمة الانتظار',
   'panel.fab.blocking': 'جارٍ الحظر {done} من {total}',
-  'panel.fab.loaded': 'X Blocker، تم تحميل {count}',
+  'panel.fab.loaded': 'تم تحميل {count}',
   'panel.list.loading': 'جارٍ تحميل {count}',
   'panel.list.loadingOf': 'جارٍ تحميل {count} من ~{total}',
   'panel.list.allBlocked': 'كل الحسابات ({count}) في هذه القائمة محظورة مسبقًا',
