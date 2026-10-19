@@ -408,6 +408,7 @@ function readSettings() {
   return {
     language: f.language.value,
     blockButtons: f.blockButtons.value,
+    blockAction: f.blockAction.value,
     // Delays are edited in seconds and stored in milliseconds.
     delayMs: Math.max(2000, Math.round((Number(f.delaySec.value) || 0) * 1000)),
     jitterMs: Math.max(0, Math.round((Number(f.jitterSec.value) || 0) * 1000)),

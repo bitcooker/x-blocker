@@ -207,11 +207,16 @@
 
           <h2 data-i18n="dash.settings.onX">On x.com</h2>
           <div class="card list">
-            <div class="setting choice"><div><b data-i18n="dash.settings.blockButtons">Block buttons</b><span data-i18n="dash.settings.blockButtonsHint">Show a Block button on posts and accounts, so you can queue one account with a click. Reload x.com after changing this.</span></div>
+            <div class="setting choice"><div><b data-i18n="dash.settings.blockButtons">Block buttons</b><span data-i18n="dash.settings.blockButtonsHint">Show a Block button on posts and accounts. Reload x.com after changing this.</span></div>
               <div class="seg" role="radiogroup" aria-label="Block buttons" data-i18n-attr="aria-label:dash.settings.blockButtons">
                 <label><input type="radio" name="blockButtons" value="everywhere"><span data-i18n="dash.settings.everywhere">Everywhere</span></label>
                 <label><input type="radio" name="blockButtons" value="lists"><span data-i18n="dash.settings.onlyLists">Only on lists</span></label>
                 <label><input type="radio" name="blockButtons" value="off"><span data-i18n="dash.settings.off">Off</span></label>
+              </div></div>
+            <div class="setting choice"><div><b data-i18n="dash.settings.blockAction">When you press Block</b><span data-i18n="dash.settings.blockActionHint">Ask first and block right away, like X does, or add the account to the queue without asking.</span></div>
+              <div class="seg" role="radiogroup" aria-label="When you press Block" data-i18n-attr="aria-label:dash.settings.blockAction">
+                <label><input type="radio" name="blockAction" value="confirm"><span data-i18n="dash.settings.actionConfirm">Ask, then block</span></label>
+                <label><input type="radio" name="blockAction" value="queue"><span data-i18n="dash.settings.actionQueue">Add to queue</span></label>
               </div></div>
           </div>
 

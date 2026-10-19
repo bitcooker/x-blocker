@@ -203,13 +203,28 @@ test('pill sits after Follow (never between X nodes) and survives a re-render', 
   assert.equal(wrapper.querySelectorAll('.xb-pill').length, 1)
 })
 
+test('by default a Block button asks first, like X, then blocks right away', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, {
+    respond: (m) => (m.type === 'page:lookup' ? { alice: { id: '42' } } : m.type === 'page:quota' ? { allowed: true } : {}),
+  })
+  page.buttons()[0].click()
+  await sleep(50)
+  const ok = page.shadow().querySelector('.dialog .btn-danger')
+  assert.equal(page.shadow().querySelector('.dialog h2').textContent, 'Block @alice?')
+  assert.equal(page.sent.some((m) => m.type === 'page:quickBlock'), false)
+  ok.click()
+  await sleep(50)
+  assert.deepEqual(JSON.parse(JSON.stringify(page.sent.find((m) => m.type === 'page:blocked').user)), { id: '42', screenName: 'alice' })
+})
+
 test('narrow rows get a compact icon button', async () => {
   const page = await load(`<main>${cell('alice')}</main>`, { narrow: true })
   assert.ok(page.buttons()[0].classList.contains('xb-compact'))
 })
 
-test('a Block button queues the account instead of blocking it on the spot', async () => {
+test('in queue mode a Block button queues the account instead of blocking it', async () => {
   const page = await load(`<main>${cell('alice')}</main>`, {
+    config: { blockAction: 'queue' },
     respond: (m) => {
       if (m.type === 'page:quickBlock') return { added: m.items.length, skipped: 0, batch: 'quick-2026-10-18' }
       if (m.type === 'page:cancelBatch') return { cancelled: 1, done: 0 }
@@ -237,8 +252,9 @@ test('a Block button queues the account instead of blocking it on the spot', asy
   assert.equal(btn.textContent, 'Block')
 })
 
-test('a Block button says so when the account is already queued', async () => {
+test('in queue mode a Block button says so when the account is already queued', async () => {
   const page = await load(`<main>${cell('alice')}</main>`, {
+    config: { blockAction: 'queue' },
     respond: (m) => (m.type === 'page:quickBlock' ? { added: 0, skipped: 1 } : {}),
   })
   const btn = page.buttons()[0]
@@ -249,8 +265,9 @@ test('a Block button says so when the account is already queued', async () => {
   assert.match(page.shadow().querySelector('.toasts').textContent, /already queued or blocked/)
 })
 
-test('a Block button stays queued even when the run cannot start yet', async () => {
+test('in queue mode a Block button stays queued even when the run cannot start yet', async () => {
   const page = await load(`<main>${cell('alice')}</main>`, {
+    config: { blockAction: 'queue' },
     respond: (m) => (m.type === 'page:quickBlock' ? { added: 1, skipped: 0, batch: 'b1', error: 'no x.com tab' } : {}),
   })
   const btn = page.buttons()[0]

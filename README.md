@@ -11,11 +11,12 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   replies, search results, list members or followers, or community members on
   x.com. The X Blocker panel at the bottom offers **Review**: you see exactly
   that list's accounts, untick anyone you want to keep, and block the rest.
-- **One-click Block buttons.** Accounts get a **Block** button next to X's
-  Follow button, and posts get one next to the ⋯ menu. A click adds the account
-  to the queue, so single blocks follow the same pace and limits as lists.
-  Today's clicks are grouped in one **Quick blocks** batch. Show the buttons
-  everywhere, only on lists, or turn them off in Settings.
+- **Block buttons.** Accounts get a **Block** button next to X's Follow
+  button, and posts get one next to the ⋯ menu. By default it asks first and
+  blocks right away, like X does. In Settings you can make it add the account
+  to the queue instead, so single blocks follow the same pace and limits as
+  lists (today's clicks are grouped in one **Quick blocks** batch). Show the
+  buttons everywhere, only on lists, or turn them off.
 - **Long lists, a batch at a time.** The panel shows how many accounts are
   loaded (and the list's size for followers and following). **Load all**
   scrolls the list to its end for you. Or review what is loaded, block, scroll,

@@ -26,6 +26,7 @@ import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 // blocks out (avg ~6 s, at most 150 an hour) rather than only capping the day.
 const DEFAULT_SETTINGS = {
   blockButtons: 'everywhere', // per-account Block buttons: everywhere | lists | off
+  blockAction: 'confirm', // a Block button on x.com: confirm (X-style dialog, block now) | queue
   language: 'auto', // 'auto' follows the browser; or a code from XB_I18N.LANGUAGES
   delayMs: 4000,
   jitterMs: 4000,
@@ -111,7 +112,7 @@ let lock = Promise.resolve()
 
 const SETTINGS_VERSION = 6
 // Settings with a fixed set of values; the first is the default.
-const CHOICES = { blockButtons: ['everywhere', 'lists', 'off'], language: ['auto', ...Object.keys(globalThis.XB_I18N.LANGUAGES)] }
+const CHOICES = { blockButtons: ['everywhere', 'lists', 'off'], blockAction: ['confirm', 'queue'], language: ['auto', ...Object.keys(globalThis.XB_I18N.LANGUAGES)] }
 const i18n = globalThis.XB_I18N
 const t = (key, params) => i18n.t(key, params)
 const MIN = { delayMs: 2000, jitterMs: 0, cooldownMin: 1, hourlyCap: 0, dailyCap: 0 }
@@ -894,6 +895,7 @@ async function mutate(s, keys, fn) {
 const pageHandlers = {
   'page:config': (s) => ({
     blockButtons: s.settings.blockButtons,
+    blockAction: s.settings.blockAction,
     language: s.settings.language,
     blockedScreenNames: Object.values(s.blocked).map((b) => b.screenName?.toLowerCase()).filter(Boolean),
   }),
