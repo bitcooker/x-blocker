@@ -748,7 +748,7 @@ test('the panel follows the language setting and lays out right-to-left', async 
   const wrap = page.shadow().querySelector('.wrap')
   assert.equal(wrap.getAttribute('dir'), 'rtl')
   assert.equal(wrap.getAttribute('lang'), 'fa')
-  assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'بررسی ۲')
+  assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'بررسی \u2068۲\u2069') // the number is bidi-isolated
   assert.equal(page.shadow().querySelector('.title').textContent, 'دنبال‌کنندگان \u2068@target\u2069')
   // Anything not translated yet falls back to English.
   assert.equal(page.shadow().querySelector('.sub .btn-xs').textContent, 'Load all')

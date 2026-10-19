@@ -94,5 +94,15 @@
   "options_ui": {
     "page": "dashboard/dashboard.html",
     "open_in_tab": true
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/Vazirmatn-NL.woff2"
+      ],
+      "matches": [
+        "https://x.com/*"
+      ]
+    }
+  ]
 }

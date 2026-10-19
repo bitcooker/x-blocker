@@ -38,7 +38,9 @@
     ok: '#00ba7c', 'ok-soft': 'rgba(0,186,124,.12)',
     warn: '#ffad1f', 'warn-soft': 'rgba(255,173,31,.15)',
     radius: '16px', 'radius-sm': '8px',
-    font: 'TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Vazirmatn","Noto Sans Arabic",Tahoma,sans-serif',
+    // Vazirmatn comes first but only covers Arabic script (see fontFace), so
+    // Latin text still uses X's own font.
+    font: '"XB Vazirmatn",TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans Arabic",Tahoma,sans-serif',
   }
   const vars = (o) => Object.entries(o).map(([k, v]) => `--${k}:${v}`).join(';')
 
@@ -104,13 +106,24 @@
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `
 
-  globalThis.XB_STYLE = { THEMES, SHARED, tokens, components: COMPONENTS }
+  // Bundled Vazirmatn (Non-Latin build) for Persian and Arabic. The unicode-range
+  // keeps it to Arabic-script characters, and the file is only fetched when
+  // such text is shown.
+  const ARABIC_SCRIPT = 'U+0600-06FF,U+0750-077F,U+0870-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F'
+  function fontFace() {
+    const runtime = (globalThis.browser ?? globalThis.chrome)?.runtime
+    if (!runtime?.getURL) return ''
+    return `@font-face{font-family:"XB Vazirmatn";src:url("${runtime.getURL('fonts/Vazirmatn-NL.woff2')}") format("woff2");` +
+      `font-weight:100 900;font-style:normal;font-display:swap;unicode-range:${ARABIC_SCRIPT}}`
+  }
+
+  globalThis.XB_STYLE = { THEMES, SHARED, tokens, fontFace, components: COMPONENTS }
 
   // Extension pages (dashboard, popup) apply it right away, before their own
   // stylesheets, which only add page layout on top.
   if (/^(chrome|moz)-extension:$/.test(globalThis.location?.protocol ?? '') && globalThis.document) {
     const style = document.createElement('style')
-    style.textContent = tokens(':root', 'os') + COMPONENTS
+    style.textContent = fontFace() + tokens(':root', 'os') + COMPONENTS
     document.head.append(style)
   }
 })()

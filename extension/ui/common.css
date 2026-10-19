@@ -6,6 +6,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); }
+/* Chrome injects its own body font into extension pages; ours must win. */
+body { font: 15px/20px var(--font); }
 body { -webkit-font-smoothing: antialiased; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }

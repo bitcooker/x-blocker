@@ -74,8 +74,13 @@ test('Persian uses Persian digits, right-to-left and isolated handles', () => {
   assert.equal(I18N.dir, 'rtl')
   assert.equal(I18N.num(2592), '۲٬۵۹۲')
   assert.equal(I18N.isolate('@alice'), '\u2068@alice\u2069')
+  // A number after Latin text stays on its own, not glued to the Latin run.
+  ctx.XB_LOCALES.fa['panel.fab.loaded'] ??= 'X Blocker، {count} بارگذاری‌شده'
+  assert.match(I18N.t('panel.fab.loaded', { count: 6 }), /\u2068۶\u2069/)
   I18N.setLanguage('de')
   assert.equal(I18N.dir, 'ltr')
+  // Left-to-right text gets no isolation marks.
+  assert.equal(I18N.t('time.minutes', { n: 5 }), '~5 Min.')
   assert.equal(I18N.num(2592), '2.592')
   I18N.setLanguage('en')
 })

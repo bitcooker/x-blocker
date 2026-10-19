@@ -44,7 +44,7 @@ async function render() {
   $('start').querySelector('span').textContent = t(runner.state === 'paused' ? 'popup.resume' : 'popup.start')
 
   const limit = (id, used, cap) => {
-    $(id).textContent = cap ? `${fmtNum(used)} / ${fmtNum(cap)}` : fmtNum(used)
+    $(id).textContent = cap ? t('dash.limits.value', { used, cap }) : fmtNum(used)
     meter($(`${id}-bar`), used, cap)
     $(`${id}-bar`).parentElement.className = `meter ${cap && used >= cap ? 'meter-warn' : ''}`
   }

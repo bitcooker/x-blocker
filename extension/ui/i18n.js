@@ -83,10 +83,13 @@
       const n = Number(params.n ?? 0)
       entry = entry[n === 0 && entry.zero != null ? 'zero' : plurals.select(n)] ?? entry.other
     }
+    // In right-to-left text every value is isolated, numbers included: Persian
+    // digits count as "European numbers" to the bidi algorithm, so after Latin
+    // text ("X Blocker، ۶") they would otherwise join the left-to-right run.
     return entry.replace(/\{(\w+)\}/g, (m, k) => {
       if (!(k in params)) return m
       const v = params[k]
-      return typeof v === 'number' ? num(v) : isolate(String(v))
+      return isolate(typeof v === 'number' ? num(v) : String(v))
     })
   }
 

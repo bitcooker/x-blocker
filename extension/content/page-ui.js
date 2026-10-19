@@ -680,7 +680,15 @@
     const root = host.attachShadow({ mode: 'closed' })
     const css = document.createElement('style')
     // Shared tokens and components (ui/tokens.js), themed like X, then the panel's own layout.
-    const { tokens, components } = globalThis.XB_STYLE
+    const { tokens, components, fontFace } = globalThis.XB_STYLE
+    // Fonts can't be declared inside a shadow root; the face goes in the page,
+    // under a name only X Blocker's own styles use.
+    if (!document.getElementById('xb-fonts')) {
+      const face = document.createElement('style')
+      face.id = 'xb-fonts'
+      face.textContent = fontFace()
+      document.head.append(face)
+    }
     css.textContent = `
       :host{all:initial}
       [hidden]{display:none!important}
