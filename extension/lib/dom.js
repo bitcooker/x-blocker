@@ -63,38 +63,15 @@ export function hydrateIcons(root = document) {
 
 export const send = (type, data = {}) => sendMessage({ type, ...data })
 
-const nf = new Intl.NumberFormat()
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-export const fmtNum = (n) => (typeof n === 'number' ? nf.format(n) : '—')
-
-export function fmtAgo(t) {
-  if (!t) return ''
-  const s = Math.round((t - Date.now()) / 1000)
-  const abs = Math.abs(s)
-  if (abs < 60) return rtf.format(s, 'second')
-  if (abs < 3600) return rtf.format(Math.round(s / 60), 'minute')
-  if (abs < 86400) return rtf.format(Math.round(s / 3600), 'hour')
-  return rtf.format(Math.round(s / 86400), 'day')
-}
-
-// "~25 min", "~3 h 10 min", "~2 days": estimates, so rounded and never exact.
-export function fmtDuration(ms) {
-  if (!ms || ms < 60_000) return 'under a minute'
-  const min = Math.round(ms / 60_000)
-  if (min < 60) return `~${min} min`
-  const h = Math.floor(min / 60)
-  if (h < 48) return `~${h} h${min % 60 >= 10 ? ` ${min % 60} min` : ''}`
-  return `~${Math.round(h / 24)} days`
-}
+// Formats follow the extension's language (ui/i18n.js, loaded by every page).
+const i18n = () => globalThis.XB_I18N
+export const t = (key, params) => i18n().t(key, params)
+export const fmtNum = (n) => i18n().num(n)
+export const fmtAgo = (at) => i18n().ago(at)
+export const fmtDuration = (ms) => i18n().duration(ms)
 
 export function stateLabel(runner) {
-  return {
-    idle: 'Idle',
-    running: 'Blocking',
-    paused: 'Paused',
-    cooldown: 'Cooling down',
-    error: 'Stopped',
-  }[runner.state] ?? runner.state
+  return ['idle', 'running', 'paused', 'cooldown', 'error'].includes(runner.state) ? t(`state.${runner.state}`) : runner.state
 }
 
 export function download(filename, text, mime = 'text/csv') {
@@ -134,7 +111,7 @@ export function toast(message, { error = false, timeout } = {}) {
   setTimeout(() => t.remove(), timeout ?? (error ? 6000 : 3500))
 }
 
-export function confirmDialog({ title, body, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = true }) {
+export function confirmDialog({ title, body, confirmLabel = t('common.confirm'), cancelLabel = t('common.cancel'), danger = true }) {
   return new Promise((resolve) => {
     const ok = h('button', { class: `btn btn-lg btn-block ${danger ? 'btn-danger' : 'btn-primary'}`, value: 'ok' }, confirmLabel)
     const cancel = h('button', { class: 'btn btn-lg btn-block', value: 'cancel' }, cancelLabel)

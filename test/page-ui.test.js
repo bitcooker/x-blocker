@@ -8,6 +8,8 @@ import vm from 'node:vm'
 import { parseHTML } from 'linkedom'
 
 const TOKENS = await readFile(new URL('../extension/ui/tokens.js', import.meta.url), 'utf8')
+const I18N = [await readFile(new URL('../extension/ui/i18n.js', import.meta.url), 'utf8'),
+  await readFile(new URL('../extension/locales/en.js', import.meta.url), 'utf8')]
 const SOURCE = (await readFile(new URL('../extension/content/page-ui.js', import.meta.url), 'utf8'))
   // Test hooks: expose the page's list and open the shadow root for inspection.
   .replace('const pageHandles = new Map()', 'const pageHandles = (globalThis.__handles = new Map())')
@@ -26,7 +28,7 @@ const post = (sn, text = '') => `
   <div class="icons"><div class="g"><button>G</button><span></span></div><div class="m"><button>…</button></div></div></div>
   <p>${text}</p><div><button>reply</button><button>like</button></div></article>`
 
-async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1, storage = {}, config = {} } = {}) {
+async function load(body, { path = '/target/followers', search = '', respond = () => ({}), narrow = false, runs = 1, storage = {}, config = {}, locales = {} } = {}) {
   const { window, document } = parseHTML(`<html><body>${body}</body></html>`)
   const location = { pathname: path, search }
   window.HTMLElement.prototype.getBoundingClientRect = function () {
@@ -108,6 +110,8 @@ async function load(body, { path = '/target/followers', search = '', respond = (
   }
   vm.createContext(ctx)
   vm.runInContext(TOKENS, ctx)
+  for (const src of I18N) vm.runInContext(src, ctx)
+  for (const [lang, strings] of Object.entries(locales)) ctx.XB_LOCALES[lang] = { ...ctx.XB_LOCALES[lang], ...strings }
   for (let i = 0; i < runs; i++) {
     vm.runInContext(SOURCE, ctx)
     await sleep(50)
@@ -733,4 +737,26 @@ test('with Block buttons off, lists can still be loaded and reviewed', async () 
   assert.equal(page.buttons().length, 0)
   await page.click('.fab')
   assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'Review 2')
+})
+
+test('the panel follows the language setting and lays out right-to-left', async () => {
+  const page = await load(`<main>${cell('alice')}${cell('bob')}</main>`, {
+    config: { language: 'fa' },
+    locales: { fa: { 'panel.review.buttonCount': 'بررسی {n}', 'panel.ctx.followers': 'دنبال‌کنندگان {user}' } },
+  })
+  await page.click('.fab')
+  const wrap = page.shadow().querySelector('.wrap')
+  assert.equal(wrap.getAttribute('dir'), 'rtl')
+  assert.equal(wrap.getAttribute('lang'), 'fa')
+  assert.equal(page.shadow().querySelector('.panel .btn-danger').textContent, 'بررسی ۲')
+  assert.equal(page.shadow().querySelector('.title').textContent, 'دنبال‌کنندگان \u2068@target\u2069')
+  // Anything not translated yet falls back to English.
+  assert.equal(page.shadow().querySelector('.sub .btn-xs').textContent, 'Load all')
+  assert.equal(page.buttons()[0].textContent, 'Block')
+})
+
+test('the panel is left-to-right in English', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`, { config: { language: 'en' } })
+  await page.click('.fab')
+  assert.equal(page.shadow().querySelector('.wrap').getAttribute('dir'), 'ltr')
 })

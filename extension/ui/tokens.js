@@ -38,7 +38,7 @@
     ok: '#00ba7c', 'ok-soft': 'rgba(0,186,124,.12)',
     warn: '#ffad1f', 'warn-soft': 'rgba(255,173,31,.15)',
     radius: '16px', 'radius-sm': '8px',
-    font: 'TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+    font: 'TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Vazirmatn","Noto Sans Arabic",Tahoma,sans-serif',
   }
   const vars = (o) => Object.entries(o).map(([k, v]) => `--${k}:${v}`).join(';')
 
@@ -76,6 +76,7 @@
 .btn-icon{width:36px;padding:0}
 .btn-sm.btn-icon{width:32px}
 .btn-block{width:100%}
+[dir=rtl] .i-flip{transform:scaleX(-1)}
 
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
 .dot-accent{background:var(--accent)}.dot-ok{background:var(--ok)}.dot-warn{background:var(--warn)}.dot-danger{background:var(--danger)}
@@ -85,6 +86,7 @@
 .meter>span{display:block;height:100%;width:0;border-radius:inherit;background:var(--accent);transition:width .3s ease}
 .meter-ok>span{background:var(--ok)}.meter-warn>span{background:var(--warn)}.meter-danger>span{background:var(--danger)}
 .meter.indeterminate>span{width:30%!important;animation:xb-slide 1.4s ease-in-out infinite}
+[dir=rtl] .meter.indeterminate>span{animation-name:xb-slide-rtl}
 
 .tag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:6px;white-space:nowrap;
   font:600 12px/20px var(--font);background:var(--bg-subtle);color:var(--muted)}
@@ -97,6 +99,7 @@
 
 @keyframes xb-pulse{50%{opacity:.25}}
 @keyframes xb-slide{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
+@keyframes xb-slide-rtl{from{transform:translateX(100%)}to{transform:translateX(-340%)}}
 @keyframes xb-fade{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `

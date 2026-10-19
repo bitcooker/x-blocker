@@ -10,6 +10,14 @@
 //   executes it and asks for one item at a time, so progress survives reloads
 //   and restarts.
 import { browser, onMessage } from './lib/compat.js'
+import './ui/i18n.js'
+import './locales/en.js'
+import './locales/ar.js'
+import './locales/de.js'
+import './locales/es.js'
+import './locales/fa.js'
+import './locales/fr.js'
+import './locales/tr.js'
 import { extractUsers } from './lib/extract-users.js'
 import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 
@@ -18,6 +26,7 @@ import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 // blocks out (avg ~6 s, at most 150 an hour) rather than only capping the day.
 const DEFAULT_SETTINGS = {
   blockButtons: 'everywhere', // per-account Block buttons: everywhere | lists | off
+  language: 'auto', // 'auto' follows the browser; or a code from XB_I18N.LANGUAGES
   delayMs: 4000,
   jitterMs: 4000,
   cooldownMin: 15,
@@ -102,7 +111,9 @@ let lock = Promise.resolve()
 
 const SETTINGS_VERSION = 6
 // Settings with a fixed set of values; the first is the default.
-const CHOICES = { blockButtons: ['everywhere', 'lists', 'off'] }
+const CHOICES = { blockButtons: ['everywhere', 'lists', 'off'], language: ['auto', ...Object.keys(globalThis.XB_I18N.LANGUAGES)] }
+const i18n = globalThis.XB_I18N
+const t = (key, params) => i18n.t(key, params)
 const MIN = { delayMs: 2000, jitterMs: 0, cooldownMin: 1, hourlyCap: 0, dailyCap: 0 }
 
 // v1 shipped with 3 s delay and no daily limit, which can get accounts
@@ -157,6 +168,7 @@ function load() {
     if (stored.settings?.version !== SETTINGS_VERSION) await browser.storage.local.set({ settings: c.settings })
     await loadSeen()
     cache = c
+    i18n.setLanguage(c.settings.language)
     return c
   })()
   return loading
@@ -403,7 +415,7 @@ const MAX_BATCHES = 500
 
 function newBatch(s, source, action, id) {
   id ??= `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-  s.batches[id] ??= { id, source: String(source || 'Added in the dashboard').slice(0, 120), action, createdAt: Date.now(),
+  s.batches[id] ??= { id, source: String(source || t('bg.source.dashboard')).slice(0, 120), action, createdAt: Date.now(),
     total: 0, done: 0, skipped: 0, failed: 0, cancelled: 0 }
   // Keep the newest; old finished batches are history only.
   const ids = Object.keys(s.batches)
@@ -424,7 +436,7 @@ function countBatch(s, item, field, n = 1) {
 // Quick blocks from the page: one batch per day, so a day's clicks can be undone together.
 const quickBatchId = () => `quick-${new Date().toISOString().slice(0, 10)}`
 function quickBatch(s) {
-  return newBatch(s, 'Quick blocks', 'block', quickBatchId())
+  return newBatch(s, t('bg.source.quick'), 'block', quickBatchId())
 }
 
 // Batches for the dashboard, newest first, with how many accounts still wait.
@@ -525,8 +537,19 @@ function compact(record) {
 }
 
 function label(item) {
-  return item.screenName ? `@${item.screenName}` : `id ${item.id}`
+  return item.screenName ? `@${item.screenName}` : t('bg.idLabel', { id: item.id })
 }
+
+// Skip reasons are codes the content script hands back; only the log line is translated.
+const SKIP_KEYS = {
+  'not blocked': 'bg.skip.notBlocked',
+  'already blocked': 'bg.skip.alreadyBlocked',
+  whitelisted: 'bg.skip.whitelisted',
+  'you follow them': 'bg.skip.youFollow',
+  'they follow you': 'bg.skip.theyFollow',
+  'verified account': 'bg.skip.verified',
+}
+const skipText = (reason) => (SKIP_KEYS[reason] ? t(SKIP_KEYS[reason]) : String(reason ?? ''))
 
 // The loop in the x.com tab checks in on every step. During a cooldown it may
 // sleep longer than usual (browsers throttle timers in background tabs), so
@@ -557,11 +580,11 @@ async function pingTab(tabId, attempts = 1) {
 async function startRunner(preferredTabId, { recover = false } = {}) {
   let tab = await findXTab(preferredTabId)
   // Recovering never opens tabs on its own: the user may have closed x.com on purpose.
-  if (!tab && recover) throw new Error('Open x.com and press Resume.')
+  if (!tab && recover) throw new Error(t('bg.err.openX'))
   if (!tab) tab = await browser.tabs.create({ url: 'https://x.com/home', active: false })
   const ping = await pingTab(tab.id, 20)
-  if (!ping) throw new Error('Could not reach the x.com tab. Reload it and try again.')
-  if (!ping.ok || !ping.loggedIn) throw new Error(ping.error?.message ?? 'You are not logged in to x.com.')
+  if (!ping) throw new Error(t('bg.err.unreachable'))
+  if (!ping.ok || !ping.loggedIn) throw new Error(ping.error?.message ?? t('bg.err.loggedOut'))
   const token = crypto.randomUUID()
   await exclusive(async (s) => {
     // Resuming a paused run keeps its counters so "n of m" continues.
@@ -573,7 +596,7 @@ async function startRunner(preferredTabId, { recover = false } = {}) {
       ...(waiting ? {} : { state: 'running', cooldownUntil: 0, message: '', limit: '' }),
       ...(resume ? {} : { done: 0, unblocked: 0, failed: 0, skipped: 0, strikes: 0 }),
     })
-    log(s, 'info', recover ? `Continuing on tab ${tab.id}` : `Started on tab ${tab.id} with ${s.queue.length} in the queue`)
+    log(s, 'info', recover ? t('bg.log.continuing', { tab: String(tab.id) }) : t('bg.log.started', { tab: String(tab.id), n: s.queue.length }))
     updateBadge(s)
     await save('runner', 'log')
   })
@@ -590,14 +613,14 @@ function nextItem(s, token) {
     r.state = 'running'
     r.message = ''
     r.limit = ''
-    log(s, 'info', 'Pause over, resuming')
+    log(s, 'info', t('bg.log.pauseOver'))
   }
   s.blockTimes = s.blockTimes.filter((t) => now - t < DAY)
   if (s.settings.dailyCap > 0 && s.blockTimes.length >= s.settings.dailyCap) {
     r.state = 'cooldown'
     r.limit = 'daily'
     r.cooldownUntil = s.blockTimes[0] + DAY
-    r.message = `Daily limit of ${s.settings.dailyCap} blocks reached`
+    r.message = t('bg.msg.dailyLimit', { n: s.settings.dailyCap })
     log(s, 'warn', r.message)
     return { waitMs: r.cooldownUntil - now }
   }
@@ -606,7 +629,7 @@ function nextItem(s, token) {
     r.state = 'cooldown'
     r.limit = 'hourly'
     r.cooldownUntil = lastHour[0] + HOUR
-    r.message = `Hourly limit of ${s.settings.hourlyCap} blocks reached`
+    r.message = t('bg.msg.hourlyLimit', { n: s.settings.hourlyCap })
     log(s, 'info', r.message)
     return { waitMs: r.cooldownUntil - now }
   }
@@ -620,11 +643,12 @@ function nextItem(s, token) {
     s.queue.shift()
     countBatch(s, item, 'skipped')
     r.skipped++
-    log(s, 'info', `Skipped ${label(item)}: ${reason}`)
+    log(s, 'info', t('bg.log.skipped', { who: label(item), reason: skipText(reason) }))
   }
   r.state = 'idle'
-  const undone = r.unblocked ? `${r.unblocked} unblocked, ` : ''
-  r.message = `Done. ${r.done} blocked, ${undone}${r.failed} failed, ${r.skipped} skipped`
+  r.message = r.unblocked
+    ? t('bg.msg.doneUnblocked', { done: r.done, unblocked: r.unblocked, failed: r.failed, skipped: r.skipped })
+    : t('bg.msg.done', { done: r.done, failed: r.failed, skipped: r.skipped })
   log(s, 'info', r.message)
   return { stop: true }
 }
@@ -646,7 +670,7 @@ function applyResult(s, msg) {
     markBlocking(s, item.id)
     s.blockTimes.push(now)
     r.done++
-    log(s, 'ok', `Blocked ${label(item)}${item.source ? ` · ${item.source}` : ''}`)
+    log(s, 'ok', item.source ? t('bg.log.blockedFrom', { who: label(item), source: item.source }) : t('bg.log.blocked', { who: label(item) }))
     return { stop: false }
   }
   if (outcome === 'unblocked') {
@@ -658,14 +682,14 @@ function applyResult(s, msg) {
     s.blockTimes.push(now)
     r.unblocked = (r.unblocked ?? 0) + 1
     countBatch(s, item, 'done')
-    log(s, 'ok', `Unblocked ${label(item)}`)
+    log(s, 'ok', t('bg.log.unblocked', { who: label(item) }))
     return { stop: false }
   }
   if (outcome === 'skipped') {
     removeFromQueue(s, item)
     countBatch(s, item, 'skipped')
     r.skipped++
-    log(s, 'info', `Skipped ${label(item)}: ${msg.reason}`)
+    log(s, 'info', t('bg.log.skipped', { who: label(item), reason: skipText(msg.reason) }))
     return { stop: false }
   }
   const err = msg.error ?? {}
@@ -679,8 +703,8 @@ function applyResult(s, msg) {
     r.state = 'cooldown'
     r.limit = err.scope === 'lookup' ? 'lookup' : 'block'
     r.cooldownUntil = told && r.strikes <= TRUST_RESET_STRIKES ? told : Math.max(told, now + backoff)
-    const what = r.limit === 'lookup' ? 'X is limiting account lookups' : 'X is limiting blocks'
-    r.message = `${what}. Resuming at ${new Date(r.cooldownUntil).toLocaleTimeString()}`
+    const what = r.limit === 'lookup' ? 'bg.msg.limitLookups' : 'bg.msg.limitBlocks'
+    r.message = t(what, { time: i18n.time(r.cooldownUntil) })
     log(s, 'warn', r.message)
     return { stop: false }
   }
@@ -688,7 +712,7 @@ function applyResult(s, msg) {
     // Logged out, locked or challenged: never keep firing requests at X.
     r.state = 'error'
     r.message = err.message
-    log(s, 'error', `Stopped: ${err.message}`)
+    log(s, 'error', t('bg.log.stopped', { error: err.message }))
     return { stop: true }
   }
   const queued = s.queue.find((q) => itemKey(q) === itemKey(item) ||
@@ -696,13 +720,13 @@ function applyResult(s, msg) {
   const retryable = err.code === 'timeout' || err.code === 'http' || err.code === 'error'
   if (queued && retryable && ++queued.tries < MAX_TRIES) {
     s.queue.push(s.queue.splice(s.queue.indexOf(queued), 1)[0])
-    log(s, 'warn', `Will retry ${label(item)}: ${err.message}`)
+    log(s, 'warn', t('bg.log.retry', { who: label(item), error: err.message }))
     return { stop: false }
   }
   removeFromQueue(s, item)
   countBatch(s, item, 'failed')
   r.failed++
-  log(s, 'error', `Failed ${label(item)}: ${err.message}`)
+  log(s, 'error', t('bg.log.failed', { who: label(item), error: err.message }))
   return { stop: false }
 }
 
@@ -763,7 +787,7 @@ const contentHandlers = {
   'runner:fatal': (s, msg) => mutate(s, ['runner', 'log'], () => {
     if (msg.token && msg.token !== s.runner.token) return {}
     s.runner.state = 'error'
-    s.runner.message = msg.error?.message ?? 'Something went wrong. Press Resume to try again.'
+    s.runner.message = msg.error?.message ?? t('bg.err.generic')
     log(s, 'error', s.runner.message)
     return {}
   }),
@@ -792,11 +816,12 @@ const uiHandlers = {
       } else if (typeof def === 'boolean') s.settings[k] = Boolean(patch[k])
       else if (CHOICES[k]?.includes(patch[k])) s.settings[k] = patch[k]
     }
+    i18n.setLanguage(s.settings.language)
     return summary(s)
   }),
   'settings:reset': (s) => mutate(s, ['settings'], () => {
     // The never-block list is the user's own data, not a preference: keep it.
-    s.settings = { ...structuredClone(DEFAULT_SETTINGS), whitelist: s.settings.whitelist, version: SETTINGS_VERSION }
+    s.settings = { ...structuredClone(DEFAULT_SETTINGS), whitelist: s.settings.whitelist, language: s.settings.language, version: SETTINGS_VERSION }
     return summary(s)
   }),
   'queue:add': (s, msg) => mutate(s, ['queue', 'batches'], () => addToQueue(s, msg.items ?? [], 'block', msg.source)),
@@ -810,7 +835,7 @@ const uiHandlers = {
   'batch:cancel': (s, msg) => mutate(s, ['queue', 'batches'], () => ({ cancelled: cancelWhere(s, (q) => q.batch === msg.id) })),
   // Forget a finished batch (the accounts it blocked stay blocked and listed).
   'batch:forget': (s, msg) => mutate(s, ['batches', 'blocked'], () => {
-    if (s.queue.some((q) => q.batch === msg.id)) return { error: 'Cancel this batch or let it finish first' }
+    if (s.queue.some((q) => q.batch === msg.id)) return { error: t('bg.err.batchBusy') }
     delete s.batches[msg.id]
     for (const b of Object.values(s.blocked)) if (b.batch === msg.id) delete b.batch
     return {}
@@ -818,8 +843,8 @@ const uiHandlers = {
   // One-time choice for what is left in the old Collected list.
   'legacy:queue': (s) => mutate(s, ['queue', 'collected', 'batches'], () => {
     const res = addToQueue(s, pendingCollected(s).map((u) => ({
-      id: u.id, screenName: u.screenName, source: u.sources?.at(-1) ?? 'Collected list',
-    })), 'block', 'Your old collected list')
+      id: u.id, screenName: u.screenName, source: u.sources?.at(-1) ?? t('bg.source.collected'),
+    })), 'block', t('bg.source.oldCollected'))
     s.collected = {}
     snIndex = null
     return res
@@ -850,8 +875,9 @@ const uiHandlers = {
   'runner:pause': (s) => mutate(s, ['runner', 'log'], () => {
     if (s.runner.state === 'running' || s.runner.state === 'cooldown') {
       s.runner.state = 'paused'
-      s.runner.message = 'Paused'
-      log(s, 'info', 'Paused')
+      // A pause the user asked for needs no explanation; other pauses carry their reason.
+      s.runner.message = ''
+      log(s, 'info', t('state.paused'))
     }
     return summary(s)
   }),
@@ -868,6 +894,7 @@ async function mutate(s, keys, fn) {
 const pageHandlers = {
   'page:config': (s) => ({
     blockButtons: s.settings.blockButtons,
+    language: s.settings.language,
     blockedScreenNames: Object.values(s.blocked).map((b) => b.screenName?.toLowerCase()).filter(Boolean),
   }),
   'page:lookup': (s, msg) => {
@@ -931,11 +958,11 @@ const pageHandlers = {
     const batch = quickBatch(s)
     batch.total++
     batch.done++
-    s.blocked[id] = compact({ id, screenName, name: knownUser(s, id)?.name, at: Date.now(), source: 'x-blocker', reason: 'Quick block', batch: batch.id })
+    s.blocked[id] = compact({ id, screenName, name: knownUser(s, id)?.name, at: Date.now(), source: 'x-blocker', reason: t('bg.source.quickReason'), batch: batch.id })
     markBlocking(s, id)
     s.blockTimes.push(Date.now())
     removeFromQueue(s, { id, screenName })
-    log(s, 'ok', `Blocked @${screenName} (quick block)`)
+    log(s, 'ok', t('bg.log.quickBlocked', { who: `@${screenName}` }))
     return {}
   }),
 }
@@ -954,7 +981,7 @@ onMessage((msg, sender) => {
     if (msg.type === 'page:massBlock') return massQueue(sender.tab.id, msg.items)
     // A Block button on the page: the same paced queue, but today's clicks share
     // one "Quick blocks" batch so they can be undone together from the dashboard.
-    if (msg.type === 'page:quickBlock') return massQueue(sender.tab.id, msg.items, 'block', 'Quick blocks', quickBatchId())
+    if (msg.type === 'page:quickBlock') return massQueue(sender.tab.id, msg.items, 'block', t('bg.source.quick'), quickBatchId())
     if (msg.type === 'page:pause') return exclusive((s) => uiHandlers['runner:pause'](s))
     if (msg.type === 'page:openQueue') return openDashboard('queue')
     if (msg.type === 'page:resume') {
@@ -980,7 +1007,7 @@ onMessage((msg, sender) => {
       const b = s.batches[msg.id]
       const items = Object.values(s.blocked).filter((r) => r.batch === msg.id)
         .map((r) => ({ id: r.id, screenName: r.screenName, source: r.reason }))
-      return { items, source: b ? `Undo: ${b.source}` : 'Undo' }
+      return { items, source: b ? t('bg.source.undoOf', { source: b.source }) : t('bg.source.undo') }
     }).then(({ items, source }) => massQueue(null, items, 'unblock', source))
   }
   if (msg.type === 'collect:flush') return flushCollected().then(() => exclusive(summary))
@@ -1038,7 +1065,7 @@ async function reviveRunner(force) {
     await exclusive((s) => {
       if (s.runner.state !== 'running' && s.runner.state !== 'cooldown') return
       s.runner.state = 'paused'
-      s.runner.message = `Couldn't continue in an x.com tab. ${String(e.message ?? e)}`
+      s.runner.message = t('bg.msg.cantContinue', { error: String(e.message ?? e) })
       log(s, 'warn', s.runner.message)
       updateBadge(s)
       return save('runner', 'log')
@@ -1089,7 +1116,7 @@ browser.tabs.onRemoved.addListener((tabId) => {
         return
       }
       s.runner.state = 'paused'
-      s.runner.message = 'The x.com tab was closed. Open x.com and press Resume.'
+      s.runner.message = t('bg.msg.tabClosed')
       log(s, 'warn', s.runner.message)
       updateBadge(s)
       await save('runner', 'log')

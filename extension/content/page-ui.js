@@ -11,6 +11,8 @@
   'use strict'
 
   const { browser, send, callMain, setScrolling } = globalThis.__xBlockerBridge
+  const I18N = globalThis.XB_I18N
+  const { t } = I18N
 
   // Only one instance per page. When the extension is reloaded or updated, the browser may
   // inject a fresh copy while the old copy's UI is left behind; tell older copies
@@ -50,36 +52,36 @@
     const at = (i) => (p[i] ?? '').toLowerCase()
     if (at(0) === 'search') {
       const q = new URLSearchParams(location.search).get('q')
-      return q ? { mode: 'any', label: `Search results for "${q}"` } : null
+      return q ? { mode: 'any', label: t('panel.ctx.search', { q }) } : null
     }
     if (at(0) === 'i' && at(1) === 'lists' && p[2]) {
       // X opens these lists in a modal over the list page.
-      if (at(3) === 'members') return { mode: 'cells', dialog: true, label: `Members of list ${p[2]}` }
-      if (at(3) === 'followers') return { mode: 'cells', dialog: true, label: `Followers of list ${p[2]}` }
+      if (at(3) === 'members') return { mode: 'cells', dialog: true, label: t('panel.ctx.listMembers', { list: p[2] }) }
+      if (at(3) === 'followers') return { mode: 'cells', dialog: true, label: t('panel.ctx.listFollowers', { list: p[2] }) }
       return null
     }
     if (at(0) === 'i' && at(1) === 'communities' && p[2] && at(3) === 'members') {
-      return { mode: 'cells', label: `Members of community ${p[2]}` }
+      return { mode: 'cells', label: t('panel.ctx.communityMembers', { id: p[2] }) }
     }
     if (p.length < 2 || NOT_USERS.has(at(0)) || !/^[A-Za-z0-9_]{1,15}$/.test(p[0])) return null
-    const user = p[0]
-    const exclude = user.toLowerCase()
+    const user = `@${p[0]}`
+    const exclude = p[0].toLowerCase()
     switch (at(1)) {
       case 'followers':
-        return { mode: 'cells', exclude, total: 'followers', label: `Followers of @${user}` }
+        return { mode: 'cells', exclude, total: 'followers', label: t('panel.ctx.followers', { user }) }
       case 'verified_followers':
-        return { mode: 'cells', exclude, label: `Verified followers of @${user}` }
+        return { mode: 'cells', exclude, label: t('panel.ctx.verifiedFollowers', { user }) }
       case 'followers_you_follow':
-        return { mode: 'cells', exclude, label: `Followers of @${user} you know` }
+        return { mode: 'cells', exclude, label: t('panel.ctx.followersYouKnow', { user }) }
       case 'following':
-        return { mode: 'cells', exclude, total: 'followingCount', label: `Accounts @${user} follows` }
+        return { mode: 'cells', exclude, total: 'followingCount', label: t('panel.ctx.following', { user }) }
       case 'status': {
         if (!/^\d+$/.test(p[2] ?? '')) return null
         const what = at(3)
-        if (what === 'likes') return { mode: 'cells', exclude, label: `Accounts that liked @${user}'s post` }
-        if (what === 'retweets' || what === 'reposts') return { mode: 'cells', exclude, label: `Accounts that reposted @${user}'s post` }
-        if (what === 'quotes') return { mode: 'authors', exclude, label: `Accounts that quoted @${user}'s post` }
-        if (!what) return { mode: 'authors', exclude, label: `Replies to @${user}'s post` }
+        if (what === 'likes') return { mode: 'cells', exclude, label: t('panel.ctx.likes', { user }) }
+        if (what === 'retweets' || what === 'reposts') return { mode: 'cells', exclude, label: t('panel.ctx.reposts', { user }) }
+        if (what === 'quotes') return { mode: 'authors', exclude, label: t('panel.ctx.quotes', { user }) }
+        if (!what) return { mode: 'authors', exclude, label: t('panel.ctx.replies', { user }) }
         return null
       }
       default:
@@ -96,9 +98,11 @@
     const m = main.getBoundingClientRect()
     const r = host.getBoundingClientRect()
     if (m.width === 0 || r.width === 0) return true
-    // x-web's <main> may span the list and the right sidebar; keep the left part.
-    return main.querySelector('aside, [role="complementary"]') || m.width < 700
-      ? true
+    // x-web's <main> may span the list and the sidebar; keep the list's side,
+    // which is the right one when X itself is right-to-left.
+    if (main.querySelector('aside, [role="complementary"]') || m.width < 700) return true
+    return getComputedStyle(main).direction === 'rtl'
+      ? r.right > m.right - m.width * 0.62
       : r.left < m.left + m.width * 0.62
   }
 
@@ -146,7 +150,7 @@
     :root[data-xb-theme=dark] .xb-pill:hover,:root[data-xb-theme=dim] .xb-pill:hover{border-color:#67070f}
     .xb-pill:focus-visible{box-shadow:0 0 0 2px var(--accent)}
     .xb-pill[hidden],.xb-icon[hidden]{display:none}
-    .xb-pill.xb-abs{position:absolute;inset-inline-end:100%;top:50%;transform:translateY(-50%);margin:0 8px 0 0;
+    .xb-pill.xb-abs{position:absolute;inset-inline-end:100%;top:50%;transform:translateY(-50%);margin:0;
       margin-inline-end:8px;margin-inline-start:0;z-index:1}
     .xb-pill.xb-compact{padding:0!important;min-width:0}
     .xb-pill.xb-compact svg{width:18px;height:18px;fill:currentColor}
@@ -319,35 +323,37 @@
     btn.classList.toggle('xb-queued', state === 'queued')
     btn.setAttribute('aria-busy', String(state === 'busy'))
     btn.disabled = state !== 'idle'
-    const label = state === 'blocked' ? 'Blocked' : state === 'queued' ? 'Queued' : 'Block'
-    btn.title = state === 'blocked' ? `@${btn.dataset.sn} is blocked`
-      : state === 'queued' ? `@${btn.dataset.sn} is waiting in the block queue`
-      : `Block @${btn.dataset.sn}`
+    const label = t(state === 'blocked' ? 'panel.button.blocked' : state === 'queued' ? 'panel.button.queued' : 'panel.button.block')
+    const user = `@${btn.dataset.sn}`
+    btn.title = state === 'blocked' ? t('panel.button.titleBlocked', { user })
+      : state === 'queued' ? t('panel.button.titleQueued', { user })
+      : t('panel.button.titleBlock', { user })
     btn.setAttribute('aria-label', btn.title)
     if (pill && btn.classList.contains('xb-compact')) {
       if (!btn.firstElementChild) btn.append(svg(BLOCK_ICON))
-    } else if (pill) btn.textContent = state === 'busy' ? 'Blocking…' : label
+    } else if (pill) btn.textContent = state === 'busy' ? t('panel.button.blocking') : label
   }
 
   // Adds the account to the paced block queue instead of blocking on the spot (or
   // asking to confirm first). The queue runner does the blocking and reports back
   // through page:blockedNotice, which settles the button to "blocked".
   async function queueBlock(screenName, btn) {
+    const user = `@${screenName}`
     setButtonState(btn, 'busy')
     try {
       const r = await send({ type: 'page:quickBlock', items: [{ screenName }] })
-      if (!r) throw new Error('The extension did not respond')
+      if (!r) throw new Error(t('panel.toast.noResponse'))
       // Queued is what matters; a run that could not start yet (no reachable tab)
       // only means it waits. Only report failure when nothing was queued.
       if (!r.added) {
         if (r.error) throw new Error(r.error)
         setButtonState(btn, 'idle')
-        ui.toast(`@${screenName} is already queued or blocked`)
+        ui.toast(t('panel.toast.alreadyQueued', { user }))
         return
       }
       setButtonState(btn, 'queued')
-      ui.toast(`@${screenName} added to the block queue`, false, {
-        label: 'Undo',
+      ui.toast(t('panel.toast.added', { user }), false, {
+        label: t('panel.toast.undo'),
         run: async () => {
           const c = await send({ type: 'page:cancelBatch', id: r.batch }).catch(() => null)
           const key = screenName.toLowerCase()
@@ -356,15 +362,14 @@
               if (b.dataset.handle === key) setButtonState(b, 'idle')
             }
           }
-          const done = c?.done ? ` ${c.done} already blocked; undo those from the dashboard.` : ''
-          ui.toast(`@${screenName} taken out of the block queue.${done}`)
+          ui.toast(c?.done ? t('panel.toast.unqueuedOneDone', { user, done: c.done }) : t('panel.toast.unqueuedOne', { user }))
           ui.update()
         },
       })
       ui.update()
     } catch (e) {
       setButtonState(btn, 'idle')
-      ui.toast(`Couldn't queue @${screenName}: ${e.message ?? e}`, true)
+      ui.toast(t('panel.toast.queueFailed', { user, error: String(e.message ?? e) }), true)
     }
   }
 
@@ -684,7 +689,7 @@
       button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       button[disabled]{opacity:.5;cursor:default}
       ${tokens('.wrap')}
-      .wrap{font:15px/20px var(--font);color:var(--fg)}
+      .wrap{font:15px/20px var(--font);color:var(--fg);text-align:start}
       ${components}
       svg{width:18px;height:18px;fill:currentColor;flex:none}
       .round{position:relative;width:13px;height:13px;flex:none;border-radius:50%;border:1px solid currentColor;color:var(--muted)}
@@ -696,7 +701,7 @@
         flex-direction:column;min-width:300px;max-width:calc(100vw - 32px);border-radius:16px;background:var(--bg);
         border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden;animation:rise .2s ease-out}
       .panel .top{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand min" "title act" "sub act";
-        column-gap:20px;row-gap:2px;padding:10px 10px 14px 16px}
+        column-gap:20px;row-gap:2px;padding-block:10px 14px;padding-inline:16px 10px}
       .panel .eyebrow{grid-area:brand;align-self:center}
       .panel .min{grid-area:min;justify-self:end;width:24px;height:24px;border-radius:50%;color:var(--muted)}
       .panel .min:hover{background:var(--hover);color:var(--fg)}
@@ -704,7 +709,7 @@
       .panel .title{grid-area:title}
       .panel .sub{grid-area:sub;margin-top:2px}
       .panel .top > .btn-danger{grid-area:act;align-self:center;margin-inline-end:6px}
-      .panel .strip{position:relative;display:flex;align-items:center;gap:8px;padding:8px 12px 10px 16px;
+      .panel .strip{position:relative;display:flex;align-items:center;gap:8px;padding-block:8px 10px;padding-inline:16px 12px;
         border-top:1px solid var(--border);background:var(--bg-subtle);font-size:12px;line-height:16px;color:var(--muted)}
       .panel .run-text{flex:1;min-width:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
         font-variant-numeric:tabular-nums}
@@ -712,7 +717,7 @@
       .panel .strip .run{margin-inline-start:8px}
       .panel .strip .details{margin-inline-start:4px}
       .panel .strip .details + .run{margin-inline-start:0}
-      .panel .prog{position:absolute;left:0;right:0;bottom:0;height:2px;border-radius:0}
+      .panel .prog{position:absolute;inset-inline:0;bottom:0;height:2px;border-radius:0}
       .panel .title{font-weight:700;font-size:15px;line-height:20px}
       .panel .sub{color:var(--muted);font-size:12px;line-height:16px}
       .panel .sub .state{display:inline-flex;align-items:center;flex:none}
@@ -728,7 +733,7 @@
       .link{display:inline;color:var(--accent);font-weight:700;font-size:inherit;line-height:inherit;border-radius:4px}
       .link:hover{text-decoration:underline}
       .fab{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;height:40px;border-radius:9999px;
-        padding:0 14px 0 12px;gap:8px;background:var(--bg);color:var(--fg);font-size:14px;
+        padding-block:0;padding-inline:12px 14px;gap:8px;background:var(--bg);color:var(--fg);font-size:14px;
         border:1px solid var(--border);box-shadow:var(--shadow);animation:rise .2s ease-out}
       .fab svg{color:var(--danger)}
       .fab:hover{background:var(--bg);border-color:var(--muted)}
@@ -831,8 +836,6 @@
     const sub = el('span', 'sub', stateIcon, count)
     const title = el('span', 'title')
     const minBtn = el('button', 'min', svg(ICON_MIN))
-    minBtn.title = 'Minimize'
-    minBtn.setAttribute('aria-label', 'Minimize X Blocker panel')
     // Collapse sits next to the brand label, out of the action row, so it
     // takes no width whatever buttons the panel shows.
     const eyebrow = el('span', 'eyebrow', 'X Blocker')
@@ -845,8 +848,7 @@
     const runDot = el('span', 'dot')
     const runText = el('span', 'run-text')
     const runBtn = el('button', 'btn btn-xs run')
-    const detailsBtn = el('button', 'btn btn-xs btn-quiet details', 'Details')
-    detailsBtn.title = 'See the queue in the X Blocker dashboard'
+    const detailsBtn = el('button', 'btn btn-xs btn-quiet details')
     const progBar = el('span', '')
     const prog = el('div', 'meter prog', progBar)
     prog.setAttribute('role', 'progressbar')
@@ -857,7 +859,17 @@
     const fabDot = el('span', 'dot dot-accent live')
     const fab = el('button', 'fab', svg(BLOCK_ICON), fabLabel, fabDot)
     fab.title = 'X Blocker'
-    fab.setAttribute('aria-label', 'Open X Blocker panel')
+
+    // Fixed labels, set again on every update so a language change applies.
+    function localizeStatic() {
+      wrap.dir = I18N.dir
+      wrap.lang = I18N.lang
+      minBtn.title = t('panel.minimize')
+      minBtn.setAttribute('aria-label', t('panel.minimizeLabel'))
+      detailsBtn.textContent = t('panel.details')
+      detailsBtn.title = t('panel.detailsTitle')
+      fab.setAttribute('aria-label', t('panel.open'))
+    }
 
     // Starts minimized until the user says otherwise; the choice is remembered.
     let minimized = panelMinimized
@@ -869,10 +881,16 @@
     let listEnded = false
     let listTotal = null
     let totalAskedAt = 0
-    const fmt = (k) => k.toLocaleString()
+    const fmt = (k) => I18N.num(k)
     // Totals read better short ("~17.4K"); loaded counts stay exact.
     const compact = (k) => (k >= 10_000
-      ? new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(k) : fmt(k))
+      ? new Intl.NumberFormat(I18N.locale, { notation: 'compact', maximumFractionDigits: 1 }).format(k) : fmt(k))
+    // A translated line with the {count} placeholder in bold.
+    const rich = (key, count, params = {}) => {
+      const MARK = '\u0000'
+      const [before, after = ''] = t(key, { ...params, count: MARK }).split(MARK)
+      return [before, el('b', '', fmt(count)), after].filter((p) => p !== '')
+    }
     let lastLoaded = 0
 
     // A short highlight on the counts when scrolling brings in more accounts.
@@ -900,7 +918,7 @@
     function listState() {
       const loaded = pageHandles.size
       const ended = listEnded || (listTotal != null && loaded >= listTotal)
-      return { loaded, ended, ofTotal: listTotal != null ? ` of ~${compact(listTotal)}` : '' }
+      return { loaded, ended, total: listTotal != null ? compact(listTotal) : null }
     }
 
     function startLoading() {
@@ -912,7 +930,7 @@
         if (reachedEnd) {
           listEnded = true
           const { loaded } = listState()
-          toast(`All ${fmt(loaded)} account${loaded === 1 ? '' : 's'} in this list loaded. Press Review to choose who to block.`)
+          toast(t('panel.toast.listLoaded', { n: loaded }))
         }
         update()
       })
@@ -928,40 +946,31 @@
     loadBtn.addEventListener('click', () => (scrolling ? stopLoading() : startLoading()))
 
     function listLine() {
-      const { loaded, ended, ofTotal } = listState()
-      const num = el('b', '', fmt(loaded))
+      const { loaded, ended, total } = listState()
       stateIcon.className = 'state'
       if (scrolling) {
         stateIcon.replaceChildren(el('span', 'dot dot-accent live'))
-        loadBtn.textContent = 'Stop'
-        loadBtn.title = 'Stop loading. Accounts loaded so far stay.'
-        return ['Loading ', num, ofTotal, loadBtn]
+        loadBtn.textContent = t('panel.list.stop')
+        loadBtn.title = t('panel.list.stopTitle')
+        return [...rich(total ? 'panel.list.loadingOf' : 'panel.list.loading', loaded, { total }), loadBtn]
       }
       if (ended) {
         stateIcon.replaceChildren(el('span', 'ok', '✓'))
         stateIcon.className = 'state ok'
-        if (!candidates().length) return ['All ', num, ' accounts in this list are already blocked']
-        return ['All ', num, ' loaded']
+        if (!candidates().length) return rich('panel.list.allBlocked', loaded)
+        return rich('panel.list.allLoaded', loaded)
       }
       stateIcon.replaceChildren()
-      loadBtn.textContent = 'Load all'
-      loadBtn.title = listTotal > 2000
-        ? 'This list is large. Loading it all takes a while and sends many requests to X, so consider blocking it in parts.'
-        : 'Scroll to the end of the list to load every account'
+      loadBtn.textContent = t('panel.list.loadAll')
+      loadBtn.title = t(listTotal > 2000 ? 'panel.list.loadAllTitleLarge' : 'panel.list.loadAllTitle')
       // Nothing left to review here yet: say why, and offer the way to the rest.
-      if (!candidates().length) return ['All ', num, ' loaded accounts are already blocked', loadBtn]
-      return [num, ` loaded${ofTotal || ' so far'}`, loadBtn]
+      if (!candidates().length) return [...rich('panel.list.loadedBlocked', loaded), loadBtn]
+      return [...rich(total ? 'panel.list.loadedOf' : 'panel.list.loadedSoFar', loaded, { total }), loadBtn]
     }
 
     // Live state of the block queue, mirrored from extension storage.
     let run = { runner: null, queueLen: 0, etaMs: 0, current: null }
-    const duration = (ms) => {
-      const min = Math.round(ms / 60_000)
-      if (min < 1) return 'under a minute'
-      if (min < 60) return `~${min} min`
-      const h = Math.floor(min / 60)
-      return h < 48 ? `~${h} h${min % 60 >= 10 ? ` ${min % 60} min` : ''}` : `~${Math.round(h / 24)} days`
-    }
+    const duration = (ms) => I18N.duration(ms)
     const RECENT = 10 * 60 * 1000
 
     function runInfo() {
@@ -977,33 +986,34 @@
 
     function progressLine(info) {
       const { r, processed, total } = info
-      const nf = (n) => n.toLocaleString()
-      const of = `${nf(processed)} of ${nf(total)}`
-      const extras = [r.skipped ? `${nf(r.skipped)} skipped` : '', r.failed ? `${nf(r.failed)} failed` : '']
-        .filter(Boolean).join(' · ')
-      const tail = extras ? ` · ${extras}` : ''
+      const of = t('panel.run.progress', { done: processed, total })
+      const extras = [r.skipped ? t('panel.run.skipped', { n: r.skipped }) : '', r.failed ? t('panel.run.failed', { n: r.failed }) : '']
+        .filter(Boolean).join(t('common.sep'))
+      const tail = extras ? `${t('common.sep')}${extras}` : ''
       // A run made only of unblocks (from the dashboard) shouldn't say "Blocking".
-      const verb = run.current?.action === 'unblock' || (r.unblocked && !r.done) ? 'Unblocking' : 'Blocking'
-      const what = run.current?.source ? ` ${run.current.source}` : ''
+      const unblocking = run.current?.action === 'unblock' || (r.unblocked && !r.done)
+      const what = run.current?.source ? ` ${I18N.isolate(run.current.source)}` : ''
       switch (r.state) {
         case 'running':
           // Numbers first, the batch name last: a long name gets cut, not the time left.
-          return [el('b', '', verb), ` · ${of}`, run.etaMs ? ` · ${duration(run.etaMs)} left` : '', tail, what ? ` ·${what}` : '']
+          return [el('b', '', t(unblocking ? 'panel.run.unblocking' : 'panel.run.blocking')), `${t('common.sep')}${of}`,
+            run.etaMs ? `${t('common.sep')}${t('panel.run.left', { time: duration(run.etaMs) })}` : '', tail, what ? `${t('common.sep').trimEnd()}${what}` : '']
         case 'cooldown': {
-          const at = new Date(r.cooldownUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          const why = r.limit === 'daily' ? 'Daily safety limit reached'
-            : r.limit === 'hourly' ? 'Hourly safety limit reached'
-            : r.limit === 'lookup' ? 'Paused by X lookup limit' : 'Paused by X rate limit'
-          return [el('b', '', why), ` · resumes ${at} · ${of}`]
+          const at = I18N.time(new Date(r.cooldownUntil))
+          const why = t(r.limit === 'daily' ? 'panel.run.limitDaily'
+            : r.limit === 'hourly' ? 'panel.run.limitHourly'
+            : r.limit === 'lookup' ? 'panel.run.limitLookup' : 'panel.run.limitRate')
+          return [el('b', '', why), `${t('common.sep')}${t('panel.run.resumes', { time: at })}${t('common.sep')}${of}`]
         }
         case 'paused':
-          return [el('b', '', `${verb} paused`), ` · ${of}${tail}`, what ? ` ·${what}` : '']
+          return [el('b', '', t(unblocking ? 'panel.run.unblockingPaused' : 'panel.run.blockingPaused')), `${t('common.sep')}${of}${tail}`, what ? `${t('common.sep').trimEnd()}${what}` : '']
         case 'error':
-          return [el('b', '', 'Stopped'), ` · ${r.message || 'error'}`]
+          return [el('b', '', t('panel.run.stopped')), `${t('common.sep')}${r.message || t('panel.run.error')}`]
         default: {
-          const done = [r.done || !r.unblocked ? `${nf(r.done)} blocked` : '', r.unblocked ? `${nf(r.unblocked)} unblocked` : '']
-            .filter(Boolean).join(' · ')
-          return [el('b', '', 'Done'), ` · ${done}${tail}`]
+          const done = [r.done || !r.unblocked ? t('panel.run.blocked', { n: r.done ?? 0 }) : '',
+            r.unblocked ? t('panel.run.unblocked', { n: r.unblocked }) : '']
+            .filter(Boolean).join(t('common.sep'))
+          return [el('b', '', t('panel.run.done')), `${t('common.sep')}${done}${tail}`]
         }
       }
     }
@@ -1022,8 +1032,8 @@
       runText.replaceChildren(...progressLine(info))
       runText.title = runText.textContent
       runBtn.hidden = !(info.active || ((r.state === 'paused' || r.state === 'error') && run.queueLen > 0))
-      runBtn.textContent = info.active ? 'Pause' : 'Resume'
-      runBtn.title = info.active ? 'Pause after the current account' : 'Resume blocking'
+      runBtn.textContent = t(info.active ? 'panel.run.pause' : 'panel.run.resume')
+      runBtn.title = t(info.active ? 'panel.run.pauseTitle' : 'panel.run.resumeTitle')
       return info
     }
 
@@ -1062,9 +1072,10 @@
     function update() {
       if (!alive) { host.remove(); return }
       wrap.dataset.theme = document.documentElement.dataset.xbTheme ?? 'light'
+      localizeStatic()
       const n = candidates().length
       const info = applyRunState()
-      title.textContent = context?.label ?? 'Queue'
+      title.textContent = context?.label ?? t('panel.queue')
       title.title = title.textContent
       // The list zone is about this page; the queue has its own strip below.
       sub.hidden = !context
@@ -1074,15 +1085,15 @@
       // The loaded count is on the always-visible controls (pill, Review), not
       // only the status line, so scrolling visibly adds accounts in every state.
       const { loaded } = listState()
-      fabLabel.textContent = info?.active ? `Blocking ${info.processed}/${info.total}`
-        : context && loaded ? `X Blocker · ${fmt(loaded)} loaded`
+      fabLabel.textContent = info?.active ? t('panel.fab.blocking', { done: info.processed, total: info.total })
+        : context && loaded ? t('panel.fab.loaded', { count: loaded })
           : 'X Blocker'
-      blockAllBtn.textContent = n ? `Review ${fmt(n)}` : 'Review'
+      blockAllBtn.textContent = n ? t('panel.review.buttonCount', { n }) : t('panel.review.button')
       fabDot.hidden = !scrolling
       fab.classList.toggle('done', Boolean(context && listState().ended && !info?.active))
       if (context && loaded > lastLoaded && lastLoaded > 0) bump()
       lastLoaded = context ? loaded : 0
-      blockAllBtn.title = 'Review the accounts in this list before blocking them'
+      blockAllBtn.title = t('panel.review.buttonTitle')
       // Nothing to review (e.g. the home timeline while the queue runs): hide it instead.
       blockAllBtn.hidden = n === 0
       // Also visible on other pages while the queue runs, to follow and pause it.
@@ -1118,12 +1129,12 @@
       stopLoading()
       const n = context ? candidates().length : 0
       if (!n) return
-      const { loaded, ended, ofTotal } = listState()
-      const more = ended ? '' : listTotal != null
-        ? `You're reviewing the ${fmt(loaded)} loaded${ofTotal}.`
-        : `More accounts may load as you scroll.`
-      const picked = await reviewDialog([{ label: 'This list', count: n, load: listRows, heading: context.label,
-        note: 'Only accounts from this list are included.', more }])
+      const { loaded, ended, total } = listState()
+      const more = ended ? '' : total
+        ? t('panel.review.reviewingLoadedOf', { n: loaded, total })
+        : t('panel.review.mayLoadMore')
+      const picked = await reviewDialog([{ label: t('panel.review.thisList'), count: n, load: listRows, heading: context.label,
+        note: t('panel.review.onlyThisList'), more }])
       if (!picked?.length) return
       blockAllBtn.disabled = true
       try {
@@ -1132,9 +1143,8 @@
           items: picked.map((u) => ({ screenName: u.screenName, id: u.id, source: u.source })),
         })
         if (r?.error) throw new Error(r.error)
-        const queued = `${r.added} account${r.added === 1 ? '' : 's'} queued for blocking`
-        const undo = r.batch && r.added ? { label: 'Undo', run: () => undoQueued(r.batch) } : undefined
-        toast(listState().ended ? queued : `${queued}. Press Load all or scroll, then Review again for the rest.`, false, undo)
+        const undo = r.batch && r.added ? { label: t('panel.toast.undo'), run: () => undoQueued(r.batch) } : undefined
+        toast(t(listState().ended ? 'panel.toast.queued' : 'panel.toast.queuedPartial', { n: r.added }), false, undo)
       } catch (e) {
         toast(String(e.message ?? e), true)
       }
@@ -1146,8 +1156,7 @@
     async function undoQueued(batch) {
       const r = await send({ type: 'page:cancelBatch', id: batch }).catch(() => null)
       if (!r) return
-      const done = r.done ? ` ${r.done} already blocked; undo those from the dashboard.` : ''
-      toast(`${r.cancelled} account${r.cancelled === 1 ? '' : 's'} taken out of the queue.${done}`)
+      toast(t(r.done ? 'panel.toast.cancelledDone' : 'panel.toast.cancelled', { n: r.cancelled, done: r.done }))
       update()
     }
 
@@ -1164,10 +1173,10 @@
         let loadSeq = 0
 
         const confirm = el('button', 'btn btn-danger')
-        const cancel = el('button', 'btn', 'Cancel')
+        const cancel = el('button', 'btn', t('common.cancel'))
         const all = document.createElement('input')
         all.type = 'checkbox'
-        const allLabel = el('label', '', all, el('span', '', 'Select all'))
+        const allLabel = el('label', '', all, el('span', '', t('panel.review.selectAll')))
         const summary = el('span', '')
         const unqueueBtn = el('button', 'btn btn-sm unqueue')
         // Quick filters: hidden rows are left out of every action.
@@ -1184,31 +1193,31 @@
           })
           return b
         }
-        const knownChip = filterChip('known', 'Hide accounts I know')
-        const verifiedChip = filterChip('verified', 'Hide verified')
+        const knownChip = filterChip('known', t('panel.review.hideKnown'))
+        const verifiedChip = filterChip('verified', t('panel.review.hideVerified'))
         const filters = el('div', 'filters', knownChip, verifiedChip)
         const eta = el('span', 'eta')
         const limitNote = el('p', 'limit')
         const list = el('ul', '')
-        list.setAttribute('aria-label', 'Accounts to block')
+        list.setAttribute('aria-label', t('panel.review.listLabel'))
         const src = el('span', 'src')
         const heading = el('h2', '')
         heading.id = 'xb-review-title'
         const note = el('p', '')
         const tabBar = el('div', 'tabs')
         tabBar.setAttribute('role', 'tablist')
-        const tabButtons = tabs.map((t, i) => {
+        const tabButtons = tabs.map((_, i) => {
           const b = el('button', 'tab', '')
           b.setAttribute('role', 'tab')
           b.addEventListener('click', () => select(i))
           return b
         })
         const labelTab = (i) => {
-          const t = tabs[i]
-          tabButtons[i].textContent = `${t.label} · ${t.loaded ? t.loaded.length : t.count}`
+          const tab = tabs[i]
+          tabButtons[i].textContent = t('panel.review.tab', { label: tab.label, n: tab.loaded ? tab.loaded.length : tab.count })
         }
         tabBar.append(...tabButtons)
-        tabs.forEach((t, i) => labelTab(i))
+        tabs.forEach((_, i) => labelTab(i))
         tabBar.hidden = tabs.length < 2
 
         const sync = () => {
@@ -1219,55 +1228,57 @@
           // "Remove from queue", so they don't count toward "Block N".
           const nBlock = ticked.filter((r) => !r.queued).length
           const nQueued = n - nBlock
-          confirm.textContent = nBlock ? `Block ${nBlock}` : 'Block'
+          confirm.textContent = nBlock ? t('panel.review.blockCount', { n: nBlock }) : t('panel.review.block')
           confirm.disabled = nBlock === 0
           all.checked = visible.length > 0 && n === visible.length
           all.indeterminate = n > 0 && n < visible.length
           const skipped = visible.length - n
           const hidden = rows.length - visible.length
-          summary.textContent = [skipped ? `${skipped} unticked` : '', hidden ? `${hidden} hidden` : ''].filter(Boolean).join(' · ')
+          summary.textContent = [skipped ? t('panel.review.unticked', { n: skipped }) : '', hidden ? t('panel.review.hidden', { n: hidden }) : ''].filter(Boolean).join(t('common.sep'))
           knownChip.hidden = !rows.some(isKnown)
           verifiedChip.hidden = !rows.some((r) => r.verified)
           filters.hidden = knownChip.hidden && verifiedChip.hidden
-          eta.textContent = nBlock && quota?.paceMs ? `${duration(nBlock * quota.paceMs)} at the current pace` : ''
+          eta.textContent = nBlock && quota?.paceMs ? t('panel.review.eta', { time: duration(nBlock * quota.paceMs) }) : ''
           unqueueBtn.hidden = !visible.some((r) => r.queued)
-          unqueueBtn.textContent = `Remove ${nQueued} from queue`
+          unqueueBtn.textContent = t('panel.review.unqueue', { n: nQueued })
           unqueueBtn.disabled = nQueued === 0
-          unqueueBtn.title = 'Take the selected accounts out of the queue so they won\'t be blocked'
+          unqueueBtn.title = t('panel.review.unqueueTitle')
           if (quota?.cap) {
             const left = Math.max(0, quota.cap - quota.used)
             limitNote.hidden = nBlock <= left
-            limitNote.textContent = `Only ${left} of ${quota.cap} blocks left in the last 24 h. ` +
-              `The other ${Math.max(0, nBlock - left)} will be blocked automatically later.`
+            limitNote.textContent = t('panel.review.limit', { left, cap: quota.cap, rest: Math.max(0, nBlock - left) })
           } else limitNote.hidden = true
         }
 
         function renderRows() {
           list.replaceChildren()
           const visible = shown()
-          if (!visible.length) list.replaceChildren(el('li', 'loading', rows.length ? 'Your filters hide every account' : 'Nothing to review'))
+          if (!visible.length) list.replaceChildren(el('li', 'loading', t(rows.length ? 'panel.review.filtersHideAll' : 'panel.review.empty')))
           for (const r of visible) {
             const box = document.createElement('input')
             box.type = 'checkbox'
             box.checked = r.checked
-            box.setAttribute('aria-label', `Block @${r.screenName}`)
+            box.setAttribute('aria-label', t('panel.button.titleBlock', { user: `@${r.screenName}` }))
             const avatar = r.avatar ? Object.assign(document.createElement('img'), { src: r.avatar, alt: '', loading: 'lazy' }) : el('div', 'ph')
             if (avatar.tagName === 'IMG') avatar.referrerPolicy = 'no-referrer'
             const tags = el('div', 'tags')
-            if (r.following) tags.append(el('span', 'tag warn', 'You follow'))
-            if (r.followedBy) tags.append(el('span', 'tag warn', 'Follows you'))
-            if (r.blocking) tags.append(el('span', 'tag', 'Blocked'))
-            if (r.queued) tags.append(el('span', 'tag', 'Queued'))
-            if (r.verified) tags.append(el('span', 'tag', 'Verified'))
-            const who = el('div', 'who', el('span', 'nm', r.name || `@${r.screenName}`))
+            if (r.following) tags.append(el('span', 'tag warn', t('panel.tag.youFollow')))
+            if (r.followedBy) tags.append(el('span', 'tag warn', t('panel.tag.followsYou')))
+            if (r.blocking) tags.append(el('span', 'tag', t('panel.tag.blocked')))
+            if (r.queued) tags.append(el('span', 'tag', t('panel.tag.queued')))
+            if (r.verified) tags.append(el('span', 'tag', t('panel.tag.verified')))
+            const nm = el('span', 'nm', r.name || `@${r.screenName}`)
+            nm.dir = 'auto'
+            const who = el('div', 'who', nm)
             // Link the handle so you can open the profile while reviewing. It must
             // not toggle the row, which is what clicking anywhere else in it does.
             if (r.screenName) {
               const a = el('a', 'hd', `@${r.screenName}`)
+              a.dir = 'ltr'
               a.href = `https://x.com/${r.screenName}`
               a.target = '_blank'
               a.rel = 'noopener noreferrer'
-              a.title = `Open @${r.screenName}'s profile in a new tab`
+              a.title = t('panel.review.openProfile', { user: `@${r.screenName}` })
               who.append(a)
             }
             if (r.showSource) who.append(el('span', 'from', r.source))
@@ -1291,11 +1302,11 @@
           const tab = tabs[i]
           tabButtons.forEach((b, j) => b.setAttribute('aria-selected', String(j === i)))
           src.textContent = tab.heading
-          heading.textContent = `Review ${tab.count} account${tab.count === 1 ? '' : 's'}`
-          note.textContent = `${tab.note} Untick anyone you don't want to block. People you follow or who follow you, and accounts already queued, start unticked.`
+          heading.textContent = t('panel.review.heading', { n: tab.count })
+          note.textContent = `${tab.note} ${t('panel.review.hint')}`
           if (tab.more) {
-            const load = el('button', 'link', 'Load all')
-            load.title = 'Close this and load the whole list'
+            const load = el('button', 'link', t('panel.list.loadAll'))
+            load.title = t('panel.review.loadAllTitle')
             load.addEventListener('click', () => { close(null); startLoading() })
             note.append(el('span', 'more', ` ${tab.more} `), load)
           }
@@ -1305,13 +1316,13 @@
           }))
           const seq = ++loadSeq
           rows = []
-          list.replaceChildren(el('li', 'loading', 'Loading…'))
+          list.replaceChildren(el('li', 'loading', t('panel.review.loading')))
           sync()
           const loaded = await tab.loaded
           if (seq !== loadSeq) return
           rows = loaded
           labelTab(i)
-          heading.textContent = `Review ${rows.length} account${rows.length === 1 ? '' : 's'}`
+          heading.textContent = t('panel.review.heading', { n: rows.length })
           renderRows()
         }
 
@@ -1333,8 +1344,8 @@
             if (res?.error) throw new Error(res.error)
             const removed = res?.removed ?? []
             const gone = new Set(removed.map((s) => String(s).toLowerCase()))
-            for (const t of tabs) {
-              for (const r of t.loaded ?? []) {
+            for (const tab of tabs) {
+              for (const r of tab.loaded ?? []) {
                 if (!gone.has((r.screenName ?? '').toLowerCase()) && !gone.has(String(r.id))) continue
                 // Out of the queue means "don't block": untick so "Block N" doesn't re-add them.
                 r.queued = false
@@ -1342,8 +1353,8 @@
               }
             }
             toast(removed.length
-              ? `${removed.length} account${removed.length === 1 ? '' : 's'} removed from the queue`
-              : 'These accounts were not in the queue', !removed.length)
+              ? t('panel.toast.removed', { n: removed.length })
+              : t('panel.toast.notInQueue'), !removed.length)
             renderRows()
           } catch (e) {
             toast(String(e.message ?? e), true)
@@ -1388,7 +1399,7 @@
         if (!host.isConnected) document.body.append(host)
         const previous = document.activeElement
         const ok = el('button', 'btn btn-danger', confirmLabel)
-        const cancel = el('button', 'btn', 'Cancel')
+        const cancel = el('button', 'btn', t('common.cancel'))
         const heading = el('h2', '', title)
         heading.id = 'xb-dialog-title'
         const dialog = el('div', 'dialog', heading, el('p', '', body), el('div', 'actions', ok, cancel))
@@ -1423,14 +1434,14 @@
       const anchor = panel.isConnected ? panel : fab.isConnected ? fab : null
       const top = anchor?.getBoundingClientRect().top
       toasts.style.bottom = top > 0 && window.innerHeight ? `${Math.round(window.innerHeight - top + 12)}px` : ''
-      const t = el('div', error ? 'toast toast-danger' : 'toast', el('span', '', message))
+      const item = el('div', error ? 'toast toast-danger' : 'toast', el('span', '', message))
       if (action) {
         const b = el('button', 'toast-action', action.label)
-        b.addEventListener('click', () => { t.remove(); action.run() })
-        t.append(b)
+        b.addEventListener('click', () => { item.remove(); action.run() })
+        item.append(b)
       }
-      toasts.append(t)
-      setTimeout(() => t.remove(), action ? 10_000 : error ? 6000 : 3500)
+      toasts.append(item)
+      setTimeout(() => item.remove(), action ? 10_000 : error ? 6000 : 3500)
     }
 
     return {
@@ -1510,6 +1521,8 @@
       ui.setMinimized(panelMinimized)
     }
     const cfg = await send({ type: 'page:config' }).catch(() => null)
+    // Before anything is labelled: the list title, buttons and panel use it.
+    I18N.setLanguage(cfg?.language ?? 'auto')
     blockButtons = cfg?.blockButtons ?? 'everywhere'
     for (const sn of cfg?.blockedScreenNames ?? []) blockedHere.add(sn)
     context = pageContext()
@@ -1524,6 +1537,7 @@
     checkXButtons()
     scheduleLookup(1500)
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    ui.scheduleUpdate()
   }
 
   document.addEventListener(TAKEOVER, () => {

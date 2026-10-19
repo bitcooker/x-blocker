@@ -1,0 +1,8 @@
+{
+  "extName": {
+    "message": "X Blocker"
+  },
+  "extDescription": {
+    "message": "Bloquea listas de cuentas de X (Twitter): seguidores, me gusta, respuestas, búsquedas o importaciones. Revisa, deshaz, privado."
+  }
+}

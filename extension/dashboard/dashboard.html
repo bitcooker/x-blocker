@@ -7,6 +7,14 @@
   <title>X Blocker</title>
   <link rel="icon" href="../icons/icon.svg">
   <script src="../ui/tokens.js"></script>
+  <script src="../ui/i18n.js"></script>
+  <script src="../locales/en.js"></script>
+  <script src="../locales/ar.js"></script>
+  <script src="../locales/de.js"></script>
+  <script src="../locales/es.js"></script>
+  <script src="../locales/fa.js"></script>
+  <script src="../locales/fr.js"></script>
+  <script src="../locales/tr.js"></script>
   <link rel="stylesheet" href="../ui/common.css">
   <link rel="stylesheet" href="dashboard.css">
   <script type="module" src="dashboard.js"></script>
@@ -19,21 +27,21 @@
         <span>X Blocker</span>
         <small id="version" class="version"></small>
       </a>
-      <nav id="tabs" aria-label="Sections">
-        <button class="nav-item" data-tab="home"><i data-icon="home"></i><span>Home</span></button>
-        <button class="nav-item" data-tab="import"><i data-icon="import"></i><span>Import</span></button>
-        <button class="nav-item" data-tab="batches"><i data-icon="layers"></i><span>Batches</span></button>
-        <button class="nav-item" data-tab="queue"><i data-icon="queue"></i><span>Queue</span><b id="n-waiting" class="badge"></b></button>
-        <button class="nav-item" data-tab="blocked"><i data-icon="block"></i><span>Blocked</span><b id="n-blocked" class="badge"></b></button>
-        <button class="nav-item" data-tab="settings"><i data-icon="settings"></i><span>Settings</span></button>
+      <nav id="tabs" data-i18n-attr="aria-label:dash.nav.sections" aria-label="Sections">
+        <button class="nav-item" data-tab="home"><i data-icon="home"></i><span data-i18n="dash.nav.home">Home</span></button>
+        <button class="nav-item" data-tab="import"><i data-icon="import"></i><span data-i18n="dash.nav.import">Import</span></button>
+        <button class="nav-item" data-tab="batches"><i data-icon="layers"></i><span data-i18n="dash.nav.batches">Batches</span></button>
+        <button class="nav-item" data-tab="queue"><i data-icon="queue"></i><span data-i18n="dash.nav.queue">Queue</span><b id="n-waiting" class="badge"></b></button>
+        <button class="nav-item" data-tab="blocked"><i data-icon="block"></i><span data-i18n="dash.nav.blocked">Blocked</span><b id="n-blocked" class="badge"></b></button>
+        <button class="nav-item" data-tab="settings"><i data-icon="settings"></i><span data-i18n="dash.nav.settings">Settings</span></button>
       </nav>
 
       <!-- Compact status, so the queue stays in reach from every section. -->
-      <section class="mini card" aria-label="Queue status">
-        <div class="row"><span id="status" class="status grow">Idle</span><span id="queue-left" class="muted small"></span></div>
+      <section class="mini card" data-i18n-attr="aria-label:dash.mini.label" aria-label="Queue status">
+        <div class="row"><span id="status" class="status grow" data-i18n="state.idle">Idle</span><span id="queue-left" class="muted small"></span></div>
         <div class="meter"><span id="mini-bar"></span></div>
-        <button id="start" class="btn btn-sm btn-block"><i data-icon="play"></i><span>Start</span></button>
-        <button id="pause" class="btn btn-sm btn-block" hidden><i data-icon="pause"></i><span>Pause</span></button>
+        <button id="start" class="btn btn-sm btn-block"><i data-icon="play"></i><span data-i18n="dash.start">Start</span></button>
+        <button id="pause" class="btn btn-sm btn-block" hidden><i data-icon="pause"></i><span data-i18n="dash.pause">Pause</span></button>
       </section>
     </aside>
 
@@ -42,18 +50,18 @@
       <section id="tab-home" class="panel">
         <header class="panel-head">
           <div>
-            <h1>Home</h1>
-            <p class="muted">When you block a list on x.com, it's added here as a batch. X Blocker works through it in the background, one account at a time.</p>
+            <h1 data-i18n="dash.home.title">Home</h1>
+            <p class="muted" data-i18n="dash.home.intro">When you block a list on x.com, it's added here as a batch. X Blocker works through it in the background, one account at a time.</p>
           </div>
-          <button id="open-import" class="btn btn-sm"><i data-icon="import"></i>Import a list</button>
+          <button id="open-import" class="btn btn-sm"><i data-icon="import"></i><span data-i18n="dash.home.import">Import a list</span></button>
         </header>
 
         <div id="legacy" class="card notice" hidden>
-          <div class="grow"><b id="legacy-title">Accounts from your old Collected list</b>
-            <span class="muted">X Blocker no longer keeps a Collected list. Choose what to do with the accounts that were still in it.</span></div>
+          <div class="grow"><b id="legacy-title" data-i18n="dash.legacy.titleGeneric">Accounts from your old Collected list</b>
+            <span class="muted" data-i18n="dash.legacy.text">X Blocker no longer keeps a Collected list. Choose what to do with the accounts that were still in it.</span></div>
           <div class="row">
-            <button id="legacy-discard" class="btn btn-sm">Discard</button>
-            <button id="legacy-queue" class="btn btn-sm btn-danger">Queue for blocking</button>
+            <button id="legacy-discard" class="btn btn-sm" data-i18n="dash.legacy.discard">Discard</button>
+            <button id="legacy-queue" class="btn btn-sm btn-danger" data-i18n="dash.legacy.queue">Queue for blocking</button>
           </div>
         </div>
 
@@ -61,40 +69,40 @@
         <section class="card now" aria-labelledby="now-title">
           <div class="now-head">
             <div class="grow">
-              <span id="now-status" class="status">Idle</span>
-              <h2 id="now-title">Nothing waiting</h2>
+              <span id="now-status" class="status" data-i18n="state.idle">Idle</span>
+              <h2 id="now-title" dir="auto" data-i18n="dash.now.nothing">Nothing waiting</h2>
               <p id="now-detail" class="muted"></p>
             </div>
-            <button id="now-start" class="btn btn-danger"><i data-icon="play"></i><span>Start</span></button>
-            <button id="now-pause" class="btn" hidden><i data-icon="pause"></i><span>Pause</span></button>
+            <button id="now-start" class="btn btn-danger"><i data-icon="play"></i><span data-i18n="dash.start">Start</span></button>
+            <button id="now-pause" class="btn" hidden><i data-icon="pause"></i><span data-i18n="dash.pause">Pause</span></button>
           </div>
           <div class="meter meter-lg"><span id="now-bar"></span></div>
           <div class="limits">
-            <div class="limit"><div class="row"><span class="muted grow">This hour</span><b id="lim-hour"></b></div><div class="meter"><span id="lim-hour-bar"></span></div></div>
-            <div class="limit"><div class="row"><span class="muted grow">Last 24 hours</span><b id="lim-day"></b></div><div class="meter"><span id="lim-day-bar"></span></div></div>
+            <div class="limit"><div class="row"><span class="muted grow" data-i18n="dash.limits.hour">This hour</span><b id="lim-hour"></b></div><div class="meter"><span id="lim-hour-bar"></span></div></div>
+            <div class="limit"><div class="row"><span class="muted grow" data-i18n="dash.limits.day">Last 24 hours</span><b id="lim-day"></b></div><div class="meter"><span id="lim-day-bar"></span></div></div>
           </div>
         </section>
 
         <section aria-labelledby="glance-title" class="stack">
-          <h2 id="glance-title" class="section-title">At a glance</h2>
+          <h2 id="glance-title" class="section-title" data-i18n="dash.glance.title">At a glance</h2>
           <div class="stats card">
             <a class="stat" href="#batches" data-go="batches" data-tone="accent">
               <span class="stat-icon"><i data-icon="layers"></i></span>
-              <span class="stat-label">Batches</span>
+              <span class="stat-label" data-i18n="dash.stat.batches">Batches</span>
               <b id="s-batches" class="stat-num">0</b>
               <span id="s-batches-sub" class="stat-sub"></span>
             </a>
             <a class="stat" href="#queue" data-go="queue" data-tone="warn">
               <span class="stat-icon"><i data-icon="queue"></i></span>
-              <span class="stat-label">Waiting to block</span>
+              <span class="stat-label" data-i18n="dash.stat.waiting">Waiting to block</span>
               <b id="s-queue" class="stat-num">0</b>
               <span id="s-queue-sub" class="stat-sub"></span>
             </a>
             <a class="stat" href="#blocked" data-go="blocked" data-tone="danger">
               <span class="stat-icon"><i data-icon="block"></i></span>
-              <span class="stat-label">Blocked</span>
+              <span class="stat-label" data-i18n="dash.stat.blocked">Blocked</span>
               <b id="s-blocked" class="stat-num">0</b>
-              <span class="stat-sub">All time</span>
+              <span class="stat-sub" data-i18n="dash.stat.allTime">All time</span>
             </a>
           </div>
         </section>
@@ -104,17 +112,17 @@
       <section id="tab-import" class="panel" hidden>
         <header class="panel-head">
           <div>
-            <h1>Import a list</h1>
-            <p class="muted">Paste @handles, profile links or account IDs (<code>id:12345</code>), one per line or separated by commas. You can also choose a .txt or .csv file, including a Blocked or Queue export from X Blocker. Everything you add is queued as one batch.</p>
+            <h1 data-i18n="dash.import.title">Import a list</h1>
+            <p class="muted" data-i18n-html="dash.import.intro">Paste @handles, profile links or account IDs (<code>id:12345</code>), one per line or separated by commas. You can also choose a .txt or .csv file, including a Blocked or Queue export from X Blocker. Everything you add is queued as one batch.</p>
           </div>
         </header>
         <div class="card import-card">
-          <textarea id="i-text" class="input" placeholder="@spammer1&#10;https://x.com/spammer2&#10;https://x.com/i/user/1234567890&#10;id:1234567890" spellcheck="false"></textarea>
+          <textarea id="i-text" class="input" dir="ltr" placeholder="@spammer1&#10;https://x.com/spammer2&#10;https://x.com/i/user/1234567890&#10;id:1234567890" spellcheck="false"></textarea>
           <div class="row">
-            <label class="btn btn-sm file-btn"><i data-icon="import"></i>Choose file<input id="i-file" type="file" accept=".txt,.csv,text/plain,text/csv"></label>
-            <input id="i-name" class="input name" type="text" placeholder="Batch name (optional)" maxlength="80">
+            <label class="btn btn-sm file-btn"><i data-icon="import"></i><span data-i18n="dash.import.chooseFile">Choose file</span><input id="i-file" type="file" accept=".txt,.csv,text/plain,text/csv"></label>
+            <input id="i-name" class="input name" type="text" placeholder="Batch name (optional)" data-i18n-attr="placeholder:dash.import.name" maxlength="80">
             <span id="i-preview" class="muted grow"></span>
-            <button id="i-add" class="btn btn-danger" disabled>Add to queue</button>
+            <button id="i-add" class="btn btn-danger" disabled data-i18n="dash.import.add">Add to queue</button>
           </div>
         </div>
       </section>
@@ -123,8 +131,8 @@
       <section id="tab-batches" class="panel" hidden>
         <header class="panel-head">
           <div>
-            <h1>Batches</h1>
-            <p class="muted">Each list you block or import is a batch. Cancel the accounts still waiting, or undo a batch to unblock everyone in it.</p>
+            <h1 data-i18n="dash.batches.title">Batches</h1>
+            <p class="muted" data-i18n="dash.batches.intro">Each list you block or import is a batch. Cancel the accounts still waiting, or undo a batch to unblock everyone in it.</p>
           </div>
         </header>
         <ol id="batches" class="batches card"></ol>
@@ -135,17 +143,17 @@
       <section id="tab-queue" class="panel" hidden>
         <header class="panel-head">
           <div>
-            <h1>Queue</h1>
-            <p class="muted">Accounts waiting to be blocked, in order. You can change the pace and limits in Settings.</p>
+            <h1 data-i18n="dash.queue.title">Queue</h1>
+            <p class="muted" data-i18n="dash.queue.intro">Accounts waiting to be blocked, in order. You can change the pace and limits in Settings.</p>
           </div>
           <div id="q-actions" class="row">
-            <button id="q-export" class="btn btn-sm" title="Download a CSV with IDs and @handles. You can import it here or share it."><i data-icon="download"></i>Export</button>
-            <button id="q-clear" class="btn btn-sm btn-danger-outline">Clear all</button>
+            <button id="q-export" class="btn btn-sm" title="Download a CSV with IDs and @handles. You can import it here or share it." data-i18n-attr="title:dash.exportHint"><i data-icon="download"></i><span data-i18n="dash.export">Export</span></button>
+            <button id="q-clear" class="btn btn-sm btn-danger-outline" data-i18n="dash.queue.clear">Clear all</button>
           </div>
         </header>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>Account</th><th>Batch</th><th>Attempts</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th data-i18n="dash.col.account">Account</th><th data-i18n="dash.col.batch">Batch</th><th data-i18n="dash.col.attempts">Attempts</th><th></th></tr></thead>
             <tbody id="q-body"></tbody>
           </table>
         </div>
@@ -156,26 +164,26 @@
       <section id="tab-blocked" class="panel" hidden>
         <header class="panel-head">
           <div>
-            <h1>Blocked</h1>
-            <p class="muted">Everyone X Blocker has blocked, plus accounts it found you had already blocked. Select accounts here to unblock them, or undo a whole batch on the Batches page.</p>
+            <h1 data-i18n="dash.blocked.title">Blocked</h1>
+            <p class="muted" data-i18n="dash.blocked.intro">Everyone X Blocker has blocked, plus accounts it found you had already blocked. Select accounts here to unblock them, or undo a whole batch on the Batches page.</p>
           </div>
           <div class="row">
-            <button id="b-export" class="btn btn-sm" title="Download a CSV with IDs and @handles. You can import it here or share it."><i data-icon="download"></i>Export</button>
-            <button id="b-clear" class="btn btn-sm btn-danger-outline">Clear history</button>
+            <button id="b-export" class="btn btn-sm" title="Download a CSV with IDs and @handles. You can import it here or share it." data-i18n-attr="title:dash.exportHint"><i data-icon="download"></i><span data-i18n="dash.export">Export</span></button>
+            <button id="b-clear" class="btn btn-sm btn-danger-outline" data-i18n="dash.blocked.clear">Clear history</button>
           </div>
         </header>
         <div class="toolbar">
-          <label class="search grow"><i data-icon="search"></i><input id="b-filter" class="input" type="search" placeholder="Search blocked accounts"></label>
-          <select id="b-batch" class="input select" aria-label="Filter by batch"><option value="">All batches</option></select>
+          <label class="search grow"><i data-icon="search"></i><input id="b-filter" class="input" type="search" placeholder="Search blocked accounts" data-i18n-attr="placeholder:dash.blocked.search"></label>
+          <select id="b-batch" class="input select" aria-label="Filter by batch" data-i18n-attr="aria-label:dash.blocked.filter"><option value="">All batches</option></select>
         </div>
         <div id="b-selection" class="selection-bar">
-          <label class="row"><input id="b-select-all" type="checkbox" aria-label="Select all shown"><span id="b-selected" class="muted">Select all</span></label>
+          <label class="row"><input id="b-select-all" type="checkbox" aria-label="Select all shown" data-i18n-attr="aria-label:dash.blocked.selectShown"><span id="b-selected" class="muted" data-i18n="dash.blocked.selectAll">Select all</span></label>
           <span class="grow"></span>
-          <button id="b-unblock" class="btn btn-sm" disabled>Unblock</button>
+          <button id="b-unblock" class="btn btn-sm" disabled data-i18n="dash.blocked.unblock">Unblock</button>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th class="w-check"></th><th>Account</th><th>Batch</th><th>When</th></tr></thead>
+            <thead><tr><th class="w-check"></th><th data-i18n="dash.col.account">Account</th><th data-i18n="dash.col.batch">Batch</th><th data-i18n="dash.col.when">When</th></tr></thead>
             <tbody id="b-body"></tbody>
           </table>
         </div>
@@ -186,50 +194,56 @@
       <section id="tab-settings" class="panel" hidden>
         <header class="panel-head">
           <div>
-            <h1>Settings</h1>
-            <p class="muted">Changes are saved automatically.</p>
+            <h1 data-i18n="dash.settings.title">Settings</h1>
+            <p class="muted" data-i18n="dash.settings.intro">Changes are saved automatically.</p>
           </div>
         </header>
         <form id="settings" class="settings">
-          <h2>On x.com</h2>
+          <h2 data-i18n="dash.settings.language">Language</h2>
           <div class="card list">
-            <div class="setting choice"><div><b>Block buttons</b><span>Show a Block button on posts and accounts, so you can queue one account with a click. Reload x.com after changing this.</span></div>
-              <div class="seg" role="radiogroup" aria-label="Block buttons">
-                <label><input type="radio" name="blockButtons" value="everywhere"><span>Everywhere</span></label>
-                <label><input type="radio" name="blockButtons" value="lists"><span>Only on lists</span></label>
-                <label><input type="radio" name="blockButtons" value="off"><span>Off</span></label>
+            <label class="setting"><div><b data-i18n="dash.settings.language">Language</b><span data-i18n="dash.settings.languageHint">Changes the language of X Blocker. Reload x.com tabs to update the panel there.</span></div>
+              <select name="language" class="input select"><option value="auto" data-i18n="dash.settings.languageAuto">Automatic (browser language)</option></select></label>
+          </div>
+
+          <h2 data-i18n="dash.settings.onX">On x.com</h2>
+          <div class="card list">
+            <div class="setting choice"><div><b data-i18n="dash.settings.blockButtons">Block buttons</b><span data-i18n="dash.settings.blockButtonsHint">Show a Block button on posts and accounts, so you can queue one account with a click. Reload x.com after changing this.</span></div>
+              <div class="seg" role="radiogroup" aria-label="Block buttons" data-i18n-attr="aria-label:dash.settings.blockButtons">
+                <label><input type="radio" name="blockButtons" value="everywhere"><span data-i18n="dash.settings.everywhere">Everywhere</span></label>
+                <label><input type="radio" name="blockButtons" value="lists"><span data-i18n="dash.settings.onlyLists">Only on lists</span></label>
+                <label><input type="radio" name="blockButtons" value="off"><span data-i18n="dash.settings.off">Off</span></label>
               </div></div>
           </div>
 
-          <h2>Protection</h2>
+          <h2 data-i18n="dash.settings.protection">Protection</h2>
           <div class="card list">
-            <label class="setting"><div><b>Skip accounts I follow</b><span>Never block someone you follow.</span></div><span class="switch"><input name="skipFollowing" type="checkbox"><span></span></span></label>
-            <label class="setting"><div><b>Skip my followers</b><span>Never block someone who follows you.</span></div><span class="switch"><input name="skipFollowers" type="checkbox"><span></span></span></label>
-            <label class="setting"><div><b>Skip verified accounts</b><span>Never block accounts with a checkmark.</span></div><span class="switch"><input name="skipVerified" type="checkbox"><span></span></span></label>
-            <label class="setting stack"><div><b>Never block</b><span>One @handle per line. These accounts are always skipped, even if they're in a list you block or import.</span></div><textarea name="whitelist" class="input handles" rows="4" spellcheck="false" autocomplete="off" placeholder="@friend&#10;@family"></textarea></label>
+            <label class="setting"><div><b data-i18n="dash.settings.skipFollowing">Skip accounts I follow</b><span data-i18n="dash.settings.skipFollowingHint">Never block someone you follow.</span></div><span class="switch"><input name="skipFollowing" type="checkbox"><span></span></span></label>
+            <label class="setting"><div><b data-i18n="dash.settings.skipFollowers">Skip my followers</b><span data-i18n="dash.settings.skipFollowersHint">Never block someone who follows you.</span></div><span class="switch"><input name="skipFollowers" type="checkbox"><span></span></span></label>
+            <label class="setting"><div><b data-i18n="dash.settings.skipVerified">Skip verified accounts</b><span data-i18n="dash.settings.skipVerifiedHint">Never block accounts with a checkmark.</span></div><span class="switch"><input name="skipVerified" type="checkbox"><span></span></span></label>
+            <label class="setting stack"><div><b data-i18n="dash.settings.whitelist">Never block</b><span data-i18n="dash.settings.whitelistHint">One @handle per line. These accounts are always skipped, even if they're in a list you block or import.</span></div><textarea name="whitelist" class="input handles" dir="ltr" rows="4" spellcheck="false" autocomplete="off" placeholder="@friend&#10;@family"></textarea></label>
           </div>
 
-          <h2>Speed &amp; limits</h2>
+          <h2 data-i18n="dash.settings.speed">Speed &amp; limits</h2>
           <div class="card list">
-            <label class="setting"><div><b>Delay between blocks</b><span>How long to wait after each block. At least 2 seconds. Default: 4 seconds.</span></div><span class="field"><input name="delaySec" type="number" min="2" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
-            <label class="setting"><div><b>Random extra delay</b><span>Adds a random wait of up to this long, so blocks don't follow a fixed rhythm. Default: 4 seconds.</span></div><span class="field"><input name="jitterSec" type="number" min="0" max="600" step="0.5" inputmode="decimal"><span class="unit">s</span></span></label>
-            <label class="setting"><div><b>Cooldown after rate limit</b><span>When X slows you down, blocking usually resumes as soon as X allows. If X doesn't say when, X Blocker waits this long, doubling each time up to 4 hours. Default: 15 minutes.</span></div><span class="field"><input name="cooldownMin" type="number" min="1" max="240" step="1" inputmode="numeric"><span class="unit">min</span></span></label>
-            <label class="setting"><div><b>Hourly safety limit</b><span>The most blocks and unblocks in any hour. Spreading them out looks less automated. Default: 150. Set to 0 for no limit.</span></div><span class="field"><input name="hourlyCap" type="number" min="0" max="1000" step="10" inputmode="numeric"><span class="unit">per hour</span></span></label>
-            <label class="setting"><div><b>Daily safety limit</b><span>The most blocks and unblocks in any 24 hours. X doesn't publish a limit, but some people get logged out after a few hundred blocks in a row. Default: 1,000. Set to 0 for no limit (not recommended).</span></div><span class="field"><input name="dailyCap" type="number" min="0" max="5000" step="10" inputmode="numeric"><span class="unit">per day</span></span></label>
+            <label class="setting"><div><b data-i18n="dash.settings.delay">Delay between blocks</b><span data-i18n="dash.settings.delayHint">How long to wait after each block. At least 2 seconds. Default: 4 seconds.</span></div><span class="field"><input name="delaySec" type="number" min="2" max="600" step="0.5" inputmode="decimal"><span class="unit" data-i18n="dash.unit.sec">s</span></span></label>
+            <label class="setting"><div><b data-i18n="dash.settings.jitter">Random extra delay</b><span data-i18n="dash.settings.jitterHint">Adds a random wait of up to this long, so blocks don't follow a fixed rhythm. Default: 4 seconds.</span></div><span class="field"><input name="jitterSec" type="number" min="0" max="600" step="0.5" inputmode="decimal"><span class="unit" data-i18n="dash.unit.sec">s</span></span></label>
+            <label class="setting"><div><b data-i18n="dash.settings.cooldown">Cooldown after rate limit</b><span data-i18n="dash.settings.cooldownHint">When X slows you down, blocking usually resumes as soon as X allows. If X doesn't say when, X Blocker waits this long, doubling each time up to 4 hours. Default: 15 minutes.</span></div><span class="field"><input name="cooldownMin" type="number" min="1" max="240" step="1" inputmode="numeric"><span class="unit" data-i18n="dash.unit.min">min</span></span></label>
+            <label class="setting"><div><b data-i18n="dash.settings.hourly">Hourly safety limit</b><span data-i18n="dash.settings.hourlyHint">The most blocks and unblocks in any hour. Spreading them out looks less automated. Default: 150. Set to 0 for no limit.</span></div><span class="field"><input name="hourlyCap" type="number" min="0" max="1000" step="10" inputmode="numeric"><span class="unit" data-i18n="dash.unit.perHour">per hour</span></span></label>
+            <label class="setting"><div><b data-i18n="dash.settings.daily">Daily safety limit</b><span data-i18n="dash.settings.dailyHint">The most blocks and unblocks in any 24 hours. X doesn't publish a limit, but some people get logged out after a few hundred blocks in a row. Default: 1,000. Set to 0 for no limit (not recommended).</span></div><span class="field"><input name="dailyCap" type="number" min="0" max="5000" step="10" inputmode="numeric"><span class="unit" data-i18n="dash.unit.perDay">per day</span></span></label>
           </div>
 
-          <h2>Data &amp; privacy</h2>
+          <h2 data-i18n="dash.settings.data">Data &amp; privacy</h2>
           <div class="card list">
-            <div class="setting"><div><b>Stored data</b><span>Everything stays in this browser. Nothing is sent anywhere except your own requests to X. X Blocker saves only the accounts you queue and block. Other accounts you see are kept in memory until the browser closes, to protect people you follow. Messages, notifications and settings pages are never read.</span></div>
-              <button id="wipe" type="button" class="btn btn-sm btn-danger-outline">Delete all data</button></div>
-            <div class="setting"><div><b>Restore default settings</b><span>Return every setting on this page to its default. Your Never block list, queue and history stay.</span></div>
-              <button id="reset-settings" type="button" class="btn btn-sm">Reset settings</button></div>
+            <div class="setting"><div><b data-i18n="dash.settings.stored">Stored data</b><span data-i18n="dash.settings.storedHint">Everything stays in this browser. Nothing is sent anywhere except your own requests to X. X Blocker saves only the accounts you queue and block. Other accounts you see are kept in memory until the browser closes, to protect people you follow. Messages, notifications and settings pages are never read.</span></div>
+              <button id="wipe" type="button" class="btn btn-sm btn-danger-outline" data-i18n="dash.settings.wipe">Delete all data</button></div>
+            <div class="setting"><div><b data-i18n="dash.settings.restore">Restore default settings</b><span data-i18n="dash.settings.restoreHint">Return every setting on this page to its default. Your Never block list, queue and history stay.</span></div>
+              <button id="reset-settings" type="button" class="btn btn-sm" data-i18n="dash.settings.reset">Reset settings</button></div>
           </div>
 
-          <h2>Diagnostics</h2>
+          <h2 data-i18n="dash.settings.diagnostics">Diagnostics</h2>
           <details class="card diag">
-            <summary><b>Activity log</b> <span class="muted">The last 300 events. Useful when something goes wrong.</span>
-              <span class="grow"></span><button id="l-clear" class="btn btn-xs" type="button">Clear</button></summary>
+            <summary><b data-i18n="dash.log.title">Activity log</b> <span class="muted" data-i18n="dash.log.hint">The last 300 events. Useful when something goes wrong.</span>
+              <span class="grow"></span><button id="l-clear" class="btn btn-xs" type="button" data-i18n="dash.log.clear">Clear</button></summary>
             <ol id="l-body" class="log"></ol>
           </details>
         </form>

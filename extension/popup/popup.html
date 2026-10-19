@@ -5,10 +5,18 @@
   <meta charset="utf-8">
   <title>X Blocker</title>
   <script src="../ui/tokens.js"></script>
+  <script src="../ui/i18n.js"></script>
+  <script src="../locales/en.js"></script>
+  <script src="../locales/ar.js"></script>
+  <script src="../locales/de.js"></script>
+  <script src="../locales/es.js"></script>
+  <script src="../locales/fa.js"></script>
+  <script src="../locales/fr.js"></script>
+  <script src="../locales/tr.js"></script>
   <link rel="stylesheet" href="../ui/common.css">
   <style>
     body { width: 340px; }
-    .head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-block-end: 1px solid var(--border); }
     .head img { border-radius: 8px; }
     .head h1 { font-size: 16px; font-weight: 800; }
     .content { padding: 16px; display: grid; gap: 16px; }
@@ -25,7 +33,7 @@
     .hint svg { fill: var(--muted); width: 20px; height: 20px; }
     .hint.error { background: var(--danger-soft); }
     .hint.error svg { fill: var(--danger); }
-    .foot { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-top: 1px solid var(--border); }
+    .foot { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-block-start: 1px solid var(--border); }
     .divider { height: 1px; background: var(--border); }
   </style>
   <script type="module" src="popup.js"></script>
@@ -34,58 +42,58 @@
   <header class="head">
     <img src="../icons/icon.svg" alt="" width="28" height="28">
     <h1 class="grow">X Blocker</h1>
-    <span id="status" class="status small">Idle</span>
+    <span id="status" class="status small" data-i18n="state.idle">Idle</span>
   </header>
 
   <div class="content">
     <div id="perm" class="hint error" hidden>
       <i data-icon="shield"></i>
       <div class="grow">
-        <p>X Blocker needs access to x.com to work.</p>
-        <button id="grant" class="btn btn-sm btn-primary" style="margin-top:8px">Grant access</button>
+        <p data-i18n="popup.needsAccess">X Blocker needs access to x.com to work.</p>
+        <button id="grant" class="btn btn-sm btn-primary" style="margin-block-start:8px" data-i18n="popup.grant">Grant access</button>
       </div>
     </div>
     <div id="error" class="hint error" hidden><i data-icon="block"></i><p id="error-text"></p></div>
 
     <!-- The queue -->
-    <section class="section" aria-label="Queue">
-      <span class="label">Queue</span>
+    <section class="section" aria-label="Queue" data-i18n-attr="aria-label:popup.queue">
+      <span class="label" data-i18n="popup.queue">Queue</span>
       <div class="row">
         <div class="grow">
-          <div id="now-title" class="now-title">Nothing waiting</div>
+          <div id="now-title" class="now-title" dir="auto" data-i18n="popup.nothingWaiting">Nothing waiting</div>
           <div id="now-detail" class="muted small"></div>
         </div>
-        <button id="start" class="btn btn-sm btn-danger" hidden><i data-icon="play"></i><span>Start</span></button>
-        <button id="pause" class="btn btn-sm" hidden><i data-icon="pause"></i><span>Pause</span></button>
+        <button id="start" class="btn btn-sm btn-danger" hidden><i data-icon="play"></i><span data-i18n="popup.start">Start</span></button>
+        <button id="pause" class="btn btn-sm" hidden><i data-icon="pause"></i><span data-i18n="popup.pause">Pause</span></button>
       </div>
       <div class="meter" id="now-meter"><span id="now-bar"></span></div>
     </section>
 
     <div class="limits">
-      <div class="limit"><div class="row"><span class="muted grow">This hour</span><b id="lim-hour"></b></div><div class="meter"><span id="lim-hour-bar"></span></div></div>
-      <div class="limit"><div class="row"><span class="muted grow">Last 24 h</span><b id="lim-day"></b></div><div class="meter"><span id="lim-day-bar"></span></div></div>
+      <div class="limit"><div class="row"><span class="muted grow" data-i18n="popup.thisHour">This hour</span><b id="lim-hour"></b></div><div class="meter"><span id="lim-hour-bar"></span></div></div>
+      <div class="limit"><div class="row"><span class="muted grow" data-i18n="popup.last24h">Last 24 h</span><b id="lim-day"></b></div><div class="meter"><span id="lim-day-bar"></span></div></div>
     </div>
 
     <div class="divider"></div>
 
     <!-- This tab -->
-    <section class="section" aria-label="This tab">
-      <span class="label">This tab</span>
+    <section class="section" aria-label="This tab" data-i18n-attr="aria-label:popup.thisTab">
+      <span class="label" data-i18n="popup.thisTab">This tab</span>
       <div id="tab-list" class="tab" hidden>
         <b id="tab-label"></b>
         <span id="tab-detail" class="muted small"></span>
         <div class="row">
-          <button id="tab-review" class="btn btn-sm btn-danger grow">Review</button>
-          <button id="tab-load" class="btn btn-sm grow">Load all</button>
+          <button id="tab-review" class="btn btn-sm btn-danger grow" data-i18n="popup.review">Review</button>
+          <button id="tab-load" class="btn btn-sm grow" data-i18n="popup.loadAll">Load all</button>
         </div>
       </div>
       <div id="tab-hint" class="hint" hidden><i data-icon="people"></i><p id="tab-hint-text"></p></div>
-      <button id="open-x" class="btn btn-sm" hidden>Open x.com</button>
+      <button id="open-x" class="btn btn-sm" hidden data-i18n="popup.openX">Open x.com</button>
     </section>
   </div>
 
   <footer class="foot">
-    <button id="dashboard" class="btn btn-sm btn-quiet">Open dashboard</button>
+    <button id="dashboard" class="btn btn-sm btn-quiet" data-i18n="popup.openDashboard">Open dashboard</button>
     <span id="version" class="muted small"></span>
   </footer>
 </body>

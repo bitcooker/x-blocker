@@ -2,7 +2,7 @@
 // Dashboard: Home (overview), Import, Batches, Queue, Blocked, Settings.
 import {
   h, icon, hydrateIcons, send, stateLabel, download, onStateChange, toast, confirmDialog,
-  fmtNum, fmtAgo, fmtDuration,
+  t, fmtNum, fmtAgo, fmtDuration,
 } from '../lib/dom.js'
 import { parseUserList, isQueued, itemKey, queueKeys, toCsv } from '../lib/user-list.js'
 import { browser } from '../lib/compat.js'
@@ -25,17 +25,15 @@ const ROUTES = Object.keys(NEEDS)
 let current = 'home'
 let filteredBlocked = []
 
-const nf = new Intl.NumberFormat()
-const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
-const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+const I18N = globalThis.XB_I18N
 
-function when(t) {
-  const d = new Date(t)
-  const today = new Date().toDateString() === d.toDateString()
-  return today ? `Today ${timeFmt.format(d)}` : `${dateFmt.format(d)} ${timeFmt.format(d)}`
+function when(at) {
+  const d = new Date(at)
+  const time = I18N.time(d)
+  return new Date().toDateString() === d.toDateString()
+    ? t('dash.today', { time })
+    : t('dash.dateTime', { date: I18N.date(d), time })
 }
-
-const plural = (n, word, many = `${word}s`) => `${fmtNum(n)} ${n === 1 ? word : many}`
 
 // Accounts known only by ID link to x.com/i/user/<id>, which X redirects to
 // the profile, so every row can be opened even before its @handle is known.
@@ -47,19 +45,19 @@ function profileUrl({ screenName, id }) {
 function accountCell(account) {
   const { screenName, name, avatar, id } = account
   const url = profileUrl(account)
-  const label = screenName ? `@${screenName}` : `ID ${id}`
+  const label = screenName ? `@${screenName}` : t('dash.accountId', { id })
   return h('div', { class: 'account' },
     avatar
       ? h('img', { class: 'avatar', src: avatar, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' })
       : h('div', { class: 'avatar' }),
     h('div', { class: 'meta' },
-      h('span', { class: 'name' }, name || label),
+      h('span', { class: 'name', dir: 'auto' }, name || label),
       url
         ? h('a', {
-          class: 'handle', href: url, target: '_blank', rel: 'noopener noreferrer',
-          title: screenName ? `Open @${screenName} on X` : `Open account ${id} on X`,
+          class: 'handle', dir: 'ltr', href: url, target: '_blank', rel: 'noopener noreferrer',
+          title: screenName ? t('dash.openHandle', { handle: `@${screenName}` }) : t('dash.openId', { id }),
         }, label)
-        : h('span', { class: 'handle' }, label)))
+        : h('span', { class: 'handle', dir: 'ltr' }, label)))
 }
 
 function emptyRow(cols, iconName, title, text) {
@@ -88,10 +86,10 @@ function moreFoot(el, key, total) {
   if (total <= shown[key]) return el.replaceChildren()
   const next = Math.min(PAGE[key], total - shown[key])
   el.replaceChildren(
-    h('span', {}, `Showing ${nf.format(shown[key])} of ${nf.format(total)}`),
+    h('span', {}, t('dash.showing', { shown: shown[key], total })),
     h('button', {
       class: 'btn btn-sm', onclick: () => { shown[key] += PAGE[key]; renderers[key]() },
-    }, `Show ${nf.format(next)} more`))
+    }, t('dash.showMore', { n: next })))
 }
 
 const meter = (el, value, max) => { el.style.width = max ? `${Math.min(100, (value / max) * 100)}%` : '0' }
@@ -109,12 +107,12 @@ function renderStatus() {
     $(id).textContent = label
     $(id).dataset.state = runner.state
   }
-  $('queue-left').textContent = counts.queue ? `${nf.format(counts.queue)} left` : ''
+  $('queue-left').textContent = counts.queue ? t('dash.mini.left', { n: counts.queue }) : ''
   meter($('mini-bar'), total - counts.queue, total)
-  $('n-waiting').textContent = counts.queue ? nf.format(counts.queue) : ''
-  $('n-blocked').textContent = counts.blocked ? nf.format(counts.blocked) : ''
+  $('n-waiting').textContent = counts.queue ? fmtNum(counts.queue) : ''
+  $('n-blocked').textContent = counts.blocked ? fmtNum(counts.blocked) : ''
 
-  const startLabel = runner.state === 'paused' ? 'Resume' : 'Start'
+  const startLabel = t(runner.state === 'paused' ? 'dash.resume' : 'dash.start')
   for (const [start, pause] of [['start', 'pause'], ['now-start', 'now-pause']]) {
     // Nothing to start when nothing waits: no dead button.
     $(start).hidden = active || counts.queue === 0
@@ -125,23 +123,22 @@ function renderStatus() {
   // Home: what is being worked on, and when it will be done.
   const head = data.queue?.[0]
   const batch = head && data.batches?.find((b) => b.id === head.batch)
-  $('now-title').textContent = counts.queue ? (batch?.source ?? 'Working through the queue') : 'Nothing waiting'
+  $('now-title').textContent = counts.queue ? (batch?.source ?? t('dash.now.working')) : t('dash.now.nothing')
   const parts = []
   if (counts.queue) {
-    parts.push(`${nf.format(total - counts.queue)} of ${nf.format(total)} done`)
-    if (runner.state !== 'paused' && runner.state !== 'error') parts.push(`${fmtDuration(counts.etaMs)} left`)
+    parts.push(t('dash.now.done', { done: total - counts.queue, total }))
+    if (runner.state !== 'paused' && runner.state !== 'error') parts.push(t('dash.now.left', { time: fmtDuration(counts.etaMs) }))
   }
-  if (runner.state === 'cooldown' || runner.state === 'error' || (runner.state === 'paused' && runner.message !== 'Paused')) {
+  if (runner.state === 'cooldown' || runner.state === 'error' || (runner.state === 'paused' && runner.message)) {
     parts.push(runner.message)
   }
-  $('now-detail').textContent = parts.filter(Boolean).join(' · ') ||
-    'Open a list on x.com, like someone\'s followers or the replies to a post, and press Review in the X Blocker panel.'
+  $('now-detail').textContent = parts.filter(Boolean).join(t('common.sep')) || t('dash.listHint')
   meter($('now-bar'), total - counts.queue, total)
   $('now-bar').parentElement.hidden = !counts.queue
 
   // Safety limits: why the queue may be waiting.
   const limit = (id, used, cap) => {
-    $(id).textContent = cap ? `${nf.format(used)} / ${nf.format(cap)}` : `${nf.format(used)} · no limit`
+    $(id).textContent = cap ? t('dash.limits.value', { used, cap }) : t('dash.limits.none', { used })
     meter($(`${id}-bar`), used, cap)
     $(`${id}-bar`).parentElement.className = `meter ${cap && used >= cap ? 'meter-warn' : ''}`
   }
@@ -150,20 +147,20 @@ function renderStatus() {
 
   const legacy = counts.legacyCollected
   $('legacy').hidden = !legacy
-  $('legacy-title').textContent = `${plural(legacy, 'account')} from your old Collected list`
+  $('legacy-title').textContent = t('dash.legacy.title', { n: legacy })
 }
 
 // ---- Batches & queue ------------------------------------------------------------
 
 function batchCounts(b) {
-  const verb = b.action === 'unblock' ? 'unblocked' : 'blocked'
+  const done = b.action === 'unblock' ? 'dash.batch.unblocked' : 'dash.batch.blocked'
   return [
-    b.done ? `${nf.format(b.done)} ${verb}` : '',
-    b.waiting ? `${nf.format(b.waiting)} waiting` : '',
-    b.skipped ? `${nf.format(b.skipped)} skipped` : '',
-    b.failed ? `${nf.format(b.failed)} failed` : '',
-    b.cancelled ? `${nf.format(b.cancelled)} cancelled` : '',
-  ].filter(Boolean).join(' · ') || 'Nothing processed'
+    b.done ? t(done, { n: b.done }) : '',
+    b.waiting ? t('dash.batch.waiting', { n: b.waiting }) : '',
+    b.skipped ? t('dash.batch.skipped', { n: b.skipped }) : '',
+    b.failed ? t('dash.batch.failed', { n: b.failed }) : '',
+    b.cancelled ? t('dash.batch.cancelled', { n: b.cancelled }) : '',
+  ].filter(Boolean).join(t('common.sep')) || t('dash.batch.nothing')
 }
 
 function renderBatches() {
@@ -175,33 +172,33 @@ function renderBatches() {
     const actions = []
     if (b.waiting) {
       actions.push(h('button', {
-        class: 'btn btn-xs', title: 'Stop blocking the accounts still waiting',
+        class: 'btn btn-xs', title: t('dash.batch.cancelHint'),
         onclick: () => cancelBatch(b),
-      }, b.waiting < b.total ? 'Cancel the rest' : 'Cancel'))
+      }, t(b.waiting < b.total ? 'dash.batch.cancelRest' : 'dash.batch.cancel')))
     }
     if (!undo && b.done) {
       actions.push(h('button', {
-        class: 'btn btn-xs', title: 'See who this batch blocked',
+        class: 'btn btn-xs', title: t('dash.batch.viewHint'),
         onclick: () => { $('b-batch').value = b.id; go('blocked') },
-      }, 'View'))
+      }, t('dash.batch.view')))
       actions.push(h('button', {
-        class: 'btn btn-xs', title: 'Unblock everyone this batch blocked',
+        class: 'btn btn-xs', title: t('dash.batch.undoHint'),
         onclick: () => undoBatch(b),
-      }, icon('undo'), 'Undo'))
+      }, icon('undo', 'i i-flip'), t('dash.batch.undo')))
     }
     if (finished) {
       actions.push(h('button', {
-        class: 'btn btn-xs btn-quiet btn-icon', title: 'Hide from this list. Accounts stay blocked.',
-        'aria-label': 'Remove from this list', onclick: () => action(() => send('batch:forget', { id: b.id })),
+        class: 'btn btn-xs btn-quiet btn-icon', title: t('dash.batch.hideHint'),
+        'aria-label': t('dash.batch.remove'), onclick: () => action(() => send('batch:forget', { id: b.id })),
       }, icon('close')))
     }
     return h('li', { class: 'batch', dataset: { state: b.waiting ? 'active' : 'done' } },
-      h('div', { class: 'batch-icon', dataset: { kind: undo ? 'undo' : 'block' } }, icon(undo ? 'undo' : 'block')),
+      h('div', { class: 'batch-icon', dataset: { kind: undo ? 'undo' : 'block' } }, icon(undo ? 'undo' : 'block', undo ? 'i i-flip' : 'i')),
       h('div', { class: 'batch-main' },
         h('div', { class: 'row' },
-          h('b', { class: 'batch-title', title: b.source }, b.source),
-          undo ? h('span', { class: 'tag tag-ok' }, 'Unblock') : null),
-        h('span', { class: 'muted small' }, `${when(b.createdAt)} · ${plural(b.total, 'account')}`),
+          h('b', { class: 'batch-title', title: b.source, dir: 'auto' }, b.source),
+          undo ? h('span', { class: 'tag tag-ok' }, t('dash.tag.unblock')) : null),
+        h('span', { class: 'muted small' }, t('dash.batch.meta', { when: when(b.createdAt), n: b.total })),
         h('div', { class: `meter ${tone}` }, h('span', {
           style: `width:${b.total ? ((b.total - b.waiting) / b.total) * 100 : 0}%`,
         })),
@@ -209,8 +206,7 @@ function renderBatches() {
       h('div', { class: 'batch-actions' }, actions))
   })
   if (!rows.length) {
-    rows.push(h('li', { class: 'batch-empty' }, emptyState('block', 'No batches yet',
-      'Open a list on x.com, like someone\'s followers or the replies to a post, and press Review in the X Blocker panel.')))
+    rows.push(h('li', { class: 'batch-empty' }, emptyState('block', t('dash.batches.empty'), t('dash.listHint'))))
   }
   $('batches').replaceChildren(...rows)
   moreFoot($('batches-more'), 'batches', list.length)
@@ -218,30 +214,30 @@ function renderBatches() {
 
 async function cancelBatch(b) {
   const started = b.waiting < b.total
-  const verb = b.action === 'unblock' ? 'unblocked' : 'blocked'
+  const unblock = b.action === 'unblock'
   if (!await confirmDialog({
-    title: started ? `Cancel the ${plural(b.waiting, 'waiting account')}?` : 'Cancel this batch?',
-    body: started ? `They won't be ${verb}. Accounts already done stay as they are.`
-      : `None of its ${plural(b.waiting, 'account')} will be ${verb}.`,
-    confirmLabel: started ? 'Cancel the rest' : 'Cancel batch',
-    cancelLabel: 'Keep going',
+    title: started ? t('dash.cancel.titleStarted', { n: b.waiting }) : t('dash.cancel.title'),
+    body: started ? t(unblock ? 'dash.cancel.bodyStartedUnblock' : 'dash.cancel.bodyStartedBlock')
+      : t(unblock ? 'dash.cancel.bodyUnblock' : 'dash.cancel.bodyBlock', { n: b.waiting }),
+    confirmLabel: t(started ? 'dash.batch.cancelRest' : 'dash.cancel.confirm'),
+    cancelLabel: t('dash.cancel.keep'),
   })) return
   action(async () => {
     const r = await send('batch:cancel', { id: b.id })
-    toast(`${plural(r.cancelled, 'account')} removed from the queue`)
+    toast(t('dash.cancel.done', { n: r.cancelled }))
   })
 }
 
 async function undoBatch(b) {
   if (!await confirmDialog({
-    title: `Undo “${b.source}”?`,
-    body: `Everyone this batch blocked will be unblocked, at the same pace as blocking.${b.waiting ? ' Accounts still waiting aren\'t affected. Use Cancel for those.' : ''}`,
-    confirmLabel: 'Unblock them',
+    title: t('dash.undo.title', { name: b.source }),
+    body: t(b.waiting ? 'dash.undo.bodyWaiting' : 'dash.undo.body'),
+    confirmLabel: t('dash.undo.confirm'),
   })) return
   action(async () => {
     const r = await send('batch:unblock', { id: b.id })
     if (r?.error) throw new Error(r.error)
-    toast(r.added ? `${plural(r.added, 'account')} queued for unblocking` : 'Nothing to unblock. These accounts are no longer blocked.')
+    toast(r.added ? t('dash.unblockQueued', { n: r.added }) : t('dash.undo.nothing'))
   })
 }
 
@@ -250,19 +246,18 @@ function renderWaiting() {
   const names = Object.fromEntries((data.batches ?? []).map((b) => [b.id, b.source]))
   $('q-actions').hidden = !queue.length
   const rows = queue.slice(0, shown.queue).map((item, i) => h('tr', {},
-    h('td', { class: 'when' }, i + 1),
+    h('td', { class: 'when' }, fmtNum(i + 1)),
     h('td', {}, accountCell(item)),
     h('td', {}, h('div', { class: 'tags' },
-      item.action === 'unblock' ? h('span', { class: 'tag tag-ok' }, 'Unblock') : null,
-      h('span', { class: 'tag source', title: names[item.batch] ?? item.source ?? '' }, names[item.batch] ?? item.source ?? 'Added here'))),
-    h('td', {}, item.tries ? h('span', { class: 'tag tag-warn' }, `${item.tries} failed`) : ''),
+      item.action === 'unblock' ? h('span', { class: 'tag tag-ok' }, t('dash.tag.unblock')) : null,
+      h('span', { class: 'tag source', dir: 'auto', title: names[item.batch] ?? item.source ?? '' }, names[item.batch] ?? item.source ?? t('dash.queue.addedHere')))),
+    h('td', {}, item.tries ? h('span', { class: 'tag tag-warn' }, t('dash.queue.tries', { n: item.tries })) : ''),
     h('td', { class: 'num' }, h('button', {
-      class: 'btn btn-sm btn-quiet btn-icon', title: 'Remove from queue', 'aria-label': 'Remove from queue',
+      class: 'btn btn-sm btn-quiet btn-icon', title: t('dash.queue.remove'), 'aria-label': t('dash.queue.remove'),
       onclick: () => action(() => send('queue:remove', { keys: [itemKey(item)] })),
     }, icon('close')))))
   if (!rows.length) {
-    rows.push(emptyRow(5, 'queue', 'Nothing waiting',
-      'Accounts you queue on x.com or import will appear here.'))
+    rows.push(emptyRow(5, 'queue', t('dash.now.nothing'), t('dash.queue.emptyText')))
   }
   $('q-body').replaceChildren(...rows)
   moreFoot($('q-more'), 'queue', queue.length)
@@ -273,29 +268,32 @@ function renderWaiting() {
 function renderHome() {
   const batches = data.batches ?? []
   const active = batches.filter((b) => b.waiting).length
-  $('s-batches').textContent = nf.format(batches.length)
-  $('s-batches-sub').textContent = active ? `${nf.format(active)} in progress`
-    : batches.length ? 'All done' : 'None yet'
+  $('s-batches').textContent = fmtNum(batches.length)
+  $('s-batches-sub').textContent = active ? t('dash.stat.inProgress', { n: active })
+    : t(batches.length ? 'dash.stat.allDone' : 'dash.stat.noneYet')
   const waiting = data.counts.queue
-  $('s-queue').textContent = nf.format(waiting)
-  $('s-queue-sub').textContent = waiting ? `${fmtDuration(data.counts.etaMs)} at this pace` : 'Nothing waiting'
-  $('s-blocked').textContent = nf.format(data.counts.blocked)
+  $('s-queue').textContent = fmtNum(waiting)
+  $('s-queue-sub').textContent = waiting ? t('dash.stat.atPace', { time: fmtDuration(data.counts.etaMs) }) : t('dash.now.nothing')
+  $('s-blocked').textContent = fmtNum(data.counts.blocked)
 }
 
 // ---- Blocked ----------------------------------------------------------------------
 
 function batchLabel(b) {
-  return `${b.source} · ${when(b.createdAt)}`
+  return t('dash.batch.label', { name: b.source, when: when(b.createdAt) })
 }
 
 function syncBatchFilter() {
   const select = $('b-batch')
   const batches = (data.batches ?? []).filter((b) => b.action !== 'unblock' && b.done)
-  const options = [['', 'All batches'], ...batches.map((b) => [b.id, batchLabel(b)]), ['seen', 'Already blocked on X'], ['none', 'Not in a batch']]
-  const sig = options.map(([v, t]) => `${v}=${t}`).join('\n')
+  const options = [
+    ['', t('dash.blocked.allBatches')], ...batches.map((b) => [b.id, batchLabel(b)]),
+    ['seen', t('dash.blocked.seen')], ['none', t('dash.blocked.none')],
+  ]
+  const sig = options.map(([v, label]) => `${v}=${label}`).join('\n')
   if (select.dataset.sig === sig) return
   const value = select.value
-  select.replaceChildren(...options.map(([v, t]) => h('option', { value: v }, t)))
+  select.replaceChildren(...options.map(([v, label]) => h('option', { value: v }, label)))
   select.value = options.some(([v]) => v === value) ? value : ''
   select.dataset.sig = sig
 }
@@ -320,16 +318,16 @@ function renderBlocked() {
     const pending = isQueued(b, queued)
     const box = h('input', {
       type: 'checkbox', checked: selected.has(b.id), disabled: pending,
-      'aria-label': `Select ${b.screenName ? `@${b.screenName}` : b.id}`,
+      'aria-label': t('dash.blocked.select', { name: b.screenName ? `@${b.screenName}` : b.id }),
     })
-    const source = b.source === 'seen' ? 'Already blocked on X' : names[b.batch] ?? b.reason ?? 'Imported'
+    const source = b.source === 'seen' ? t('dash.blocked.seen') : names[b.batch] ?? b.reason ?? t('dash.blocked.imported')
     const tr = h('tr', { class: selected.has(b.id) ? 'selected' : '' },
       h('td', {}, box),
       h('td', {}, accountCell(b)),
       h('td', {}, h('div', { class: 'tags' },
-        pending ? h('span', { class: 'tag tag-ok' }, 'Unblocking') : null,
-        h('span', { class: b.source === 'seen' ? 'tag' : 'tag source', title: source }, source))),
-      h('td', { class: 'when', title: new Date(b.at).toLocaleString() }, fmtAgo(b.at)))
+        pending ? h('span', { class: 'tag tag-ok' }, t('dash.blocked.unblocking')) : null,
+        h('span', { class: b.source === 'seen' ? 'tag' : 'tag source', dir: 'auto', title: source }, source))),
+      h('td', { class: 'when', title: I18N.dateTime(b.at) }, fmtAgo(b.at)))
     box.addEventListener('change', () => {
       box.checked ? selected.add(b.id) : selected.delete(b.id)
       tr.classList.toggle('selected', box.checked)
@@ -345,8 +343,8 @@ function renderBlocked() {
   })
   if (!rows.length) {
     rows.push(Object.keys(data.blocked).length
-      ? emptyRow(4, 'search', 'No matches', 'Try another search or batch.')
-      : emptyRow(4, 'block', 'No blocks yet', 'Accounts you block will appear here.'))
+      ? emptyRow(4, 'search', t('dash.blocked.noMatches'), t('dash.blocked.tryAnother'))
+      : emptyRow(4, 'block', t('dash.blocked.empty'), t('dash.blocked.emptyText')))
   }
   $('b-body').replaceChildren(...rows)
   moreFoot($('b-more'), 'blocked', filteredBlocked.length)
@@ -365,9 +363,10 @@ function updateSelection() {
   box.checked = n > 0 && all.every((b) => selected.has(b.id))
   box.indeterminate = n > 0 && !box.checked
   box.disabled = all.length === 0
-  $('b-selected').textContent = n ? `${nf.format(n)} selected` : `Select all ${all.length ? nf.format(all.length) : ''}`.trim()
+  $('b-selected').textContent = n ? t('dash.blocked.selected', { n })
+    : all.length ? t('dash.blocked.selectAllN', { n: all.length }) : t('dash.blocked.selectAll')
   $('b-unblock').disabled = n === 0
-  $('b-unblock').textContent = n ? `Unblock ${nf.format(n)}` : 'Unblock'
+  $('b-unblock').textContent = n ? t('dash.blocked.unblockN', { n }) : t('dash.blocked.unblock')
   $('b-selection').classList.toggle('active', n > 0)
 }
 
@@ -396,17 +395,18 @@ function renderSettings() {
 
 function renderLog() {
   const items = [...(data.log ?? [])].reverse().map((l) => h('li', { dataset: { level: l.level } },
-    h('time', { datetime: new Date(l.at).toISOString(), title: new Date(l.at).toLocaleString() },
-      new Date(l.at).toLocaleTimeString()),
+    h('time', { datetime: new Date(l.at).toISOString(), title: I18N.dateTime(l.at) },
+      I18N.time(l.at)),
     h('span', { class: 'dot' }),
     h('span', {}, l.text)))
-  if (!items.length) items.push(h('li', { class: 'log-empty muted' }, 'No activity yet.'))
+  if (!items.length) items.push(h('li', { class: 'log-empty muted' }, t('dash.log.empty')))
   $('l-body').replaceChildren(...items)
 }
 
 function readSettings() {
   const f = $('settings').elements
   return {
+    language: f.language.value,
     blockButtons: f.blockButtons.value,
     // Delays are edited in seconds and stored in milliseconds.
     delayMs: Math.max(2000, Math.round((Number(f.delaySec.value) || 0) * 1000)),
@@ -427,7 +427,7 @@ function saveSettings(immediate) {
   saveTimer = setTimeout(async () => {
     try {
       await send('settings:set', { patch: readSettings() })
-      toast('Settings saved', { timeout: 1500 })
+      toast(t('dash.settings.saved'), { timeout: 1500 })
     } catch (e) {
       toast(e, { error: true })
     }
@@ -436,7 +436,23 @@ function saveSettings(immediate) {
 
 $('settings').addEventListener('focusin', (e) => { if (!e.target.closest('summary, button')) editingSettings = true })
 $('settings').addEventListener('focusout', () => { editingSettings = false })
-$('settings').addEventListener('change', (e) => saveSettings(e.target.type === 'checkbox' || e.target.type === 'radio'))
+$('settings').addEventListener('change', (e) => {
+  saveSettings(e.target.type === 'checkbox' || e.target.type === 'radio' || e.target.name === 'language')
+  if (e.target.name === 'language') applyLanguage(e.target.value)
+})
+
+// Switches the page's language in place: static text, then everything drawn by script.
+let languagePref = (() => { try { return localStorage.getItem('xb-language') ?? 'auto' } catch { return 'auto' } })()
+function applyLanguage(pref) {
+  if (pref === languagePref) return
+  languagePref = pref
+  I18N.setLanguage(pref)
+  I18N.localize()
+  delete $('b-batch').dataset.sig
+  updateImportPreview()
+  go(current)
+}
+
 $('settings').addEventListener('submit', (e) => e.preventDefault())
 
 // ---- routing & refresh ---------------------------------------------------------------
@@ -452,6 +468,8 @@ async function refresh(changed) {
   const keys = changed ? needs.filter((k) => changed.includes(k) || (k === 'batches' && changed.includes('queue'))) : needs
   const res = await send('data:get', { keys })
   data = { queue: [], blocked: {}, log: [], batches: [], ...data, ...res }
+  // The language may also have been changed in the popup.
+  if (data.settings?.language) applyLanguage(data.settings.language)
   renderStatus()
   if (!changed || keys.length || current === 'settings') renderers[current]()
 }
@@ -465,10 +483,15 @@ function go(name) {
   for (const s of document.querySelectorAll('main .panel')) s.hidden = s.id !== `tab-${current}`
   if (data) refresh().catch((e) => toast(e, { error: true }))
   history.replaceState(null, '', `#${current}`)
-  document.title = `${document.querySelector(`#tab-${current} h1`).textContent} · X Blocker`
+  // Tab titles render as plain text: drop the bidi isolation marks around the page name.
+  document.title = t('dash.title', { page: document.querySelector(`#tab-${current} h1`).textContent }).replace(/[\u2068\u2069]/g, '')
 }
 
+I18N.localize()
 hydrateIcons()
+for (const [code, name] of Object.entries(I18N.LANGUAGES)) {
+  $('settings').elements.language.append(h('option', { value: code, lang: code }, name))
+}
 $('version').textContent = `v${browser.runtime.getManifest().version}`
 for (const b of document.querySelectorAll('#tabs .nav-item')) b.addEventListener('click', () => go(b.dataset.tab))
 for (const b of document.querySelectorAll('[data-go]')) b.addEventListener('click', () => go(b.dataset.go))
@@ -480,22 +503,22 @@ for (const id of ['pause', 'now-pause']) $(id).addEventListener('click', () => a
 
 $('legacy-queue').addEventListener('click', () => action(async () => {
   const r = await send('legacy:queue')
-  toast(`${plural(r.added, 'account')} added to the queue${r.skipped ? `. ${nf.format(r.skipped)} were already queued or blocked.` : ''}`)
+  toast(t(r.skipped ? 'dash.legacy.addedSkipped' : 'dash.legacy.added', { n: r.added, skipped: r.skipped }))
 }))
 $('legacy-discard').addEventListener('click', async () => {
   if (await confirmDialog({
-    title: 'Discard the old Collected list?',
-    body: 'X Blocker will forget these accounts. Nobody is blocked or unblocked.',
-    confirmLabel: 'Discard',
+    title: t('dash.legacy.discardTitle'),
+    body: t('dash.legacy.discardBody'),
+    confirmLabel: t('dash.legacy.discard'),
   })) action(() => send('legacy:discard'))
 })
 
 $('q-clear').addEventListener('click', async (e) => {
   e.preventDefault()
   if (await confirmDialog({
-    title: 'Clear the queue?',
-    body: `${plural(data.queue.length, 'account')} will be removed from the queue. Blocks already done stay.`,
-    confirmLabel: 'Clear the queue',
+    title: t('dash.queue.clearTitle'),
+    body: t('dash.queue.clearBody', { n: data.queue.length }),
+    confirmLabel: t('dash.queue.clearConfirm'),
   })) action(() => send('queue:clear'))
 })
 $('q-export').addEventListener('click', (e) => {
@@ -505,9 +528,9 @@ $('q-export').addEventListener('click', (e) => {
 
 function updateImportPreview() {
   const n = parseUserList($('i-text').value).length
-  $('i-preview').textContent = n ? `${plural(n, 'account')} recognised` : ''
+  $('i-preview').textContent = n ? t('dash.import.recognised', { n }) : ''
   $('i-add').disabled = n === 0
-  $('i-add').textContent = n ? `Add ${nf.format(n)} to the queue` : 'Add to queue'
+  $('i-add').textContent = n ? t('dash.import.addN', { n }) : t('dash.import.add')
 }
 $('i-text').addEventListener('input', updateImportPreview)
 $('i-file').addEventListener('change', async (e) => {
@@ -520,13 +543,13 @@ $('i-file').addEventListener('change', async (e) => {
 })
 $('i-add').addEventListener('click', () => action(async () => {
   const items = parseUserList($('i-text').value)
-  if (!items.length) throw new Error('No @handles or IDs found. Check the list and try again.')
-  const source = $('i-name').value.trim() || 'Imported list'
+  if (!items.length) throw new Error(t('dash.import.noneFound'))
+  const source = $('i-name').value.trim() || t('dash.import.defaultName')
   const r = await send('queue:add', { source, items: items.map((it) => ({ ...it, source })) })
   $('i-text').value = ''
   $('i-name').value = ''
   updateImportPreview()
-  toast(`${plural(r.added, 'account')} added as “${source}”${r.skipped ? `. ${nf.format(r.skipped)} were already queued or blocked.` : ''}`)
+  toast(t(r.skipped ? 'dash.import.addedSkipped' : 'dash.import.added', { n: r.added, name: source, skipped: r.skipped }))
   go('home')
 }))
 
@@ -545,46 +568,44 @@ $('b-unblock').addEventListener('click', async () => {
   if (!items.length) return
   const n = items.length
   if (!await confirmDialog({
-    title: `Unblock ${plural(n, 'account')}?`,
-    body: 'They will be unblocked at the same pace as blocking. ' +
-      'Until then, you can pause or remove them on the Queue page.',
-    confirmLabel: 'Unblock',
+    title: t('dash.blocked.unblockTitle', { n }),
+    body: t('dash.blocked.unblockBody'),
+    confirmLabel: t('dash.blocked.unblock'),
   })) return
   action(async () => {
-    const r = await send('blocked:unblock', { items, source: `Unblock ${plural(n, 'selected account')}` })
+    const r = await send('blocked:unblock', { items, source: t('dash.blocked.unblockSource', { n }) })
     if (r?.error) throw new Error(r.error)
     selected.clear()
-    toast(`${plural(r.added, 'account')} queued for unblocking${r.skipped ? `. ${nf.format(r.skipped)} skipped.` : ''}`)
+    toast(t(r.skipped ? 'dash.unblockQueuedSkipped' : 'dash.unblockQueued', { n: r.added, skipped: r.skipped }))
   })
 })
 $('b-export').addEventListener('click', () =>
   download('x-blocker-blocked.csv', toCsv(blockedList(), ['id', 'screenName', 'name', 'at', 'reason'])))
 $('b-clear').addEventListener('click', async () => {
   if (await confirmDialog({
-    title: 'Clear block history?',
-    body: 'X Blocker will forget its history and finished batches. Nobody is unblocked on X, but you won\'t be able to undo those batches anymore.',
-    confirmLabel: 'Clear history',
+    title: t('dash.blocked.clearTitle'),
+    body: t('dash.blocked.clearBody'),
+    confirmLabel: t('dash.blocked.clear'),
   })) action(() => send('blocked:clear'))
 })
 $('l-clear').addEventListener('click', (e) => { e.preventDefault(); action(() => send('log:clear')) })
 $('reset-settings').addEventListener('click', async () => {
   if (await confirmDialog({
-    title: 'Reset all settings?',
-    body: 'Every setting returns to its default. Your Never block list, queue and history stay.',
-    confirmLabel: 'Reset settings',
+    title: t('dash.settings.resetTitle'),
+    body: t('dash.settings.resetBody'),
+    confirmLabel: t('dash.settings.reset'),
   })) {
     clearTimeout(saveTimer)
     editingSettings = false
     await action(() => send('settings:reset'))
-    toast('Settings reset', { timeout: 1500 })
+    toast(t('dash.settings.resetDone'), { timeout: 1500 })
   }
 })
 $('wipe').addEventListener('click', async () => {
   if (await confirmDialog({
-    title: 'Delete all X Blocker data?',
-    body: 'This erases the queue, batches, history and activity log from this browser. ' +
-      'Your settings stay, and nobody is unblocked on X.',
-    confirmLabel: 'Delete everything',
+    title: t('dash.settings.wipeTitle'),
+    body: t('dash.settings.wipeBody'),
+    confirmLabel: t('dash.settings.wipeConfirm'),
   })) action(() => send('data:wipe'))
 })
 

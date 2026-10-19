@@ -28,8 +28,8 @@ svg.i { width: 20px; height: 20px; fill: currentColor; flex: none; }
 .input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 textarea.input { min-height: 180px; resize: vertical; font: 14px/20px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .search { position: relative; }
-.search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; fill: var(--muted); }
-.search .input { border-radius: 9999px; padding-left: 42px; background: var(--bg-subtle); border-color: transparent; }
+.search svg { position: absolute; inset-inline-start: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; fill: var(--muted); }
+.search .input { border-radius: 9999px; padding-inline-start: 42px; background: var(--bg-subtle); border-color: transparent; }
 .search .input:focus { background: var(--bg); }
 
 /* Checkbox & switch */
@@ -37,9 +37,10 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex: none; }
 .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
 .switch span { position: absolute; inset: 0; border-radius: 9999px; background: var(--border-strong); transition: background-color .2s; cursor: pointer; }
-.switch span::after { content: ""; position: absolute; width: 20px; height: 20px; left: 2px; top: 2px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.switch span::after { content: ""; position: absolute; width: 20px; height: 20px; inset-inline-start: 2px; top: 2px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 .switch input:checked + span { background: var(--accent); }
 .switch input:checked + span::after { transform: translateX(20px); }
+[dir=rtl] .switch input:checked + span::after { transform: translateX(-20px); }
 .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Chips (filter toggles) */
@@ -69,3 +70,6 @@ dialog.modal h2 { font-size: 20px; line-height: 24px; font-weight: 800; margin-b
 dialog.modal p { color: var(--muted); margin-bottom: 24px; }
 dialog.modal .actions { display: grid; gap: 12px; }
 
+
+/* User data (names, batch titles) takes its own direction but keeps the page's alignment. */
+[dir="auto"] { text-align: match-parent; }

@@ -33,6 +33,13 @@ test/                      node:test unit and DOM tests
 The background script is the only writer of state. The queue removes an account
 only after X confirms the block.
 
+## Translations
+
+UI strings live in `extension/locales/<lang>.js`, with English (`en.js`) as the
+source. See [extension/locales/README.md](extension/locales/README.md) for the
+format and how to add a language. Corrections from native speakers are very
+welcome; `npm test` checks that every language is complete.
+
 ## Release (maintainers)
 
 ```sh

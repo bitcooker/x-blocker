@@ -28,10 +28,11 @@ globalThis.browser = {
   },
   storage: { local: area('local'), session: area('session') },
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
-  tabs: { query: async () => [], sendMessage: async () => {}, onRemoved: { addListener() {} } },
+  tabs: { query: async () => [], sendMessage: async () => {}, onRemoved: { addListener: (f) => { onRemoved = f } } },
   alarms: { create() {}, clear: async () => true, onAlarm: { addListener: (f) => { onAlarm = f } } },
 }
 let onAlarm = null
+let onRemoved = null
 
 let instance = 0
 // Fresh background instance on top of the given stored state.
@@ -390,5 +391,22 @@ test('a cooldown that is still running is left alone', async () => {
   onAlarm({ name: 'runner-watch' })
   await sleep(20)
   assert.deepEqual(sent, [])
+  browser.tabs.sendMessage = async () => {}
+})
+
+test('runner messages follow the language setting', async () => {
+  globalThis.XB_LOCALES.fa ??= {}
+  globalThis.XB_LOCALES.fa['bg.msg.tabClosed'] = 'FA: tab closed'
+  browser.tabs.sendMessage = async () => { throw new Error('no receiver') }
+  browser.tabs.query = async () => []
+  await boot({
+    settings: { version: 6, language: 'fa' },
+    runner: { state: 'running', tabId: 7, token: 't', lastBeat: Date.now() },
+    queue: [{ id: '5', addedAt: 1, tries: 0 }],
+  })
+  onRemoved(7)
+  await sleep(50)
+  assert.equal(store.local.runner.message, 'FA: tab closed')
+  await boot({ settings: { version: 6 } })
   browser.tabs.sendMessage = async () => {}
 })

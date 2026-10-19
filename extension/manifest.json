@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "X Blocker",
+  "name": "__MSG_extName__",
   "short_name": "X Blocker",
   "version": "0.4.1",
-  "description": "Block whole lists of X (Twitter) accounts from followers, likes, replies, searches or imports. Review first, undo anytime, private.",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
   "homepage_url": "https://github.com/bitcooker/x-blocker",
   "browser_specific_settings": {
     "gecko": {
@@ -69,13 +70,21 @@
       ],
       "js": [
         "ui/tokens.js",
+        "ui/i18n.js",
+        "locales/en.js",
+        "locales/ar.js",
+        "locales/de.js",
+        "locales/es.js",
+        "locales/fa.js",
+        "locales/fr.js",
+        "locales/tr.js",
         "content/page-ui.js"
       ],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_title": "X Blocker",
+    "default_title": "__MSG_extName__",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",

@@ -36,6 +36,10 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   dashboard has a Home overview and pages for Import, Batches, Queue, Blocked
   and Settings. **Details** in the panel on x.com opens the queue there.
 
+- **In your language.** English, فارسی (Persian), العربية (Arabic), Deutsch,
+  Español, Français and Türkçe, with full right-to-left layouts for Persian
+  and Arabic. It follows your browser's language, or pick one in Settings.
+
 ## Safety
 
 - **Stays under X's limits.** Safety limits (150 blocks per hour and 1,000 per
