@@ -393,7 +393,7 @@
   'bg.source.oldCollected': 'Tu antigua lista Recopiladas',
   'bg.source.undoOf': 'Deshacer: {source}',
   'bg.source.undo': 'Deshacer',
-  'bg.err.openX': 'Abre x.com y pulsa Reanudar.',
+  'bg.err.openX': 'Abre x.com y el bloqueo continuará solo.',
   'bg.err.unreachable': 'No se pudo conectar con la pestaña de x.com. Recárgala e inténtalo de nuevo.',
   'bg.err.loggedOut': 'No has iniciado sesión en x.com.',
   'bg.err.generic': 'Algo salió mal. Pulsa Reanudar para intentarlo de nuevo.',
@@ -416,6 +416,6 @@
   'bg.msg.limitLookups': 'X está limitando las consultas de cuentas. Se reanuda a las {time}',
   'bg.msg.limitBlocks': 'X está limitando los bloqueos. Se reanuda a las {time}',
   'bg.msg.cantContinue': 'No se pudo continuar en una pestaña de x.com. {error}',
-  'bg.msg.tabClosed': 'Se cerró la pestaña de x.com. Abre x.com y pulsa Reanudar.',
+  'bg.msg.tabClosed': 'Se cerró la pestaña de x.com. Abre x.com y el bloqueo continuará solo.',
   // [end background]
 }

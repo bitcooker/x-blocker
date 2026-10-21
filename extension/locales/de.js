@@ -390,7 +390,7 @@
   'bg.source.oldCollected': 'Deine alte Sammelliste',
   'bg.source.undoOf': 'Rückgängig: {source}',
   'bg.source.undo': 'Rückgängig',
-  'bg.err.openX': 'Öffne x.com und tippe auf Fortsetzen.',
+  'bg.err.openX': 'Öffne x.com, dann geht das Blockieren von selbst weiter.',
   'bg.err.unreachable': 'Der x.com-Tab war nicht erreichbar. Lade ihn neu und versuch es noch mal.',
   'bg.err.loggedOut': 'Du bist nicht bei x.com angemeldet.',
   'bg.err.generic': 'Etwas ist schiefgelaufen. Tippe auf Fortsetzen, um es noch mal zu versuchen.',
@@ -413,6 +413,6 @@
   'bg.msg.limitLookups': 'X begrenzt Account-Abfragen. Weiter um {time}',
   'bg.msg.limitBlocks': 'X begrenzt Blockierungen. Weiter um {time}',
   'bg.msg.cantContinue': 'Konnte in keinem x.com-Tab weitermachen. {error}',
-  'bg.msg.tabClosed': 'Der x.com-Tab wurde geschlossen. Öffne x.com und tippe auf Fortsetzen.',
+  'bg.msg.tabClosed': 'Der x.com-Tab wurde geschlossen. Öffne x.com, dann geht das Blockieren von selbst weiter.',
   // [end background]
 }

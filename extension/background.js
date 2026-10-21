@@ -560,26 +560,50 @@ function runnerAlive(r) {
   return Date.now() - since < STALE_MS
 }
 
+// A message to a frozen tab is held until the tab wakes, which can be never:
+// every message the runner depends on gets a deadline.
+function tabMessage(tabId, msg, ms = 5_000) {
+  return Promise.race([
+    browser.tabs.sendMessage(tabId, msg).catch(() => null),
+    new Promise((r) => setTimeout(() => r(null), ms)),
+  ])
+}
+
+// Discarded and frozen tabs can't run anything until the user returns to them.
+const asleep = (t) => t.discarded || t.frozen
+
+async function xTabs(preferredId) {
+  const tabs = await browser.tabs.query({ url: 'https://x.com/*' }).catch(() => [])
+  const rank = (t) => (t.id === preferredId ? 0 : 1) + (asleep(t) ? 4 : 0) + (t.active ? 0 : 2)
+  return tabs.sort((a, b) => rank(a) - rank(b))
+}
+
 async function findXTab(preferredId) {
-  if (preferredId != null) {
-    const tab = await browser.tabs.get(preferredId).catch(() => null)
-    if (tab?.url?.startsWith('https://x.com/')) return tab
-  }
-  const tabs = await browser.tabs.query({ url: 'https://x.com/*' })
-  return tabs.find((t) => t.active) ?? tabs[0] ?? null
+  return (await xTabs(preferredId))[0] ?? null
 }
 
 async function pingTab(tabId, attempts = 1) {
   for (let i = 0; i < attempts; i++) {
-    const res = await browser.tabs.sendMessage(tabId, { type: 'tab:ping' }).catch(() => null)
+    const res = await tabMessage(tabId, { type: 'tab:ping' })
     if (res) return res
     await new Promise((r) => setTimeout(r, 1000))
   }
   return null
 }
 
+// Recovery: the first x.com tab that answers. If none does (all asleep or
+// stuck), the run's own tab is reloaded once, which wakes it.
+async function reachableTab(preferredId) {
+  const tabs = await xTabs(preferredId)
+  for (const tab of tabs) if (await pingTab(tab.id, asleep(tab) ? 1 : 3)) return tab
+  const own = tabs.find((t) => t.id === preferredId) ?? tabs[0]
+  if (!own) return null
+  await browser.tabs.reload(own.id).catch(() => {})
+  return (await pingTab(own.id, 30)) ? own : null
+}
+
 async function startRunner(preferredTabId, { recover = false } = {}) {
-  let tab = await findXTab(preferredTabId)
+  let tab = recover ? await reachableTab(preferredTabId) : await findXTab(preferredTabId)
   // Recovering never opens tabs on its own: the user may have closed x.com on purpose.
   if (!tab && recover) throw new Error(t('bg.err.openX'))
   if (!tab) tab = await browser.tabs.create({ url: 'https://x.com/home', active: false })
@@ -593,7 +617,7 @@ async function startRunner(preferredTabId, { recover = false } = {}) {
     // Moving a run to another tab must not cut a cooldown short.
     const waiting = recover && s.runner.state === 'cooldown' && Date.now() < s.runner.cooldownUntil
     Object.assign(s.runner, {
-      tabId: tab.id, token, lastBeat: Date.now(),
+      tabId: tab.id, token, lastBeat: Date.now(), autoPaused: false,
       ...(waiting ? {} : { state: 'running', cooldownUntil: 0, message: '', limit: '' }),
       ...(resume ? {} : { done: 0, unblocked: 0, failed: 0, skipped: 0, strikes: 0 }),
     })
@@ -601,7 +625,7 @@ async function startRunner(preferredTabId, { recover = false } = {}) {
     updateBadge(s)
     await save('runner', 'log')
   })
-  await browser.tabs.sendMessage(tab.id, { type: 'tab:run', token })
+  await tabMessage(tab.id, { type: 'tab:run', token })
 }
 
 function nextItem(s, token) {
@@ -878,6 +902,7 @@ const uiHandlers = {
       s.runner.state = 'paused'
       // A pause the user asked for needs no explanation; other pauses carry their reason.
       s.runner.message = ''
+      s.runner.autoPaused = false
       log(s, 'info', t('state.paused'))
     }
     return summary(s)
@@ -1054,19 +1079,33 @@ function runnerStuck(r) {
   return !runnerAlive(r) || (r.state === 'cooldown' && Date.now() >= r.cooldownUntil + 5_000)
 }
 
+// A run X Blocker paused itself (no x.com tab could take it) is retried every
+// couple of minutes, so it continues once a tab is back. Only the user's own
+// Pause stops it for good.
+const RETRY_PAUSED_MS = 2 * 60_000
+let lastRetry = 0
+
 async function reviveRunner(force) {
-  const r = (await load()).runner
+  const s0 = await load()
+  const r = s0.runner
+  if (r.state === 'paused' && r.autoPaused && s0.queue.length && Date.now() - lastRetry > RETRY_PAUSED_MS) {
+    lastRetry = Date.now()
+    await startRunner(r.tabId, { recover: true }).catch(() => {})
+    return
+  }
   if (r.state !== 'running' && r.state !== 'cooldown') return
   if (!force && !runnerStuck(r)) return
   // Same tab, same token: wakes a sleeping loop or starts a stopped one.
-  const res = await browser.tabs.sendMessage(r.tabId, { type: 'tab:run', token: r.token }).catch(() => null)
+  const res = await tabMessage(r.tabId, { type: 'tab:run', token: r.token })
   if (res?.ok) return
   try {
-    await startRunner(undefined, { recover: true })
+    await startRunner(r.tabId, { recover: true })
   } catch (e) {
+    lastRetry = Date.now()
     await exclusive((s) => {
       if (s.runner.state !== 'running' && s.runner.state !== 'cooldown') return
       s.runner.state = 'paused'
+      s.runner.autoPaused = true
       s.runner.message = t('bg.msg.cantContinue', { error: String(e.message ?? e) })
       log(s, 'warn', s.runner.message)
       updateBadge(s)
@@ -1118,6 +1157,7 @@ browser.tabs.onRemoved.addListener((tabId) => {
         return
       }
       s.runner.state = 'paused'
+      s.runner.autoPaused = true
       s.runner.message = t('bg.msg.tabClosed')
       log(s, 'warn', s.runner.message)
       updateBadge(s)

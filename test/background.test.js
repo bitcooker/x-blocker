@@ -376,8 +376,72 @@ test('a run that cannot continue anywhere is paused for every view', async () =>
   onAlarm({ name: 'runner-watch' })
   await sleep(50)
   assert.equal(store.local.runner.state, 'paused')
-  assert.match(store.local.runner.message, /Open x\.com and press Resume/)
+  assert.equal(store.local.runner.autoPaused, true)
+  assert.match(store.local.runner.message, /Open x\.com and blocking continues by itself/)
   browser.tabs.sendMessage = async () => {}
+})
+
+test('a run stuck in a frozen tab moves to a tab that answers, and the supervisor never hangs', async () => {
+  const runs = []
+  // Tab 7 is frozen: messages to it never settle. Tab 9 answers.
+  browser.tabs.sendMessage = (tabId, msg) => {
+    if (tabId === 7) return new Promise(() => {})
+    if (msg.type === 'tab:ping') return Promise.resolve({ ok: true, loggedIn: true })
+    runs.push([tabId, msg.type])
+    return Promise.resolve({ ok: true })
+  }
+  browser.tabs.query = async () => [{ id: 7, frozen: true, url: 'https://x.com/a' }, { id: 9, url: 'https://x.com/b' }]
+  await boot({
+    settings: { version: 6 },
+    runner: { state: 'running', tabId: 7, token: 't', lastBeat: Date.now() - 600_000 },
+    queue: [{ id: '5', addedAt: 1, tries: 0 }],
+  })
+  onAlarm({ name: 'runner-watch' })
+  await sleep(5_300)
+  assert.deepEqual(runs.filter(([, type]) => type === 'tab:run'), [[9, 'tab:run']])
+  assert.equal(store.local.runner.tabId, 9)
+  assert.equal(store.local.runner.state, 'running')
+  browser.tabs.sendMessage = async () => {}
+  browser.tabs.query = async () => []
+})
+
+test('a run paused because no tab could take it continues once x.com is back', async () => {
+  const runs = []
+  browser.tabs.sendMessage = async (tabId, msg) => {
+    if (msg.type === 'tab:ping') return { ok: true, loggedIn: true }
+    if (msg.type === 'tab:run') runs.push(tabId)
+    return { ok: true }
+  }
+  browser.tabs.query = async () => [{ id: 11, url: 'https://x.com/home' }]
+  await boot({
+    settings: { version: 6 },
+    runner: { state: 'paused', autoPaused: true, tabId: 7, message: 'x' },
+    queue: [{ id: '5', addedAt: 1, tries: 0 }],
+  })
+  onAlarm({ name: 'runner-watch' })
+  await sleep(50)
+  assert.deepEqual(runs, [11])
+  assert.equal(store.local.runner.state, 'running')
+  browser.tabs.sendMessage = async () => {}
+  browser.tabs.query = async () => []
+})
+
+test('a pause the user asked for is never resumed on its own', async () => {
+  const runs = []
+  browser.tabs.sendMessage = async (tabId, msg) => { if (msg.type !== 'tab:ping') runs.push(tabId); return { ok: true, loggedIn: true } }
+  browser.tabs.query = async () => [{ id: 11, url: 'https://x.com/home' }]
+  await boot({
+    settings: { version: 6 },
+    runner: { state: 'running', tabId: 11, token: 't', lastBeat: Date.now() },
+    queue: [{ id: '5', addedAt: 1, tries: 0 }],
+  })
+  await send({ type: 'runner:pause' }, DASH)
+  onAlarm({ name: 'runner-watch' })
+  await sleep(50)
+  assert.deepEqual(runs, [])
+  assert.equal(store.local.runner.state, 'paused')
+  browser.tabs.sendMessage = async () => {}
+  browser.tabs.query = async () => []
 })
 
 test('a cooldown that is still running is left alone', async () => {

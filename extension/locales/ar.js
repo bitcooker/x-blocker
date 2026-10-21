@@ -402,7 +402,7 @@
   'bg.source.oldCollected': 'قائمتك القديمة المجمّعة',
   'bg.source.undoOf': 'تراجع: {source}',
   'bg.source.undo': 'تراجع',
-  'bg.err.openX': 'افتح x.com واضغط «استئناف».',
+  'bg.err.openX': 'افتح x.com وسيستأنف الحظر تلقائيًا.',
   'bg.err.unreachable': 'تعذّر الوصول إلى علامة تبويب x.com. أعد تحميلها وحاول مجددًا.',
   'bg.err.loggedOut': 'لم تسجّل الدخول إلى x.com.',
   'bg.err.generic': 'حدث خطأ ما. اضغط «استئناف» للمحاولة مجددًا.',
@@ -425,6 +425,6 @@
   'bg.msg.limitLookups': 'يحدّ X من البحث عن الحسابات. الاستئناف في {time}',
   'bg.msg.limitBlocks': 'يحدّ X من عمليات الحظر. الاستئناف في {time}',
   'bg.msg.cantContinue': 'تعذّرت المتابعة في علامة تبويب x.com. {error}',
-  'bg.msg.tabClosed': 'تم إغلاق علامة تبويب x.com. افتح x.com واضغط «استئناف».',
+  'bg.msg.tabClosed': 'تم إغلاق علامة تبويب x.com. افتح x.com وسيستأنف الحظر تلقائيًا.',
   // [end background]
 }

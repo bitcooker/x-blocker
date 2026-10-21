@@ -390,7 +390,7 @@
   'bg.source.oldCollected': 'Eski Toplananlar listeniz',
   'bg.source.undoOf': 'Geri al: {source}',
   'bg.source.undo': 'Geri al',
-  'bg.err.openX': 'x.com\'u açın ve Devam et\'e basın.',
+  'bg.err.openX': 'x.com\'u açın, engelleme kendiliğinden devam eder.',
   'bg.err.unreachable': 'x.com sekmesine ulaşılamadı. Sekmeyi yenileyip tekrar deneyin.',
   'bg.err.loggedOut': 'x.com\'da oturum açmadınız.',
   'bg.err.generic': 'Bir sorun oluştu. Tekrar denemek için Devam et\'e basın.',
@@ -413,6 +413,6 @@
   'bg.msg.limitLookups': 'X hesap sorgularını sınırlıyor. Devam zamanı: {time}',
   'bg.msg.limitBlocks': 'X engellemeleri sınırlıyor. Devam zamanı: {time}',
   'bg.msg.cantContinue': 'Bir x.com sekmesinde devam edilemedi. {error}',
-  'bg.msg.tabClosed': 'x.com sekmesi kapatıldı. x.com\'u açın ve Devam et\'e basın.',
+  'bg.msg.tabClosed': 'x.com sekmesi kapatıldı. x.com\'u açın, engelleme kendiliğinden devam eder.',
   // [end background]
 }

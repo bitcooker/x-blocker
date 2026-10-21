@@ -390,7 +390,7 @@
   'bg.source.oldCollected': 'فهرست «جمع‌آوری‌شده» قدیمی شما',
   'bg.source.undoOf': 'واگرد: {source}',
   'bg.source.undo': 'واگرد',
-  'bg.err.openX': 'x.com را باز کنید و روی «ادامه» بزنید.',
+  'bg.err.openX': 'x.com را باز کنید تا مسدود کردن خودش ادامه پیدا کند.',
   'bg.err.unreachable': 'دسترسی به زبانهٔ x.com ممکن نشد. آن را دوباره بارگذاری کنید و دوباره امتحان کنید.',
   'bg.err.loggedOut': 'وارد حساب x.com نشده‌اید.',
   'bg.err.generic': 'مشکلی پیش آمد. برای امتحان دوباره روی «ادامه» بزنید.',
@@ -413,6 +413,6 @@
   'bg.msg.limitLookups': 'X جست‌وجوی حساب‌ها را محدود کرده است. ادامه در {time}',
   'bg.msg.limitBlocks': 'X مسدود کردن را محدود کرده است. ادامه در {time}',
   'bg.msg.cantContinue': 'ادامه در زبانهٔ x.com ممکن نشد. {error}',
-  'bg.msg.tabClosed': 'زبانهٔ x.com بسته شد. x.com را باز کنید و روی «ادامه» بزنید.',
+  'bg.msg.tabClosed': 'زبانهٔ x.com بسته شد. x.com را باز کنید تا مسدود کردن خودش ادامه پیدا کند.',
   // [end background]
 }

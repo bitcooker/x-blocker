@@ -393,7 +393,7 @@
   'bg.source.oldCollected': 'Your old collected list',
   'bg.source.undoOf': 'Undo: {source}',
   'bg.source.undo': 'Undo',
-  'bg.err.openX': 'Open x.com and press Resume.',
+  'bg.err.openX': 'Open x.com and blocking continues by itself.',
   'bg.err.unreachable': 'Could not reach the x.com tab. Reload it and try again.',
   'bg.err.loggedOut': 'You are not logged in to x.com.',
   'bg.err.generic': 'Something went wrong. Press Resume to try again.',
@@ -416,6 +416,6 @@
   'bg.msg.limitLookups': 'X is limiting account lookups. Resuming at {time}',
   'bg.msg.limitBlocks': 'X is limiting blocks. Resuming at {time}',
   'bg.msg.cantContinue': 'Couldn\'t continue in an x.com tab. {error}',
-  'bg.msg.tabClosed': 'The x.com tab was closed. Open x.com and press Resume.',
+  'bg.msg.tabClosed': 'The x.com tab was closed. Open x.com and blocking continues by itself.',
   // [end background]
 }

@@ -119,8 +119,9 @@
         // The pause after a block is never cut short, so a nudge can't speed blocking up.
         await sleep(blockRequested ? (next.delayMs ?? 4000) : 800)
       }
-    } catch (e) {
-      await send({ type: 'runner:fatal', token: runToken, error: errInfo(e) }).catch(() => {})
+    } catch {
+      // A hiccup (the page or the background didn't answer in time) isn't fatal:
+      // the loop just ends, and the background notices and starts it again.
     } finally {
       running = false
     }

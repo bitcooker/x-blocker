@@ -386,7 +386,7 @@
   'bg.source.oldCollected': 'Votre ancienne liste Collectés',
   'bg.source.undoOf': 'Défaire : {source}',
   'bg.source.undo': 'Défaire',
-  'bg.err.openX': 'Ouvrez x.com et appuyez sur Reprendre.',
+  'bg.err.openX': 'Ouvrez x.com et le blocage reprendra tout seul.',
   'bg.err.unreachable': 'Impossible de joindre l’onglet x.com. Rechargez-le et réessayez.',
   'bg.err.loggedOut': 'Vous n’êtes pas connecté à x.com.',
   'bg.err.generic': 'Un problème est survenu. Appuyez sur Reprendre pour réessayer.',
@@ -409,5 +409,5 @@
   'bg.msg.limitLookups': 'X limite les recherches de comptes. Reprise à {time}',
   'bg.msg.limitBlocks': 'X limite les blocages. Reprise à {time}',
   'bg.msg.cantContinue': 'Impossible de continuer dans un onglet x.com. {error}',
-  'bg.msg.tabClosed': 'L’onglet x.com a été fermé. Ouvrez x.com et appuyez sur Reprendre.',
+  'bg.msg.tabClosed': 'L’onglet x.com a été fermé. Ouvrez x.com et le blocage reprendra tout seul.',
 }
