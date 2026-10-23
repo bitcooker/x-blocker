@@ -437,6 +437,8 @@ function countBatch(s, item, field, n = 1) {
 
 // Quick blocks from the page: one batch per day, so a day's clicks can be undone together.
 const quickBatchId = () => `quick-${new Date().toISOString().slice(0, 10)}`
+// Single unblocks from the Blocked page share a day's batch too, instead of one batch each.
+const quickUnblockBatchId = () => `quickun-${new Date().toISOString().slice(0, 10)}`
 function quickBatch(s) {
   return newBatch(s, t('bg.source.quick'), 'block', quickBatchId())
 }
@@ -1030,6 +1032,7 @@ onMessage((msg, sender) => {
   }
   if (msg.type === 'runner:start') return startRunner(msg.tabId).then(() => exclusive(summary))
   if (msg.type === 'blocked:unblock') return massQueue(null, msg.items, 'unblock', msg.source)
+  if (msg.type === 'blocked:quickUnblock') return massQueue(null, msg.items, 'unblock', t('bg.source.quickUnblocks'), quickUnblockBatchId())
   if (msg.type === 'batch:unblock') {
     // Undo a whole batch: unblock every account it blocked that is still blocked.
     return exclusive((s) => {

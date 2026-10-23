@@ -106,6 +106,12 @@ tbody tr { transition: background-color .15s; }
 tbody tr:hover { background: var(--hover); }
 tbody tr.selected { background: var(--accent-soft); }
 .w-check { width: 48px; }
+.w-act { width: 1%; }
+.row-act { text-align: end; white-space: nowrap; }
+.row-act .btn { opacity: 0; }
+tr:hover .row-act .btn, .row-act .btn:focus-visible { opacity: 1; }
+@media (hover: none) { .row-act .btn { opacity: 1; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .num { text-align: end; font-variant-numeric: tabular-nums; }
 td.when { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .account { display: flex; gap: 12px; align-items: center; min-width: 0; }

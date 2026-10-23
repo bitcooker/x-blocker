@@ -474,3 +474,31 @@ test('runner messages follow the language setting', async () => {
   await boot({ settings: { version: 6 } })
   browser.tabs.sendMessage = async () => {}
 })
+
+test('single unblocks from the Blocked page share one batch for the day and can be taken back', async () => {
+  const now = Date.now()
+  await boot({
+    settings: { version: 6 },
+    batches: {},
+    blocked: {
+      1: { id: '1', screenName: 'a', at: now, source: 'x-blocker', reason: 'Quick block' },
+      2: { id: '2', screenName: 'b', at: now, source: 'x-blocker', reason: 'Quick block' },
+    },
+  })
+  const one = await send({ type: 'blocked:quickUnblock', items: [{ id: '1', screenName: 'a' }] }, DASH)
+  const two = await send({ type: 'blocked:quickUnblock', items: [{ id: '2', screenName: 'b' }] }, DASH)
+  assert.equal(one.added, 1)
+  assert.equal(one.batch, two.batch, 'one batch per day, not one per click')
+  const { batches } = await send({ type: 'data:get', keys: ['batches'] }, DASH)
+  assert.equal(batches.length, 1)
+  assert.equal(batches[0].source, 'Quick unblocks')
+  assert.equal(batches[0].action, 'unblock')
+  assert.equal(batches[0].total, 2)
+
+  // Undo takes only that account out of the queue.
+  await send({ type: 'queue:remove', keys: ['id:1'] }, DASH)
+  const { queue } = await send({ type: 'data:get', keys: ['queue'] }, DASH)
+  assert.deepEqual(queue.map((q) => q.id), ['2'])
+  // Content scripts can't call it.
+  assert.equal(await send({ type: 'blocked:quickUnblock', items: [{ id: '2' }] }), undefined)
+})

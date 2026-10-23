@@ -100,15 +100,22 @@ export function onStateChange(fn, delay = 300) {
   })
 }
 
-export function toast(message, { error = false, timeout } = {}) {
+// `action` adds a link-style button ({ label, run }), e.g. Undo; the toast stays a bit longer.
+export function toast(message, { error = false, timeout, action } = {}) {
   let box = document.querySelector('.toasts')
   if (!box) {
     box = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' })
     document.body.append(box)
   }
   const t = h('div', { class: error ? 'toast toast-danger' : 'toast' }, String(message?.message ?? message))
+  if (action) {
+    t.append(h('button', {
+      class: 'toast-action', type: 'button',
+      onclick: () => { t.remove(); action.run() },
+    }, action.label))
+  }
   box.append(t)
-  setTimeout(() => t.remove(), timeout ?? (error ? 6000 : 3500))
+  setTimeout(() => t.remove(), timeout ?? (error ? 6000 : action ? 7000 : 3500))
 }
 
 export function confirmDialog({ title, body, confirmLabel = t('common.confirm'), cancelLabel = t('common.cancel'), danger = true }) {

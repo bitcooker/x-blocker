@@ -327,7 +327,13 @@ function renderBlocked() {
       h('td', {}, h('div', { class: 'tags' },
         pending ? h('span', { class: 'tag tag-ok' }, t('dash.blocked.unblocking')) : null,
         h('span', { class: b.source === 'seen' ? 'tag' : 'tag source', dir: 'auto', title: source }, source))),
-      h('td', { class: 'when', title: I18N.dateTime(b.at) }, fmtAgo(b.at)))
+      h('td', { class: 'when', title: I18N.dateTime(b.at) }, fmtAgo(b.at)),
+      h('td', { class: 'row-act' }, pending ? null : h('button', {
+        class: 'btn btn-xs', type: 'button',
+        title: t('dash.blocked.unblockOneTitle', { user: accountLabel(b) }),
+        'aria-label': t('dash.blocked.unblockOneTitle', { user: accountLabel(b) }),
+        onclick: (e) => { e.stopPropagation(); quickUnblock(b) },
+      }, t('dash.blocked.unblock'))))
     box.addEventListener('change', () => {
       box.checked ? selected.add(b.id) : selected.delete(b.id)
       tr.classList.toggle('selected', box.checked)
@@ -343,8 +349,8 @@ function renderBlocked() {
   })
   if (!rows.length) {
     rows.push(Object.keys(data.blocked).length
-      ? emptyRow(4, 'search', t('dash.blocked.noMatches'), t('dash.blocked.tryAnother'))
-      : emptyRow(4, 'block', t('dash.blocked.empty'), t('dash.blocked.emptyText')))
+      ? emptyRow(5, 'search', t('dash.blocked.noMatches'), t('dash.blocked.tryAnother'))
+      : emptyRow(5, 'block', t('dash.blocked.empty'), t('dash.blocked.emptyText')))
   }
   $('b-body').replaceChildren(...rows)
   moreFoot($('b-more'), 'blocked', filteredBlocked.length)
@@ -354,6 +360,27 @@ function renderBlocked() {
 function selectable() {
   const queued = queueKeys(data.queue)
   return filteredBlocked.filter((b) => !isQueued(b, queued))
+}
+
+const accountLabel = (b) => (b.screenName ? `@${b.screenName}` : `ID ${b.id}`)
+
+// One account, one click: queued for unblocking at the usual pace, with Undo
+// while it waits. Not worth a confirmation: nothing happens until its turn.
+function quickUnblock(b) {
+  const item = { id: b.id, screenName: b.screenName, source: b.reason }
+  const user = accountLabel(b)
+  action(async () => {
+    const r = await send('blocked:quickUnblock', { items: [item] })
+    // Queued is what matters: when no x.com tab can run it yet, it simply waits.
+    if (!r.added) {
+      if (r.error) throw new Error(r.error)
+      return toast(t('dash.blocked.unblockOneNothing', { user }))
+    }
+    toast(t('dash.blocked.unblockOneQueued', { user }), {
+      action: { label: t('dash.batch.undo'), run: () => action(() => send('queue:remove', { keys: [itemKey(item)] })) },
+    })
+    if (r.error) toast(r.error, { error: true })
+  })
 }
 
 function updateSelection() {
