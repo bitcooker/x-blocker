@@ -33,7 +33,8 @@ async function build(target) {
   await rm(dest, { recursive: true, force: true })
   await mkdir(dest, { recursive: true })
   const skip = target === 'firefox' ? new Set(CHROME_ONLY.map((f) => path.join(src, f))) : new Set()
-  await cp(src, dest, { recursive: true, filter: (f) => !skip.has(f) })
+  // Documentation stays in the repository; it has no place in the package.
+  await cp(src, dest, { recursive: true, filter: (f) => !skip.has(f) && !f.endsWith('.md') })
   const manifest = JSON.parse(await readFile(path.join(src, 'manifest.json'), 'utf8'))
   const out = target === 'chrome' ? chromeManifest(manifest) : manifest
   await writeFile(path.join(dest, 'manifest.json'), JSON.stringify(out, null, 2) + '\n')
