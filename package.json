@@ -15,7 +15,7 @@
   },
   "devDependencies": {
     "linkedom": "^0.18.13",
-    "web-ext": "^8.10.0"
+    "web-ext": "^10.8.0"
   },
   "homepage": "https://github.com/bitcooker/x-blocker",
   "repository": {
