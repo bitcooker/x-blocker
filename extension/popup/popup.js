@@ -82,7 +82,10 @@ async function renderTab() {
       ? t('popup.tab.loadedOf', { n: info.loaded, total: `~${compact(info.total)}`, review: info.reviewable })
       : t('popup.tab.loaded', { n: info.loaded, review: info.reviewable })
   // The same two actions as the panel, started on the page.
-  $('tab-review').textContent = info.reviewable ? t('popup.reviewN', { n: info.reviewable }) : t('popup.nothingToReview')
+  const review = info.review !== false
+  $('tab-review').textContent = info.reviewable
+    ? t(review ? 'popup.reviewN' : 'popup.blockN', { n: info.reviewable })
+    : t(review ? 'popup.nothingToReview' : 'popup.nothingToBlock')
   $('tab-review').disabled = !info.reviewable
   $('tab-load').hidden = info.ended
   $('tab-load').disabled = info.loading

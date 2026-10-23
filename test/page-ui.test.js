@@ -579,6 +579,40 @@ test('Details in the queue strip opens the queue in the dashboard', async () => 
   assert.ok(page.sent.some((m) => m.type === 'page:openQueue'))
 })
 
+test('with review off, one Block button queues everyone except people you know', async () => {
+  const page = await load(`<main>${cell('a1')}${cell('a2')}${cell('a3')}${cell('a4')}</main>`, {
+    config: { reviewBeforeBlock: false },
+    respond: (m) => {
+      if (m.type === 'page:lookup') {
+        return { a1: { id: '1' }, a2: { id: '2', queued: true }, a3: { id: '3', following: true }, a4: { id: '4' } }
+      }
+      return respondReview(m)
+    },
+  })
+  await page.click('.fab')
+  const btn = page.shadow().querySelector('.panel .btn-danger')
+  assert.equal(btn.textContent, 'Block 4')
+  btn.click()
+  await sleep(100)
+  // No review dialog: straight to the queue, minus the accounts Review would leave unticked.
+  assert.equal(page.shadow().querySelector('.dialog'), null)
+  const queued = page.sent.find((m) => m.type === 'page:massBlock')
+  assert.deepEqual([...queued.items.map((i) => i.screenName)], ['a1', 'a4'])
+  const toasts = page.shadow().querySelector('.toasts').textContent
+  assert.match(toasts, /2 accounts queued/)
+  assert.match(toasts, /2 left out/)
+})
+
+test('with review on, the button is still Review and opens the dialog', async () => {
+  const page = await load(`<main>${cell('a1')}</main>`, { respond: (m) => (m.type === 'page:lookup' ? { a1: { id: '1' } } : respondReview(m)) })
+  await page.click('.fab')
+  const btn = page.shadow().querySelector('.panel .btn-danger')
+  assert.equal(btn.textContent, 'Review 1')
+  btn.click()
+  await sleep(100)
+  assert.ok(page.shadow().querySelector('.backdrop'))
+})
+
 test('a run of unblocks reports unblocking, not blocking', async () => {
   const page = await load(`<main>${cell('alice')}</main>`)
   await page.click('.fab')
@@ -679,7 +713,7 @@ test('the toolbar popup can ask the page about its list and start Review or Load
   const page = await load(`<main>${cell('alice')}${cell('bob', { followClass: 'x-blocked' })}</main>`, { respond: respondReview })
   await sleep(300)
   assert.deepEqual(JSON.parse(JSON.stringify(page.ask({ type: 'tab:page' }))),
-    { list: true, label: 'Followers of @target', loaded: 2, total: null, ended: false, loading: false, reviewable: 1 })
+    { list: true, label: 'Followers of @target', loaded: 2, total: null, ended: false, loading: false, reviewable: 1, review: true })
   assert.equal(page.shadow().querySelector('.panel'), null)
 
   // Review from the toolbar opens the panel and its review on the page.

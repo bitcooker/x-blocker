@@ -29,6 +29,7 @@
   const MARK = 'xBlocker'
 
   let blockButtons = 'everywhere' // per-account Block buttons: everywhere | lists | off
+  let reviewFirst = true // lists: Review first, or one Block button that queues everyone
   let blockAction = 'confirm' // what a Block button does: confirm (X-style dialog, block now) | queue
   const showButtons = () => blockButtons === 'everywhere' || (blockButtons === 'lists' && Boolean(context))
   let panelMinimized = true // last choice, shared by every x.com tab (storage.local)
@@ -1137,12 +1138,14 @@
       fabLabel.textContent = info?.active ? t('panel.fab.blocking', { done: info.processed, total: info.total })
         : context && loaded ? t('panel.fab.loaded', { count: loaded })
           : 'X Blocker'
-      blockAllBtn.textContent = n ? t('panel.review.buttonCount', { n }) : t('panel.review.button')
+      blockAllBtn.textContent = reviewFirst
+        ? (n ? t('panel.review.buttonCount', { n }) : t('panel.review.button'))
+        : (n ? t('panel.review.blockCount', { n }) : t('panel.review.block'))
       fabDot.hidden = !scrolling
       fab.classList.toggle('done', Boolean(context && listState().ended && !info?.active))
       if (context && loaded > lastLoaded && lastLoaded > 0) bump()
       lastLoaded = context ? loaded : 0
-      blockAllBtn.title = t('panel.review.buttonTitle')
+      blockAllBtn.title = t(reviewFirst ? 'panel.review.buttonTitle' : 'panel.review.blockAllTitle')
       // Nothing to review (e.g. the home timeline while the queue runs): hide it instead.
       blockAllBtn.hidden = n === 0
       // Also visible on other pages while the queue runs, to follow and pause it.
@@ -1178,6 +1181,7 @@
       stopLoading()
       const n = context ? candidates().length : 0
       if (!n) return
+      if (!reviewFirst) return queueWholeList()
       const { loaded, ended, total } = listState()
       const more = ended ? '' : total
         ? t('panel.review.reviewingLoadedOf', { n: loaded, total })
@@ -1186,20 +1190,47 @@
         note: t('panel.review.onlyThisList'), more }])
       if (!picked?.length) return
       blockAllBtn.disabled = true
-      try {
-        const r = await send({
-          type: 'page:massBlock',
-          items: picked.map((u) => ({ screenName: u.screenName, id: u.id, source: u.source })),
-        })
-        if (r?.error) throw new Error(r.error)
-        const undo = r.batch && r.added ? { label: t('panel.toast.undo'), run: () => undoQueued(r.batch) } : undefined
-        toast(t(listState().ended ? 'panel.toast.queued' : 'panel.toast.queuedPartial', { n: r.added }), false, undo)
-      } catch (e) {
-        toast(String(e.message ?? e), true)
-      }
+      await queueAccounts(picked, listState().ended ? 'panel.toast.queued' : 'panel.toast.queuedPartial')
       blockAllBtn.disabled = false
       update()
     })
+
+    async function queueAccounts(accounts, toastKey) {
+      try {
+        const r = await send({
+          type: 'page:massBlock',
+          items: accounts.map((u) => ({ screenName: u.screenName, id: u.id, source: u.source })),
+        })
+        if (r?.error) throw new Error(r.error)
+        const undo = r.batch && r.added ? { label: t('panel.toast.undo'), run: () => undoQueued(r.batch) } : undefined
+        toast(t(toastKey, { n: r.added }), false, undo)
+        return r
+      } catch (e) {
+        toast(String(e.message ?? e), true)
+        return null
+      }
+    }
+
+    // Review is off: everyone loaded goes straight into the queue. People you
+    // follow or who follow you, and accounts already queued or blocked, are the
+    // ones Review would leave unticked, so they stay out here too.
+    async function queueWholeList() {
+      blockAllBtn.disabled = true
+      try {
+        const rows = await listRows()
+        const picked = rows.filter((r) => !(r.following || r.followedBy || r.blocking || r.queued))
+        if (!picked.length) {
+          toast(t('panel.toast.nothingToQueue'))
+          return
+        }
+        const r = await queueAccounts(picked, listState().ended ? 'panel.toast.queued' : 'panel.toast.queuedDirectPartial')
+        const left = rows.length - picked.length
+        if (r && left) toast(t('panel.toast.leftOut', { n: left }))
+      } finally {
+        blockAllBtn.disabled = false
+        update()
+      }
+    }
 
     // Undo right after Block: takes what is still waiting out of the queue.
     async function undoQueued(batch) {
@@ -1499,7 +1530,7 @@
       pageInfo() {
         if (!context) return { list: false }
         const { loaded, ended } = listState()
-        return { list: true, label: context.label, loaded, total: listTotal, ended, loading: scrolling, reviewable: candidates().length }
+        return { list: true, label: context.label, loaded, total: listTotal, ended, loading: scrolling, reviewable: candidates().length, review: reviewFirst }
       },
       review() {
         if (minimized) saveMinimized(false)
@@ -1574,6 +1605,7 @@
     I18N.setLanguage(cfg?.language ?? 'auto')
     blockButtons = cfg?.blockButtons ?? 'everywhere'
     blockAction = cfg?.blockAction ?? 'confirm'
+    reviewFirst = cfg?.reviewBeforeBlock !== false
     for (const sn of cfg?.blockedScreenNames ?? []) blockedHere.add(sn)
     context = pageContext()
     callMain('status', {}, 10_000).then(async (st) => {

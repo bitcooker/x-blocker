@@ -26,6 +26,7 @@ import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 // blocks out (avg ~6 s, at most 150 an hour) rather than only capping the day.
 const DEFAULT_SETTINGS = {
   blockButtons: 'everywhere', // per-account Block buttons: everywhere | lists | off
+  reviewBeforeBlock: true, // lists: pick who to block first, or queue everyone with one click
   blockAction: 'confirm', // a Block button on x.com: confirm (X-style dialog, block now) | queue
   language: 'auto', // 'auto' follows the browser; or a code from XB_I18N.LANGUAGES
   delayMs: 4000,
@@ -921,6 +922,7 @@ const pageHandlers = {
   'page:config': (s) => ({
     blockButtons: s.settings.blockButtons,
     blockAction: s.settings.blockAction,
+    reviewBeforeBlock: s.settings.reviewBeforeBlock,
     language: s.settings.language,
     blockedScreenNames: Object.values(s.blocked).map((b) => b.screenName?.toLowerCase()).filter(Boolean),
   }),
