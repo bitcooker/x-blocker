@@ -758,7 +758,9 @@
       .panel .min svg{width:14px;height:14px}
       .panel .title{grid-area:title}
       .panel .sub{grid-area:sub;margin-top:2px}
-      .panel .top > .btn-danger{grid-area:act;align-self:center;margin-inline-end:6px}
+      .panel .top > .acts{grid-area:act;align-self:center;margin-inline-end:6px;display:flex;align-items:center;gap:8px}
+      .panel .review-icon{width:36px;padding:0;color:var(--muted)}
+      .panel .review-icon:hover:not(:disabled){color:var(--fg)}
       .panel .strip{position:relative;display:flex;align-items:center;gap:8px;padding-block:8px 10px;padding-inline:16px 12px;
         border-top:1px solid var(--border);background:var(--bg-subtle);font-size:12px;line-height:16px;color:var(--muted)}
       .panel .run-text{flex:1;min-width:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -872,6 +874,7 @@
       e.append(...kids)
       return e
     }
+    const ICON_REVIEW = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 5C7 5 2.7 8.1 1 12.5 2.7 16.9 7 20 12 20s9.3-3.1 11-7.5C21.3 8.1 17 5 12 5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>'
     const ICON_MIN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 10.5h14v3H5z"/></svg>'
 
     // Panel
@@ -889,10 +892,13 @@
     const eyebrow = el('span', 'eyebrow', 'X Blocker')
     const loadBtn = el('button', 'btn btn-xs')
     const blockAllBtn = el('button', 'btn btn-danger')
+    // With review off, a small icon keeps "review before blocking" one click away.
+    const reviewBtn = el('button', 'btn review-icon', svg(ICON_REVIEW))
+    const actions = el('div', 'acts', reviewBtn, blockAllBtn)
     // Two zones: this list (top), and the queue (bottom strip, on every page).
     // A grid: brand + minimize on the first row, title / status on the left,
     // Review on the right. No icon gutter: state signs sit inline in the text.
-    const top = el('div', 'top', eyebrow, minBtn, title, sub, blockAllBtn)
+    const top = el('div', 'top', eyebrow, minBtn, title, sub, actions)
     const runDot = el('span', 'dot')
     const runText = el('span', 'run-text')
     const runBtn = el('button', 'btn btn-xs run')
@@ -1146,6 +1152,10 @@
       blockAllBtn.title = t(reviewFirst ? 'panel.review.buttonTitle' : 'panel.review.blockAllTitle')
       // Nothing to review (e.g. the home timeline while the queue runs): hide it instead.
       blockAllBtn.hidden = n === 0
+      reviewBtn.hidden = reviewFirst || n === 0
+      reviewBtn.title = t('panel.review.buttonTitle')
+      reviewBtn.setAttribute('aria-label', t('panel.review.buttonTitle'))
+      actions.hidden = n === 0
       // Also visible on other pages while the queue runs, to follow and pause it.
       const show = (Boolean(context) && pageHandles.size > 0) || Boolean(info)
       if (show && !host.isConnected) document.body.append(host)
@@ -1175,11 +1185,13 @@
       return list.map((sn) => ({ screenName: sn, ...info[sn.toLowerCase()], source: context.label }))
     }
 
-    blockAllBtn.addEventListener('click', async () => {
+    blockAllBtn.addEventListener('click', () => (reviewFirst ? openReview() : queueWholeList()))
+    reviewBtn.addEventListener('click', () => openReview())
+
+    async function openReview() {
       stopLoading()
       const n = context ? candidates().length : 0
       if (!n) return
-      if (!reviewFirst) return queueWholeList()
       const { loaded, ended, total } = listState()
       const more = ended ? '' : total
         ? t('panel.review.reviewingLoadedOf', { n: loaded, total })
@@ -1191,7 +1203,7 @@
       await queueAccounts(picked, listState().ended ? 'panel.toast.queued' : 'panel.toast.queuedPartial')
       blockAllBtn.disabled = false
       update()
-    })
+    }
 
     async function queueAccounts(accounts, toastKey) {
       try {
@@ -1213,6 +1225,8 @@
     // follow or who follow you, and accounts already queued or blocked, are the
     // ones Review would leave unticked, so they stay out here too.
     async function queueWholeList() {
+      stopLoading()
+      if (!(context && candidates().length)) return
       blockAllBtn.disabled = true
       try {
         const rows = await listRows()

@@ -603,6 +603,28 @@ test('with review off, one Block button queues everyone except people you know',
   assert.match(toasts, /2 left out/)
 })
 
+test('with review off, an icon button still opens the review dialog', async () => {
+  const page = await load(`<main>${cell('a1')}${cell('a2')}</main>`, {
+    config: { reviewBeforeBlock: false },
+    respond: (m) => (m.type === 'page:lookup' ? { a1: { id: '1' }, a2: { id: '2' } } : respondReview(m)),
+  })
+  await page.click('.fab')
+  const icon = page.shadow().querySelector('.panel .review-icon')
+  assert.equal(icon.hidden, false)
+  assert.equal(icon.textContent, '') // icon only, no label
+  assert.equal(icon.getAttribute('aria-label'), 'Review the accounts in this list before blocking them')
+  icon.click()
+  await sleep(100)
+  assert.ok(page.shadow().querySelector('.backdrop'))
+  assert.equal(page.sent.some((m) => m.type === 'page:massBlock'), false)
+})
+
+test('with review on, there is no extra review icon', async () => {
+  const page = await load(`<main>${cell('a1')}</main>`, { respond: respondReview })
+  await page.click('.fab')
+  assert.equal(page.shadow().querySelector('.panel .review-icon').hidden, true)
+})
+
 test('with review on, the button is still Review and opens the dialog', async () => {
   const page = await load(`<main>${cell('a1')}</main>`, { respond: (m) => (m.type === 'page:lookup' ? { a1: { id: '1' } } : respondReview(m)) })
   await page.click('.fab')

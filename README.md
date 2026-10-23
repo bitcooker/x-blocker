@@ -11,10 +11,10 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   replies, search results, list members or followers, or community members on
   x.com. The X Blocker panel at the bottom offers **Review**: you see exactly
   that list's accounts, untick anyone you want to keep, and block the rest.
-  Prefer no review? Turn off **Review lists before blocking** in Settings and
-  the button becomes **Block**, which queues everyone in the list at once
-  (except people you follow or who follow you, and accounts already queued or
-  blocked).
+  Prefer no review? Turn off **Require review before blocking a list** in
+  Settings and the button becomes **Block**, which queues everyone in the list
+  at once (except people you follow or who follow you, and accounts already
+  queued or blocked). Reviewing stays one click away.
 - **Block buttons.** Accounts get a **Block** button next to X's Follow
   button, and posts get one next to the ⋯ menu. By default it asks first and
   blocks right away, like X does. In Settings you can make it add the account
