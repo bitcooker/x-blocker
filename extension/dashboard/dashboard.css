@@ -91,7 +91,7 @@ main { padding: 24px 32px 64px; display: grid; gap: 24px; align-content: start; 
 .batch-account { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
 .batch-account + .batch-account { border-block-start: 1px solid var(--border); }
 .batch-account .account { min-width: 0; }
-.batch-account .tags { flex: none; align-items: center; }
+.batch-account .tags { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .batch-detail-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 /* Activity log disclosure */
