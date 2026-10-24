@@ -27,7 +27,7 @@ import { dedupeItems, isQueued, itemKey, queueKeys } from './lib/user-list.js'
 const DEFAULT_SETTINGS = {
   blockButtons: 'everywhere', // per-account Block buttons: everywhere | lists | off
   reviewBeforeBlock: true, // lists: pick who to block first, or queue everyone with one click
-  blockAction: 'confirm', // a Block button on x.com: confirm (X-style dialog, block now) | queue
+  blockAction: 'confirm', // a Block button on x.com: confirm (X-style dialog first) | queue
   language: 'auto', // 'auto' follows the browser; or a code from XB_I18N.LANGUAGES
   delayMs: 4000,
   jitterMs: 4000,

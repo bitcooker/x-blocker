@@ -203,18 +203,40 @@ test('pill sits after Follow (never between X nodes) and survives a re-render', 
   assert.equal(wrapper.querySelectorAll('.xb-pill').length, 1)
 })
 
-test('by default a Block button asks first, like X, then blocks right away', async () => {
+test('by default a Block button asks first, like X, then queues the account', async () => {
   const page = await load(`<main>${cell('alice')}</main>`, {
-    respond: (m) => (m.type === 'page:lookup' ? { alice: { id: '42' } } : m.type === 'page:quota' ? { allowed: true } : {}),
+    respond: (m) => {
+      if (m.type === 'page:quickBlock') return { added: m.items.length, skipped: 0, batch: 'quick-2026-10-18' }
+      return {}
+    },
   })
-  page.buttons()[0].click()
+  const btn = page.buttons()[0]
+  btn.click()
   await sleep(50)
   const ok = page.shadow().querySelector('.dialog .btn-danger')
   assert.equal(page.shadow().querySelector('.dialog h2').textContent, 'Block @alice?')
-  assert.equal(page.sent.some((m) => m.type === 'page:quickBlock'), false)
+  assert.equal(page.sent.some((m) => m.type === 'page:quickBlock'), false, 'nothing is queued before the answer')
   ok.click()
   await sleep(50)
-  assert.deepEqual(JSON.parse(JSON.stringify(page.sent.find((m) => m.type === 'page:blocked').user)), { id: '42', screenName: 'alice' })
+  const queued = page.sent.find((m) => m.type === 'page:quickBlock')
+  assert.deepEqual(JSON.parse(JSON.stringify(queued.items)), [{ screenName: 'alice' }])
+  // The paced queue does the blocking, not the page.
+  assert.equal(page.sent.some((m) => m.type === 'page:blocked'), false)
+  assert.ok(btn.classList.contains('xb-queued'))
+  assert.equal(btn.textContent, 'Queued')
+})
+
+test('cancelling the Block dialog queues nothing', async () => {
+  const page = await load(`<main>${cell('alice')}</main>`)
+  const btn = page.buttons()[0]
+  btn.click()
+  await sleep(50)
+  page.shadow().querySelector('.dialog .actions .btn:not(.btn-danger)').click()
+  await sleep(50)
+  assert.equal(page.shadow().querySelector('.dialog'), null)
+  assert.equal(page.sent.some((m) => m.type === 'page:quickBlock'), false)
+  assert.equal(btn.textContent, 'Block')
+  assert.equal(btn.disabled, false)
 })
 
 test('narrow rows get a compact icon button', async () => {

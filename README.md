@@ -16,11 +16,11 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   at once (except people you follow or who follow you, and accounts already
   queued or blocked). Reviewing stays one click away.
 - **Block buttons.** Accounts get a **Block** button next to X's Follow
-  button, and posts get one next to the ⋯ menu. By default it asks first and
-  blocks right away, like X does. In Settings you can make it add the account
-  to the queue instead, so single blocks follow the same pace and limits as
-  lists (today's clicks are grouped in one **Quick blocks** batch). Show the
-  buttons everywhere, only on lists, or turn them off.
+  button, and posts get one next to the ⋯ menu. By default it asks first, like
+  X, then adds the account to the queue. In Settings you can skip the question
+  and queue on one click. Either way single blocks follow the same pace and
+  limits as lists (today's clicks are grouped in one **Quick blocks** batch).
+  Show the buttons everywhere, only on lists, or turn them off.
 - **Long lists, a batch at a time.** The panel shows how many accounts are
   loaded (and the list's size for followers and following). **Load all**
   scrolls the list to its end for you. Or review what is loaded, block, scroll,

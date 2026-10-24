@@ -30,7 +30,7 @@
 
   let blockButtons = 'everywhere' // per-account Block buttons: everywhere | lists | off
   let reviewFirst = true // lists: Review first, or one Block button that queues everyone
-  let blockAction = 'confirm' // what a Block button does: confirm (X-style dialog, block now) | queue
+  let blockAction = 'confirm' // what a Block button does: confirm (X-style dialog first) | queue
   const showButtons = () => blockButtons === 'everywhere' || (blockButtons === 'lists' && Boolean(context))
   let panelMinimized = true // last choice, shared by every x.com tab (storage.local)
   let viewerScreenName = null
@@ -336,11 +336,20 @@
     } else if (pill) btn.textContent = state === 'busy' ? t('panel.button.blocking') : label
   }
 
-  // Adds the account to the paced block queue instead of blocking on the spot (or
-  // asking to confirm first). The queue runner does the blocking and reports back
-  // through page:blockedNotice, which settles the button to "blocked".
-  async function queueBlock(screenName, btn) {
+  // Adds the account to the paced block queue. Both block modes end up here: the
+  // queue runner blocks at a safe pace and reports back through page:blockedNotice,
+  // which settles the button to "blocked". The confirm mode only asks first, with
+  // a dialog like X's, so a stray click cannot queue anyone.
+  async function queueBlock(screenName, btn, { ask = false } = {}) {
     const user = `@${screenName}`
+    if (ask) {
+      const ok = await ui.confirm({
+        title: t('panel.confirm.title', { user }),
+        body: t('panel.confirm.body', { user }),
+        confirmLabel: t('panel.button.block'),
+      })
+      if (!ok) return
+    }
     setButtonState(btn, 'busy')
     try {
       const r = await send({ type: 'page:quickBlock', items: [{ screenName }] })
@@ -372,46 +381,6 @@
     } catch (e) {
       setButtonState(btn, 'idle')
       ui.toast(t('panel.toast.queueFailed', { user, error: String(e.message ?? e) }), true)
-    }
-  }
-
-  // Like X's own Block button: confirm, then block right away. Counts toward the
-  // same safety limits as the queue, and joins today's Quick blocks batch.
-  async function blockNow(screenName, btn) {
-    const user = `@${screenName}`
-    const ok = await ui.confirm({
-      title: t('panel.confirm.title', { user }),
-      body: t('panel.confirm.body', { user }),
-      confirmLabel: t('panel.button.block'),
-    })
-    if (!ok) return
-    const quota = await send({ type: 'page:quota' }).catch(() => null)
-    if (quota && !quota.allowed) {
-      ui.toast(quota.limit === 'hourly'
-        ? t('panel.toast.hourlyLimit', { used: quota.usedHour, cap: quota.hourly })
-        : t('panel.toast.dailyLimit', { used: quota.used, cap: quota.cap }), true)
-      return
-    }
-    setButtonState(btn, 'busy')
-    try {
-      const known = await send({ type: 'page:lookup', screenNames: [screenName] })
-      let id = known?.[screenName.toLowerCase()]?.id
-      if (!id) {
-        const r = await callMain('resolve', { screenName })
-        // The page channel is shared with X's scripts: only trust a matching answer.
-        if (String(r?.screenName).toLowerCase() !== screenName.toLowerCase()) throw new Error(t('panel.toast.lookupFailed'))
-        id = r.id
-      }
-      if (!/^\d{1,20}$/.test(String(id))) throw new Error(t('panel.toast.lookupFailed'))
-      await callMain('block', { userId: id })
-      await send({ type: 'page:blocked', user: { id, screenName } })
-      blockedHere.add(screenName.toLowerCase())
-      markBlocked(screenName)
-      ui.toast(t('panel.toast.blockedNow', { user }))
-      ui.update()
-    } catch (e) {
-      setButtonState(btn, 'idle')
-      ui.toast(t('panel.toast.blockFailed', { user, error: String(e.message ?? e) }), true)
     }
   }
 
@@ -601,7 +570,7 @@
       e.stopPropagation()
       // Re-verify at click time: the row must still show this account.
       if (host.dataset.xbHandle !== key || !host.isConnected) return
-      if (!btn.disabled) (blockAction === 'queue' ? queueBlock : blockNow)(screenName, btn)
+      if (!btn.disabled) queueBlock(screenName, btn, { ask: blockAction === 'confirm' })
     }, true)
   }
 
