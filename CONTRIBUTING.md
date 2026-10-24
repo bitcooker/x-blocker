@@ -42,6 +42,20 @@ welcome; `npm test` checks that every language is complete.
 
 ## Release (maintainers)
 
+**One click:** Actions → **Prepare release** → **Run workflow**, with `patch`,
+`minor`, `major` or an explicit `X.Y.Z`. It bumps `manifest.json`,
+`package.json` and `package-lock.json`, runs the tests, commits
+`chore(release): vX.Y.Z`, tags it and starts the Release workflow.
+
+`main` is protected, so the token that pushes the bump has to get past the
+ruleset. A write deploy key titled **Release workflow (github-actions)** is
+listed under the ruleset's bypass actors, and its private half is stored as the
+`RELEASE_SSH_KEY` secret. Rotating it means replacing it in both places. Without
+a working key the job stops before the tag is pushed, so a failed run leaves
+nothing half-released behind.
+
+**By hand:**
+
 ```sh
 node scripts/version.mjs minor          # or patch / major / X.Y.Z
 git commit -am "chore(release): vX.Y.Z" && git tag -a vX.Y.Z -m "X Blocker vX.Y.Z"
