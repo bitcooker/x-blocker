@@ -77,7 +77,10 @@
         "locales/es.js",
         "locales/fa.js",
         "locales/fr.js",
+        "locales/ja.js",
+        "locales/ko.js",
         "locales/tr.js",
+        "locales/zh.js",
         "content/page-ui.js"
       ],
       "run_at": "document_idle"

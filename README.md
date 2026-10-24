@@ -43,8 +43,9 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   and Settings. **Details** in the panel on x.com opens the queue there.
 
 - **In your language.** English, فارسی (Persian), العربية (Arabic), Deutsch,
-  Español, Français and Türkçe, with full right-to-left layouts for Persian
-  and Arabic. It follows your browser's language, or pick one in Settings.
+  Español, Français, Türkçe, 简体中文, 日本語 and 한국어, with full right-to-left
+  layouts for Persian and Arabic. It follows your browser's language, or pick
+  one in Settings.
 
 ## Safety
 

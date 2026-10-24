@@ -19,7 +19,8 @@
   const LOCALES = (globalThis.XB_LOCALES ??= {})
   // Each language's name in that language, for the Language setting.
   const LANGUAGES = {
-    en: 'English', ar: 'العربية', de: 'Deutsch', es: 'Español', fa: 'فارسی', fr: 'Français', tr: 'Türkçe',
+    en: 'English', ar: 'العربية', de: 'Deutsch', es: 'Español', fa: 'فارسی', fr: 'Français',
+    ja: '日本語', ko: '한국어', tr: 'Türkçe', zh: '简体中文',
   }
   const RTL = new Set(['ar', 'fa'])
   const STORE_KEY = 'xb-language'

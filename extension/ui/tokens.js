@@ -42,12 +42,21 @@
     // Latin text still uses X's own font.
     font: '"XB Vazirmatn",TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans Arabic",Tahoma,sans-serif',
   }
+  // Each CJK language gets its own families first: a shared fallback would show
+  // Japanese or Korean text in Chinese glyph shapes (and the other way round).
+  const CJK_FONTS = {
+    zh: '"XB Vazirmatn",TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans Arabic",Tahoma,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Noto Sans SC",sans-serif',
+    ja: '"XB Vazirmatn",TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans Arabic",Tahoma,"Hiragino Sans","Yu Gothic UI","Yu Gothic","Noto Sans CJK JP","Noto Sans JP",sans-serif',
+    ko: '"XB Vazirmatn",TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans Arabic",Tahoma,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans CJK KR","Noto Sans KR",sans-serif',
+  }
   const vars = (o) => Object.entries(o).map(([k, v]) => `--${k}:${v}`).join(';')
+  const langFonts = (scope) => Object.entries(CJK_FONTS)
+    .map(([lang, font]) => `${scope}:lang(${lang}){--font:${font}}`).join('')
 
   // Theme variables for `scope`. 'attr' switches on scope[data-theme=…] (x.com
   // follows X's own theme); 'os' follows the system light/dark setting.
   function tokens(scope, mode = 'attr') {
-    const base = `${scope}{${vars(SHARED)};${vars(THEMES.light)}}`
+    const base = `${scope}{${vars(SHARED)};${vars(THEMES.light)}}${langFonts(scope)}`
     if (mode === 'os') {
       return `${base}@media (prefers-color-scheme:dark){${scope}{${vars(THEMES.dark)}}}`
     }
