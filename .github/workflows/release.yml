@@ -33,12 +33,12 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
           fetch-depth: 0 # full history and tags for the changelog
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -64,7 +64,7 @@ jobs:
           node scripts/changelog.mjs "$TAG" > dist/RELEASE_NOTES.md
           sed "s/{version}/$VERSION/g" .github/release-install.md >> dist/RELEASE_NOTES.md
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release
           path: |
@@ -80,7 +80,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release
           path: dist
@@ -108,18 +108,18 @@ jobs:
         if: env.WEB_EXT_API_KEY == '' || env.WEB_EXT_API_SECRET == ''
         run: echo "::notice::AMO_JWT_ISSUER / AMO_JWT_SECRET not set; skipping Firefox Add-ons."
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
         with:
           ref: ${{ env.TAG }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
         with:
           name: release
           path: dist
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
         with:
           node-version: 22
