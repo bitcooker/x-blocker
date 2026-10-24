@@ -11,6 +11,9 @@ const $ = (id) => document.getElementById(id)
 const RENDER_LIMIT = 500
 const BATCH_LIMIT = 50
 const selected = new Set() // blocked account IDs picked for unblocking
+const openBatches = new Set() // batches whose account list is expanded
+const ACCOUNT_PAGE = 50
+const accountsShown = {} // batch id -> how many accounts are listed
 let data = null
 // Which stored collections each section needs; only those are fetched and re-rendered.
 const NEEDS = {
@@ -163,6 +166,54 @@ function batchCounts(b) {
   ].filter(Boolean).join(t('common.sep')) || t('dash.batch.nothing')
 }
 
+async function toggleBatch(id) {
+  if (openBatches.has(id)) openBatches.delete(id)
+  else {
+    openBatches.add(id)
+    accountsShown[id] = ACCOUNT_PAGE
+  }
+  // Opening the first one fetches the blocked accounts it lists.
+  await refresh().catch(() => {})
+  renderBatches()
+}
+
+// Everyone in a batch that X Blocker still knows about: waiting in the queue,
+// or blocked. Skipped, failed and cancelled accounts aren't kept, nor are
+// accounts that were unblocked.
+function batchAccounts(b) {
+  const waiting = (data.queue ?? []).filter((q) => q.batch === b.id)
+  const blocked = Object.values(data.blocked ?? {}).filter((x) => x.batch === b.id).sort((x, y) => y.at - x.at)
+  const all = [...waiting.map((item) => ({ account: item, waiting: true })), ...blocked.map((account) => ({ account }))]
+  const limit = accountsShown[b.id] ?? ACCOUNT_PAGE
+  const rows = all.slice(0, limit).map(({ account, waiting: pending }) => h('li', { class: 'batch-account' },
+    accountCell(account),
+    h('div', { class: 'tags' },
+      pending
+        ? h('span', { class: `tag ${b.action === 'unblock' ? 'tag-ok' : 'tag-warn'}` }, t(b.action === 'unblock' ? 'dash.batchAccount.unblocking' : 'dash.batchAccount.waiting'))
+        : h('span', { class: 'tag tag-danger' }, t('dash.batchAccount.blocked')),
+      account.tries ? h('span', { class: 'tag tag-warn' }, t('dash.queue.tries', { n: account.tries })) : null,
+      !pending && account.at ? h('span', { class: 'muted small', title: I18N.dateTime(account.at) }, fmtAgo(account.at)) : null)))
+  const notListed = Math.max(0, b.total - all.length)
+  const foot = []
+  if (all.length > limit) {
+    foot.push(h('button', {
+      class: 'btn btn-sm',
+      onclick: () => { accountsShown[b.id] = limit + ACCOUNT_PAGE; renderBatches() },
+    }, t('dash.showMore', { n: Math.min(ACCOUNT_PAGE, all.length - limit) })))
+  }
+  if (notListed) foot.push(h('span', { class: 'muted small' }, t(b.action === 'unblock' ? 'dash.batchAccount.notListedUnblock' : 'dash.batchAccount.notListed', { n: notListed })))
+  if (blocked.length && b.action !== 'unblock') {
+    foot.push(h('button', {
+      class: 'btn btn-sm btn-quiet', title: t('dash.batch.viewHint'),
+      onclick: () => { $('b-batch').value = b.id; go('blocked') },
+    }, t('dash.batch.openBlocked')))
+  }
+  return h('div', { class: 'batch-detail' },
+    rows.length ? h('ul', { class: 'batch-accounts' }, ...rows)
+      : h('p', { class: 'muted small' }, t('dash.batchAccount.none')),
+    foot.length ? h('div', { class: 'batch-detail-foot' }, ...foot) : null)
+}
+
 function renderBatches() {
   const list = data.batches ?? []
   const rows = list.slice(0, shown.batches).map((b) => {
@@ -176,11 +227,14 @@ function renderBatches() {
         onclick: () => cancelBatch(b),
       }, t(b.waiting < b.total ? 'dash.batch.cancelRest' : 'dash.batch.cancel')))
     }
-    if (!undo && b.done) {
+    if (b.total) {
+      const open = openBatches.has(b.id)
       actions.push(h('button', {
-        class: 'btn btn-xs', title: t('dash.batch.viewHint'),
-        onclick: () => { $('b-batch').value = b.id; go('blocked') },
-      }, t('dash.batch.view')))
+        class: 'btn btn-xs', title: t('dash.batch.accountsHint'), 'aria-expanded': String(open),
+        onclick: () => toggleBatch(b.id),
+      }, t('dash.batch.accounts'), icon('chevron', `i i-chev${open ? ' open' : ''}`)))
+    }
+    if (!undo && b.done) {
       actions.push(h('button', {
         class: 'btn btn-xs', title: t('dash.batch.undoHint'),
         onclick: () => undoBatch(b),
@@ -203,7 +257,8 @@ function renderBatches() {
           style: `width:${b.total ? ((b.total - b.waiting) / b.total) * 100 : 0}%`,
         })),
         h('span', { class: 'small' }, batchCounts(b))),
-      h('div', { class: 'batch-actions' }, actions))
+      h('div', { class: 'batch-actions' }, actions),
+      openBatches.has(b.id) ? batchAccounts(b) : null)
   })
   if (!rows.length) {
     rows.push(h('li', { class: 'batch-empty' }, emptyState('block', t('dash.batches.empty'), t('dash.listHint'))))
@@ -493,7 +548,9 @@ const renderers = {
 
 async function refresh(changed) {
   // Home's status card needs the batches and queue whichever section is open.
-  const needs = [...new Set([...NEEDS[current], 'batches', 'queue'])]
+  // An open batch lists its blocked accounts too.
+  const extra = current === 'batches' && openBatches.size ? ['blocked'] : []
+  const needs = [...new Set([...NEEDS[current], ...extra, 'batches', 'queue'])]
   const keys = changed ? needs.filter((k) => changed.includes(k) || (k === 'batches' && changed.includes('queue'))) : needs
   const res = await send('data:get', { keys })
   data = { queue: [], blocked: {}, log: [], batches: [], ...data, ...res }

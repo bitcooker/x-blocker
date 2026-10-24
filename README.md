@@ -27,7 +27,8 @@ X Blocker is an independent project and is not affiliated with or endorsed by X 
   and review again: accounts already queued or blocked are left out.
 - **Batches you can undo.** Every list you block or import is a batch. Right
   after blocking, **Undo** takes it back out of the queue. Later, **Undo** on
-  the dashboard's Batches page unblocks everyone in it. Single accounts can be
+  the dashboard's Batches page unblocks everyone in it, and **Accounts** lists
+  who is in each batch. Single accounts can be
   unblocked on the Blocked page.
 - **Import and share lists.** Paste or upload @handles, profile links, user IDs
   or a CSV. The Blocked and Queue pages export a CSV with IDs and @handles that
