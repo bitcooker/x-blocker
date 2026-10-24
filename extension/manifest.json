@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "short_name": "X Blocker",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "__MSG_extDescription__",
   "default_locale": "en",
   "homepage_url": "https://github.com/bitcooker/x-blocker",
