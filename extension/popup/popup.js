@@ -11,6 +11,11 @@ const compact = (n) => new Intl.NumberFormat(i18n.locale, { notation: 'compact',
 const LANG_KEY = 'xb-language'
 let activeTab = null
 
+// The popup is 340px wide, or the screen width when that is smaller (a phone
+// running a desktop browser). Screen width works in every browser; viewport
+// units do not: Firefox measures the panel from its content.
+document.documentElement.style.setProperty('--popup-width', `${Math.min(340, screen.availWidth || 340)}px`)
+
 function showError(e) {
   $('error').hidden = !e
   $('error-text').textContent = e ? String(e.message ?? e) : ''

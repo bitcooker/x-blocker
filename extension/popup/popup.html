@@ -3,7 +3,6 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>X Blocker</title>
   <script src="../ui/tokens.js"></script>
   <script src="../ui/i18n.js"></script>
@@ -19,7 +18,10 @@
   <script src="../locales/zh.js"></script>
   <link rel="stylesheet" href="../ui/common.css">
   <style>
-    body { width: 340px; max-width: 100vw; }
+    /* Width comes from popup.js: a popup is sized from its content, so a
+       viewport unit (max-width: 100vw) resolves to zero while Firefox measures
+       the panel and it opens empty. The screen width is safe. */
+    body { width: var(--popup-width, 340px); }
     .head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-block-end: 1px solid var(--border); }
     .head img { border-radius: 8px; }
     .head h1 { font-size: 16px; font-weight: 800; }
