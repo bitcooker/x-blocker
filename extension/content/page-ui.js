@@ -832,15 +832,17 @@
            of the list isn't squeezed next to the buttons, and the buttons can't
            squeeze the brand either. */
         .panel .top{grid-template-areas:"brand min" "title title" "sub sub" "act act";
-          padding-block:8px 12px;padding-inline:16px 12px;column-gap:12px;row-gap:4px}
+          padding-block:8px 12px;padding-inline:16px;column-gap:12px;row-gap:4px}
         .panel .min{width:36px;height:36px}
         .panel .title{max-width:none;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
         .panel .sub{margin-top:0}
         .panel .sub:not(:has(.state:not([hidden]), .count:not(:empty))){display:none}
         .panel .sub .count .btn-xs{height:32px;padding:0 12px}
-        .panel .top > .acts{justify-self:end;margin-inline-end:0}
+        .panel .top > .acts{width:100%;margin-block-start:6px}
+        .panel .top > .acts .btn-danger{flex:1;min-width:0}
         .panel .acts .btn{height:44px}
         .panel .review-icon{width:44px}
+        .panel .review-icon svg{width:20px;height:20px}
         .panel .strip{padding-block:10px 12px}
         .panel .strip .btn{height:32px}
         .fab{bottom:calc(20px + env(safe-area-inset-bottom,0px));height:44px}
