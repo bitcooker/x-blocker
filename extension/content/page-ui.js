@@ -827,7 +827,6 @@
       @keyframes spin{to{transform:rotate(360deg)}}
       @media (max-width:700px){
         .panel{left:8px;right:8px;transform:none;max-width:none;bottom:calc(72px + env(safe-area-inset-bottom,0px));border-radius:16px}
-        .panel .sub .count{display:none}
         /* Brand and minimize, then the title across the full width, then the
            status, then the buttons. The title gets the whole panel, so the name
            of the list isn't squeezed next to the buttons, and the buttons can't
@@ -837,7 +836,8 @@
         .panel .min{width:36px;height:36px}
         .panel .title{max-width:none;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
         .panel .sub{margin-top:0}
-        .panel .sub:not(:has(.state:not([hidden]))){display:none}
+        .panel .sub:not(:has(.state:not([hidden]), .count:not(:empty))){display:none}
+        .panel .sub .count .btn-xs{height:32px;padding:0 12px}
         .panel .top > .acts{justify-self:end;margin-inline-end:0}
         .panel .acts .btn{height:44px}
         .panel .review-icon{width:44px}
