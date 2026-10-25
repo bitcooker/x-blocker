@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# One-click release: bumps the version, commits, tags and pushes, then runs
-# the Release workflow. (Tags pushed with GITHUB_TOKEN don't trigger other
-# workflows, so Release is called directly instead of relying on the tag push.)
+# One-click release: bumps the version, commits, tags and pushes. The tag push
+# starts the Release workflow. It has to be triggered that way: the push goes
+# through the release deploy key (needed to get past the main ruleset), and a
+# key push counts as a real push, unlike one made with GITHUB_TOKEN.
 name: Prepare release
 
 on:
@@ -27,8 +28,6 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
-    outputs:
-      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - name: Only from main
         if: github.ref != 'refs/heads/main'
@@ -82,14 +81,5 @@ jobs:
             echo "::error::Could not push $TAG to main: the 'Protect main' ruleset rejected the key. Check that RELEASE_SSH_KEY matches a write deploy key listed under the ruleset's bypass actors. Nothing was tagged."
             exit 1
           fi
+          # This push is what starts the Release workflow.
           git push origin "refs/tags/$TAG"
-
-  release:
-    name: Release
-    needs: bump
-    uses: ./.github/workflows/release.yml
-    with:
-      tag: ${{ needs.bump.outputs.tag }}
-    secrets: inherit
-    permissions:
-      contents: write
