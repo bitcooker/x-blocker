@@ -2,7 +2,7 @@
 /* Dashboard layout. Colours and shared components come from ui/tokens.js. */
 .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; max-width: 1200px; margin: 0 auto; }
 .small { font-size: 13px; line-height: 16px; }
-.stack { display: grid; gap: 12px; }
+.stack { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 .card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); }
 
 /* Sidebar */
@@ -25,8 +25,8 @@ nav { display: grid; gap: 2px; }
 .mini { margin-top: auto; padding: 14px; display: grid; gap: 10px; }
 
 /* Main */
-main { padding: 24px 32px 64px; display: grid; gap: 24px; align-content: start; }
-.panel { display: grid; gap: 20px; }
+main { padding: 24px 32px 64px; display: grid; gap: 24px; align-content: start; grid-template-columns: minmax(0, 1fr); }
+.panel { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
 .panel-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .panel-head > div:first-child { flex: 1 1 320px; min-width: 0; }
 .panel-head h1 { font-size: 24px; line-height: 28px; font-weight: 800; margin-bottom: 4px; }
@@ -37,7 +37,7 @@ main { padding: 24px 32px 64px; display: grid; gap: 24px; align-content: start; 
 .notice > div:first-child { display: grid; gap: 2px; }
 
 /* Home: now */
-.now { padding: 20px; display: grid; gap: 16px; }
+.now { padding: 20px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .now-head { display: flex; gap: 16px; align-items: flex-start; }
 .now-head .grow { display: grid; gap: 4px; }
 .now h2 { font-size: 20px; line-height: 24px; font-weight: 800; overflow-wrap: anywhere; }
@@ -77,7 +77,7 @@ main { padding: 24px 32px 64px; display: grid; gap: 24px; align-content: start; 
 .batch-icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--danger-soft); color: var(--danger); }
 .batch-icon[data-kind="undo"] { background: var(--ok-soft); color: var(--ok); }
 .batch[data-state="done"] .batch-icon { background: var(--bg-subtle); color: var(--muted); }
-.batch-main { display: grid; gap: 4px; min-width: 0; }
+.batch-main { display: grid; gap: 4px; min-width: 0; grid-template-columns: minmax(0, 1fr); }
 .batch-main .row { flex-wrap: nowrap; }
 .batch-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .batch-main .meter { max-width: 420px; margin: 2px 0; }
@@ -86,7 +86,7 @@ main { padding: 24px 32px 64px; display: grid; gap: 24px; align-content: start; 
 .batch-empty { padding: 48px 16px; }
 .batch-actions svg.i-chev { width: 16px; height: 16px; transition: transform .15s; }
 .batch-actions svg.i-chev.open { transform: rotate(180deg); }
-.batch-detail { grid-column: 1 / -1; margin-block-start: -4px; padding-block-start: 12px; border-block-start: 1px solid var(--border); display: grid; gap: 10px; }
+.batch-detail { grid-column: 1 / -1; margin-block-start: -4px; padding-block-start: 12px; border-block-start: 1px solid var(--border); display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
 .batch-accounts { list-style: none; margin: 0; padding: 0; display: grid; }
 .batch-account { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
 .batch-account + .batch-account { border-block-start: 1px solid var(--border); }
@@ -125,9 +125,9 @@ tr:hover .row-act .btn, .row-act .btn:focus-visible { opacity: 1; }
 td.when { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .account { display: flex; gap: 12px; align-items: center; min-width: 0; }
 .avatar { width: 36px; height: 36px; border-radius: 50%; flex: none; background: var(--border); object-fit: cover; }
-.account .meta { min-width: 0; display: grid; }
+.account .meta { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .account .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account .handle { color: var(--muted); }
+.account .handle { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account .handle:hover { color: var(--accent); }
 td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .tag.source { max-width: 280px; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
@@ -160,7 +160,7 @@ td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .log li[data-level="error"] .dot { background: var(--danger); }
 
 /* Settings */
-.settings { display: grid; gap: 12px; }
+.settings { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 .settings h2 { font-size: 17px; font-weight: 800; margin-top: 12px; }
 .list { overflow: hidden; }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
@@ -206,4 +206,108 @@ td .tags { display: flex; gap: 4px; flex-wrap: wrap; }
   .limits { grid-template-columns: 1fr; }
   .batch { grid-template-columns: 40px minmax(0, 1fr); }
   .batch-actions { grid-column: 2; justify-content: flex-start; }
+}
+
+/* Phones. The sidebar becomes a sticky top bar: brand and Start on the first
+   row, the sections in a strip that scrolls sideways. Tables turn into cards,
+   because a five-column table cannot be read at 320px. */
+@media (max-width: 760px) {
+  .layout { display: block; }
+
+  .sidebar {
+    position: sticky; top: 0; z-index: 20; height: auto;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "brand mini" "nav nav"; align-items: center; gap: 8px;
+    padding: 8px 12px 6px; background: var(--bg);
+    border-inline-end: none; border-bottom: 1px solid var(--border);
+  }
+  .brand { grid-area: brand; gap: 6px; min-width: 0; padding: 4px; font-size: 16px; line-height: 22px; }
+  .brand img { width: 24px; height: 24px; border-radius: 6px; }
+  .brand span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand .version { display: none; }
+
+  nav {
+    grid-area: nav; display: flex; gap: 4px; margin: 0 -12px; padding: 0 12px 2px;
+    overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  .nav-item { width: auto; flex: none; gap: 8px; padding: 10px 12px; font-size: 15px; line-height: 20px; }
+  .nav-item svg { width: 20px; height: 20px; }
+  .nav-item span { flex: none; display: inline; }
+
+  .mini { grid-area: mini; justify-self: end; display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; border: none; background: none; }
+  .mini .row { display: flex; gap: 6px; flex: none; }
+  .mini .status { font-size: 13px; }
+  .mini .meter, .mini #queue-left { display: none; }
+  .mini .btn { width: 36px; height: 36px; min-width: 0; padding: 0; flex: none; }
+  .mini .btn span { display: none; }
+
+  main { padding: 16px 12px 48px; gap: 20px; }
+  .panel-head { gap: 12px; }
+  .panel-head > div:first-child { flex-basis: 100%; }
+  .panel-head h1 { font-size: 21px; line-height: 26px; }
+  .toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .toolbar .select { width: 100%; max-width: none; }
+  #q-actions { width: 100%; }
+
+  .now { padding: 16px; }
+  .now-head { gap: 12px; flex-wrap: wrap; }
+  .now-head > .grow { flex-basis: 100%; }
+  .now h2 { font-size: 18px; line-height: 23px; }
+  .now .btn { flex: 1 1 120px; min-width: 0; }
+
+  .stats { grid-template-columns: 1fr; }
+  .stat { padding: 14px 16px; box-shadow: none; border-top: 1px solid var(--border); }
+  .stat:first-child { border-top: none; }
+
+  .batch { padding: 12px; gap: 12px; }
+  .batch-main .row { flex-wrap: wrap; }
+  .batch-main .meter { max-width: none; }
+  .batch-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .batch-account { flex-wrap: wrap; gap: 4px 12px; }
+  .batch-account .tags { flex: 1 1 100%; justify-content: flex-start; }
+
+  /* Queue and Blocked: one card per account. */
+  .table-wrap { border: none; border-radius: 0; overflow: visible; }
+  .table-wrap table, .table-wrap tbody { display: block; }
+  .table-wrap thead { display: none; }
+  .table-wrap tbody tr {
+    display: grid; align-items: start; gap: 4px 12px; margin-bottom: 8px; padding: 12px;
+    background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
+  }
+  .table-wrap td { display: block; padding: 0; border: none; }
+  #q-body tr { grid-template-columns: 24px minmax(0, 1fr) auto; grid-template-areas: "idx acct acct" "idx batch act" "idx tries act"; }
+  #q-body td:nth-child(1) { grid-area: idx; padding-top: 9px; font-size: 13px; }
+  #q-body td:nth-child(2) { grid-area: acct; }
+  #q-body td:nth-child(3) { grid-area: batch; }
+  #q-body td:nth-child(4) { grid-area: tries; }
+  #q-body td:nth-child(5) { grid-area: act; align-self: center; justify-self: end; }
+  #b-body tr { grid-template-columns: 20px minmax(0, 1fr) auto; grid-template-areas: "check acct acct" "check batch act" "check when act"; }
+  #b-body td:nth-child(1) { grid-area: check; padding-top: 9px; }
+  #b-body td:nth-child(2) { grid-area: acct; }
+  #b-body td:nth-child(3) { grid-area: batch; }
+  #b-body td:nth-child(4) { grid-area: when; font-size: 12px; }
+  #b-body td:nth-child(5) { grid-area: act; align-self: center; justify-self: end; }
+  #b-body .row-act .btn { height: 32px; padding: 0 12px; }
+  #b-body tr.selected { border-color: var(--accent); }
+  .table-wrap .row-act .btn { opacity: 1; }
+  .tag.source { max-width: 100%; }
+  #q-body tr.empty, #b-body tr.empty { display: block; padding: 0; }
+  .table-wrap .empty td { display: block; padding: 40px 12px; }
+  .selection-bar { position: static; padding: 6px 10px; gap: 8px; flex-wrap: wrap; }
+
+  .setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; padding: 14px; }
+  .setting > div { grid-column: 1; min-width: 0; max-width: none; }
+  .setting > .switch { grid-column: 2; grid-row: 1; }
+  .setting > .field, .setting > .seg, .setting > .select, .setting > .btn {
+    grid-column: 1 / -1; justify-self: stretch; width: 100%; max-width: none;
+  }
+  .setting > .seg { display: flex; flex-wrap: wrap; border-radius: 12px; }
+  .setting > .seg label { flex: 1 1 auto; }
+  .setting > .seg span { padding: 7px 8px; font-size: 12px; text-align: center; white-space: nowrap; }
+  .settings h2 { margin-top: 16px; }
+
+  .diag > summary { flex-wrap: wrap; padding: 12px 14px; }
+  .log li { grid-template-columns: 56px 8px minmax(0, 1fr); padding: 8px 12px; }
+  .log .dot { width: 6px; height: 6px; }
 }

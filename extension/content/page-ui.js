@@ -825,8 +825,33 @@
       @keyframes glow{from{color:var(--accent)}}
       .fab,.panel .btn-danger{font-variant-numeric:tabular-nums}
       @keyframes spin{to{transform:rotate(360deg)}}
-      @media (max-width:700px){.panel{left:8px;right:8px;transform:none;bottom:72px;border-radius:16px}
-        .panel .sub .count{display:none}@keyframes rise{from{opacity:0}}}
+      @media (max-width:700px){
+        .panel{left:8px;right:8px;transform:none;bottom:calc(72px + env(safe-area-inset-bottom,0px));border-radius:16px}
+        .panel .sub .count{display:none}
+        .panel .top{padding-block:8px 12px;padding-inline:16px 6px;column-gap:12px}
+        .panel .min{width:44px;height:44px}
+        .panel .acts .btn{height:44px}
+        .panel .review-icon{width:44px}
+        .panel .strip{padding-block:10px 12px}
+        .panel .strip .btn{height:32px}
+        .fab{bottom:calc(20px + env(safe-area-inset-bottom,0px));height:44px}
+        @keyframes rise{from{opacity:0}}
+        .backdrop{padding:0}
+        .review{width:100vw;max-width:100vw;height:100vh;height:100dvh;max-height:none;border-radius:0}
+        .review .rh{padding:12px 16px 10px}
+        .review .tabs{max-width:100%;overflow-x:auto}
+        .review .filters{flex-wrap:wrap}
+        .review .bar{padding:8px 16px;flex-wrap:wrap;gap:8px}
+        .review .bar .acts{margin-inline-start:0}
+        .review .limit{padding:10px 16px}
+        .review li{padding:12px 16px;gap:10px}
+        .review .rf{padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));flex-wrap:wrap;gap:8px}
+        .review .rf .eta{flex:1 1 100%;margin-inline-end:0}
+        .review .rf .btn{flex:1 1 auto;height:44px}
+        .dialog{width:100vw;max-width:100vw;height:100%;max-height:100dvh;border-radius:0;padding:24px 20px;justify-content:center}
+        .dialog .btn{height:48px}
+        .toasts{left:8px;right:8px;transform:none;bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+      }
     `
     const wrap = document.createElement('div')
     wrap.className = 'wrap'

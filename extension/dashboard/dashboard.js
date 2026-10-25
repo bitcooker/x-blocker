@@ -566,6 +566,10 @@ function go(name) {
     if (b.dataset.tab === current) b.setAttribute('aria-current', 'page')
     else b.removeAttribute('aria-current')
   }
+  // On a phone the strip scrolls sideways; keep the open section visible.
+  if (matchMedia('(max-width: 760px)').matches) {
+    document.querySelector(`#tabs .nav-item[data-tab="${current}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }
   for (const s of document.querySelectorAll('main .panel')) s.hidden = s.id !== `tab-${current}`
   if (data) refresh().catch((e) => toast(e, { error: true }))
   history.replaceState(null, '', `#${current}`)

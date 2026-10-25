@@ -79,3 +79,7 @@ dialog.modal .actions { display: grid; gap: 12px; }
 
 /* User data (names, batch titles) takes its own direction but keeps the page's alignment. */
 [dir="auto"] { text-align: match-parent; }
+
+@media (max-width: 480px) {
+  dialog.modal { width: calc(100vw - 24px); padding: 24px 20px; }
+}

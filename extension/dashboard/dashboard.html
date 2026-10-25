@@ -31,20 +31,20 @@
         <small id="version" class="version"></small>
       </a>
       <nav id="tabs" data-i18n-attr="aria-label:dash.nav.sections" aria-label="Sections">
-        <button class="nav-item" data-tab="home"><i data-icon="home"></i><span data-i18n="dash.nav.home">Home</span></button>
-        <button class="nav-item" data-tab="import"><i data-icon="import"></i><span data-i18n="dash.nav.import">Import</span></button>
-        <button class="nav-item" data-tab="batches"><i data-icon="layers"></i><span data-i18n="dash.nav.batches">Batches</span></button>
-        <button class="nav-item" data-tab="queue"><i data-icon="queue"></i><span data-i18n="dash.nav.queue">Queue</span><b id="n-waiting" class="badge"></b></button>
-        <button class="nav-item" data-tab="blocked"><i data-icon="block"></i><span data-i18n="dash.nav.blocked">Blocked</span><b id="n-blocked" class="badge"></b></button>
-        <button class="nav-item" data-tab="settings"><i data-icon="settings"></i><span data-i18n="dash.nav.settings">Settings</span></button>
+        <button class="nav-item" data-tab="home" data-i18n-attr="title:dash.nav.home aria-label:dash.nav.home"><i data-icon="home"></i><span data-i18n="dash.nav.home">Home</span></button>
+        <button class="nav-item" data-tab="import" data-i18n-attr="title:dash.nav.import aria-label:dash.nav.import"><i data-icon="import"></i><span data-i18n="dash.nav.import">Import</span></button>
+        <button class="nav-item" data-tab="batches" data-i18n-attr="title:dash.nav.batches aria-label:dash.nav.batches"><i data-icon="layers"></i><span data-i18n="dash.nav.batches">Batches</span></button>
+        <button class="nav-item" data-tab="queue" data-i18n-attr="title:dash.nav.queue aria-label:dash.nav.queue"><i data-icon="queue"></i><span data-i18n="dash.nav.queue">Queue</span><b id="n-waiting" class="badge"></b></button>
+        <button class="nav-item" data-tab="blocked" data-i18n-attr="title:dash.nav.blocked aria-label:dash.nav.blocked"><i data-icon="block"></i><span data-i18n="dash.nav.blocked">Blocked</span><b id="n-blocked" class="badge"></b></button>
+        <button class="nav-item" data-tab="settings" data-i18n-attr="title:dash.nav.settings aria-label:dash.nav.settings"><i data-icon="settings"></i><span data-i18n="dash.nav.settings">Settings</span></button>
       </nav>
 
       <!-- Compact status, so the queue stays in reach from every section. -->
       <section class="mini card" data-i18n-attr="aria-label:dash.mini.label" aria-label="Queue status">
         <div class="row"><span id="status" class="status grow" data-i18n="state.idle">Idle</span><span id="queue-left" class="muted small"></span></div>
         <div class="meter"><span id="mini-bar"></span></div>
-        <button id="start" class="btn btn-sm btn-block"><i data-icon="play"></i><span data-i18n="dash.start">Start</span></button>
-        <button id="pause" class="btn btn-sm btn-block" hidden><i data-icon="pause"></i><span data-i18n="dash.pause">Pause</span></button>
+        <button id="start" class="btn btn-sm btn-block" data-i18n-attr="aria-label:dash.start title:dash.start"><i data-icon="play"></i><span data-i18n="dash.start">Start</span></button>
+        <button id="pause" class="btn btn-sm btn-block" hidden data-i18n-attr="aria-label:dash.pause title:dash.pause"><i data-icon="pause"></i><span data-i18n="dash.pause">Pause</span></button>
       </section>
     </aside>
 
