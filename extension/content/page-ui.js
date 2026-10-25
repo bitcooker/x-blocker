@@ -826,10 +826,19 @@
       .fab,.panel .btn-danger{font-variant-numeric:tabular-nums}
       @keyframes spin{to{transform:rotate(360deg)}}
       @media (max-width:700px){
-        .panel{left:8px;right:8px;transform:none;bottom:calc(72px + env(safe-area-inset-bottom,0px));border-radius:16px}
+        .panel{left:8px;right:8px;transform:none;max-width:none;bottom:calc(72px + env(safe-area-inset-bottom,0px));border-radius:16px}
         .panel .sub .count{display:none}
-        .panel .top{padding-block:8px 12px;padding-inline:16px 6px;column-gap:12px}
-        .panel .min{width:44px;height:44px}
+        /* Brand and minimize, then the title across the full width, then the
+           status, then the buttons. The title gets the whole panel, so the name
+           of the list isn't squeezed next to the buttons, and the buttons can't
+           squeeze the brand either. */
+        .panel .top{grid-template-areas:"brand min" "title title" "sub sub" "act act";
+          padding-block:8px 12px;padding-inline:16px 12px;column-gap:12px;row-gap:4px}
+        .panel .min{width:36px;height:36px}
+        .panel .title{max-width:none;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+        .panel .sub{margin-top:0}
+        .panel .sub:not(:has(.state:not([hidden]))){display:none}
+        .panel .top > .acts{justify-self:end;margin-inline-end:0}
         .panel .acts .btn{height:44px}
         .panel .review-icon{width:44px}
         .panel .strip{padding-block:10px 12px}
