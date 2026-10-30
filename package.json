@@ -14,7 +14,7 @@
     "package": "node scripts/build.mjs && web-ext build --source-dir dist/firefox --artifacts-dir dist --filename x-blocker-firefox-{version}.zip --overwrite-dest && web-ext build --source-dir dist/chrome --artifacts-dir dist --filename x-blocker-chrome-{version}.zip --overwrite-dest"
   },
   "devDependencies": {
-    "linkedom": "^0.18.13",
+    "linkedom": "^0.18.14",
     "web-ext": "^10.8.0"
   },
   "homepage": "https://github.com/bitcooker/x-blocker",
